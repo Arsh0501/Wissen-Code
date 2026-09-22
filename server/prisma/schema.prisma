@@ -1,0 +1,105 @@
+// Wissen-Code Prisma Schema
+// Using SQLite for prototype — swap to PostgreSQL by changing provider + DATABASE_URL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Question {
+  id           Int       @id @default(autoincrement())
+  title        String
+  statement    String    // Markdown text for problem statement
+  difficulty   String    // "easy" | "medium" | "hard"
+  tags         String    @default("[]") // JSON array stored as string (SQLite compat)
+  timeLimit    Float     @default(2) // CPU time limit in seconds
+  memoryLimit  Int       @default(256000) // Memory limit in KB
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  starterCodes StarterCode[]
+  testCases    TestCase[]
+  assessments  AssessmentQuestion[]
+  submissions  Submission[]
+}
+
+model StarterCode {
+  id           Int      @id @default(autoincrement())
+  questionId   Int
+  languageId   Int      // Judge0 language ID (71=Python, 62=Java, 54=C++, 63=JS)
+  languageName String   // Display name: "Python", "Java", "C++", "JavaScript"
+  code         String   // The starter code template
+
+  question     Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, languageId])
+}
+
+model TestCase {
+  id             Int      @id @default(autoincrement())
+  questionId     Int
+  input          String   // stdin input
+  expectedOutput String   // Expected stdout output
+  isSample       Boolean  @default(false) // true = visible to candidate, false = hidden
+
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  results        TestCaseResult[]
+}
+
+model Assessment {
+  id               Int       @id @default(autoincrement())
+  name             String
+  timeLimitMinutes Int       @default(60)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  questions        AssessmentQuestion[]
+  submissions      Submission[]
+}
+
+model AssessmentQuestion {
+  id           Int        @id @default(autoincrement())
+  assessmentId Int
+  questionId   Int
+  orderIndex   Int        @default(0)
+
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  question     Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, questionId])
+}
+
+model Submission {
+  id            Int       @id @default(autoincrement())
+  assessmentId  Int
+  questionId    Int
+  candidateName String
+  languageId    Int
+  languageName  String
+  code          String
+  status        String    @default("submitted") // "submitted" | "grading" | "graded"
+  score         Float     @default(0) // Percentage of test cases passed
+  createdAt     DateTime  @default(now())
+
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  question      Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  testCaseResults TestCaseResult[]
+}
+
+model TestCaseResult {
+  id           Int      @id @default(autoincrement())
+  submissionId Int
+  testCaseId   Int
+  passed       Boolean  @default(false)
+  actualOutput String   @default("")
+  statusDesc   String   @default("") // e.g. "Accepted", "Wrong Answer", "TLE", "Runtime Error"
+  executionTime Float?  // seconds
+  memoryUsed   Int?     // KB
+
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  testCase     TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+}

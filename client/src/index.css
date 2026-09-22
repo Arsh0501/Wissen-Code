@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Custom Base Styles ── */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-surface-950 text-surface-100 min-h-screen;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-500;
+  }
+}
+
+/* ── Component Classes ── */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-sm
+           transition-all duration-200 ease-out cursor-pointer
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 text-white hover:bg-primary-500
+           shadow-lg shadow-primary-600/25 hover:shadow-primary-500/30;
+  }
+
+  .btn-success {
+    @apply btn bg-emerald-600 text-white hover:bg-emerald-500
+           shadow-lg shadow-emerald-600/25;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-500;
+  }
+
+  .btn-outline {
+    @apply btn border border-surface-600 text-surface-300 hover:border-surface-400
+           hover:text-white hover:bg-surface-800;
+  }
+
+  .btn-ghost {
+    @apply btn text-surface-400 hover:text-white hover:bg-surface-800;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 rounded-lg bg-surface-800 border border-surface-700
+           text-surface-100 placeholder-surface-500
+           focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500
+           transition-all duration-200;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-surface-300 mb-1.5;
+  }
+
+  .card {
+    @apply bg-surface-900 border border-surface-800 rounded-xl p-6;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-easy {
+    @apply badge bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25;
+  }
+
+  .badge-medium {
+    @apply badge bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25;
+  }
+
+  .badge-hard {
+    @apply badge bg-red-500/15 text-red-400 ring-1 ring-red-500/25;
+  }
+
+  /* Exam-specific styles */
+  .question-pill {
+    @apply relative w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium
+           cursor-pointer transition-all duration-200 border;
+  }
+
+  .question-pill-default {
+    @apply question-pill border-surface-700 bg-surface-800 text-surface-400
+           hover:border-surface-500 hover:text-white;
+  }
+
+  .question-pill-active {
+    @apply question-pill border-primary-500 bg-primary-600/20 text-primary-300;
+  }
+
+  .question-pill-answered {
+    @apply question-pill border-emerald-500/50 bg-emerald-500/10 text-emerald-400;
+  }
+
+  .question-pill-flagged {
+    @apply question-pill border-amber-500/50 bg-amber-500/10 text-amber-400;
+  }
+
+  .sample-box {
+    @apply bg-surface-800 border border-surface-700 rounded-lg p-3 font-mono text-sm
+           text-surface-200 whitespace-pre-wrap overflow-x-auto;
+  }
+
+  .output-panel {
+    @apply bg-surface-950 border border-surface-800 rounded-lg p-3 font-mono text-sm
+           min-h-[100px] max-h-[200px] overflow-auto whitespace-pre-wrap;
+  }
+
+  .tab-active {
+    @apply text-primary-400 border-b-2 border-primary-400;
+  }
+
+  .tab-inactive {
+    @apply text-surface-500 hover:text-surface-300 border-b-2 border-transparent;
+  }
+}
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
