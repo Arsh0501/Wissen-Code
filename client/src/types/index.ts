@@ -93,6 +93,29 @@ export interface RunCodeResponse {
   isError: boolean;
 }
 
+export interface TestCaseVerdict {
+  testCaseIndex: number;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  passed: boolean;
+  statusId: number;
+  statusDescription: string;
+  stderr: string;
+  compileOutput: string;
+  message: string;
+  executionTime: string | null;
+  memoryUsed: number | null;
+}
+
+export interface RunTestsResponse {
+  verdicts: TestCaseVerdict[];
+  totalTestCases: number;
+  passedCount: number;
+  allPassed: boolean;
+  message?: string;
+}
+
 export interface SubmissionResult {
   assessmentId: number;
   candidateName: string;
@@ -122,4 +145,6 @@ export interface QuestionState {
   output: string;
   isError: boolean;
   customInput: string;
+  runMode: 'none' | 'custom' | 'testcases';
+  testVerdicts: TestCaseVerdict[];
 }

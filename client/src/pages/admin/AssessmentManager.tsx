@@ -6,7 +6,7 @@ import {
 } from '../../services/api';
 import type { Assessment, Question } from '../../types';
 import {
-  ArrowLeft, Plus, Trash2, Code2, Clock, Save, X, CheckSquare
+  ArrowLeft, Plus, Trash2, Code2, Clock, Save, X, CheckSquare, Users
 } from 'lucide-react';
 
 export default function AssessmentManager() {
@@ -221,6 +221,14 @@ export default function AssessmentManager() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Link
+                    to={`/admin/submissions/${a.id}`}
+                    className="btn-outline text-sm"
+                    id={`view-submissions-${a.id}`}
+                  >
+                    <Users className="w-4 h-4" />
+                    Submissions
+                  </Link>
                   <button onClick={() => openEditForm(a)} className="btn-outline text-sm">
                     Edit
                   </button>

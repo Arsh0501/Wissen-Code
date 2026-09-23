@@ -17,6 +17,15 @@ router.post('/', async (req: Request, res: Response) => {
     const results = [];
 
     for (const answer of answers) {
+      // Remove any prior submission for this question to prevent duplicates
+      await prisma.submission.deleteMany({
+        where: {
+          assessmentId,
+          candidateName,
+          questionId: answer.questionId,
+        },
+      });
+
       // Create submission record
       const submission = await prisma.submission.create({
         data: {
@@ -143,19 +152,35 @@ router.get('/:assessmentId/:candidateName', async (req: Request, res: Response) 
           },
         },
       },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (submissions.length === 0) {
       return res.status(404).json({ error: 'No submissions found' });
     }
 
+    // Deduplicate: keep only the latest submission per questionId
+    const latestByQuestion = new Map<number, typeof submissions[0]>();
+    for (const sub of submissions) {
+      if (!latestByQuestion.has(sub.questionId)) {
+        latestByQuestion.set(sub.questionId, sub);
+      }
+    }
+
+    const deduplicatedSubmissions = Array.from(latestByQuestion.values()).sort(
+      (a, b) => a.questionId - b.questionId
+    );
+
     const overallScore =
-      submissions.reduce((acc, s) => acc + s.score, 0) / submissions.length;
+      deduplicatedSubmissions.length > 0
+        ? deduplicatedSubmissions.reduce((acc, s) => acc + s.score, 0) /
+          deduplicatedSubmissions.length
+        : 0;
 
     res.json({
       assessmentId,
       candidateName,
-      submissions,
+      submissions: deduplicatedSubmissions,
       overallScore,
     });
   } catch (error) {

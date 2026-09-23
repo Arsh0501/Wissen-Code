@@ -156,7 +156,7 @@ You can return the answer in any order.
   // ── Assessment ──
   const assessment = await prisma.assessment.create({
     data: {
-      name: 'TCS Assessment 2021',
+      name: 'Assessment 2021',
       timeLimitMinutes: 60,
       questions: {
         create: [
@@ -167,9 +167,9 @@ You can return the answer in any order.
       },
     },
   });
-  console.log(`\n📋 Created assessment: ${assessment.name} (${3} questions, ${assessment.timeLimitMinutes} min)\n`);
+  console.log(`\n Created assessment: ${assessment.name} (${3} questions, ${assessment.timeLimitMinutes} min)\n`);
 
-  console.log('✨ Seed complete! You can now start the server and explore the platform.');
+  console.log('Seed complete! You can now start the server and explore the platform.');
 }
 
 main()

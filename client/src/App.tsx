@@ -5,6 +5,8 @@ import LoginPage from './pages/LoginPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import QuestionForm from './pages/admin/QuestionForm';
 import AssessmentManager from './pages/admin/AssessmentManager';
+import SubmissionsViewer from './pages/admin/SubmissionsViewer';
+import CandidateReport from './pages/admin/CandidateReport';
 import ExamDashboard from './pages/examinee/ExamDashboard';
 import AssessmentView from './pages/examinee/AssessmentView';
 import SubmissionResult from './pages/examinee/SubmissionResult';
@@ -27,6 +29,8 @@ function AppRoutes() {
       <Route path="/admin/questions/new" element={<QuestionForm />} />
       <Route path="/admin/questions/:id/edit" element={<QuestionForm />} />
       <Route path="/admin/assessments" element={<AssessmentManager />} />
+      <Route path="/admin/submissions/:assessmentId" element={<SubmissionsViewer />} />
+      <Route path="/admin/reports/:candidateName/:assessmentId" element={<CandidateReport />} />
 
       {/* Examinee Routes */}
       <Route path="/exam" element={<ExamDashboard />} />
