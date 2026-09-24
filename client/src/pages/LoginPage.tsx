@@ -29,7 +29,7 @@ export default function LoginPage() {
               <Code2 className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Wissen Code</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">WissenCode</h1>
               <p className="text-xs text-surface-500 uppercase tracking-widest">Assessment Platform</p>
             </div>
           </div>
@@ -80,7 +80,7 @@ export default function LoginPage() {
                   }`}
                 >
                   <UserCheck className="w-8 h-8" />
-                  <span className="text-sm font-medium">Examinee</span>
+                  <span className="text-sm font-medium">Candidate</span>
                   <span className="text-xs text-surface-500">Take assessment</span>
                 </button>
               </div>
@@ -92,7 +92,7 @@ export default function LoginPage() {
               disabled={!name.trim()}
               className="btn-primary w-full py-3 text-base"
             >
-              Continue as {selectedRole === 'admin' ? 'Admin' : 'Examinee'}
+              Continue as {selectedRole === 'admin' ? 'Admin' : 'Candidate'}
             </button>
           </form>
         </div>

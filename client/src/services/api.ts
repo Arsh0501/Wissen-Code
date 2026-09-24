@@ -3,6 +3,7 @@ import type {
   Question,
   Assessment,
   RunCodeResponse,
+  RunTestsResponse,
   SubmissionResult,
   Language,
 } from '../types';
@@ -50,6 +51,15 @@ export async function updateQuestion(id: number, question: Partial<Question>): P
 
 export async function deleteQuestion(id: number): Promise<void> {
   await api.delete(`/questions/${id}`);
+}
+
+export async function importQuestionFromMd(markdownContent: string): Promise<any> {
+  const { data } = await api.post('/admin/questions/import-md', { markdownContent });
+  return data;
+}
+
+export function getExportMdUrl(id: number): string {
+  return `/api/admin/questions/${id}/export-md`;
 }
 
 // ---- Test Cases ----
@@ -125,6 +135,15 @@ export async function runCode(params: {
   return data;
 }
 
+export async function runTests(params: {
+  sourceCode: string;
+  languageId: number;
+  questionId: number;
+}): Promise<RunTestsResponse> {
+  const { data } = await api.post('/judge/run-tests', params);
+  return data;
+}
+
 export async function getLanguages(): Promise<Language[]> {
   const { data } = await api.get('/judge/languages');
   return data;
@@ -154,4 +173,108 @@ export async function getSubmissionResults(
   return data;
 }
 
+// ---- Sessions (Timer + Autosave) ----
+
+export interface SessionResponse {
+  sessionId: number;
+  startedAt: string;
+  finishedAt: string | null;
+  timeLimitMinutes: number;
+  remainingSeconds: number;
+  isFinished: boolean;
+  drafts: {
+    id: number;
+    sessionId: number;
+    questionId: number;
+    languageId: number;
+    languageName: string;
+    code: string;
+    isFlagged: boolean;
+    isAnswered: boolean;
+  }[];
+}
+
+export async function startSession(assessmentId: number): Promise<SessionResponse> {
+  const { data } = await api.post('/sessions/start', { assessmentId });
+  return data;
+}
+
+export async function getSession(sessionId: number): Promise<SessionResponse> {
+  const { data } = await api.get(`/sessions/${sessionId}`);
+  return data;
+}
+
+export async function saveDraft(
+  sessionId: number,
+  draft: {
+    questionId: number;
+    languageId: number;
+    languageName: string;
+    code: string;
+    isFlagged?: boolean;
+    isAnswered?: boolean;
+  }
+): Promise<void> {
+  await api.post(`/sessions/${sessionId}/save-draft`, draft);
+}
+
+export async function saveAllDrafts(
+  sessionId: number,
+  drafts: {
+    questionId: number;
+    languageId: number;
+    languageName: string;
+    code: string;
+    isFlagged?: boolean;
+    isAnswered?: boolean;
+  }[]
+): Promise<void> {
+  await api.post(`/sessions/${sessionId}/save-all-drafts`, { drafts });
+}
+
+export async function finishSession(sessionId: number): Promise<any> {
+  const { data } = await api.post(`/sessions/${sessionId}/finish`);
+  return data;
+}
+
+// ---- Admin Reports ----
+
+export interface CandidateSubmissionSummary {
+  name: string;
+  submittedAt: string;
+  totalQuestions: number;
+  overallScore: number;
+  session: { finishedAt: string | null; startedAt: string } | null;
+}
+
+export interface AssessmentSubmissionsResponse {
+  assessment: { id: number; name: string; timeLimitMinutes: number };
+  candidates: CandidateSubmissionSummary[];
+}
+
+export async function getAssessmentSubmissions(
+  assessmentId: number
+): Promise<AssessmentSubmissionsResponse> {
+  const { data } = await api.get(`/admin/reports/submissions/${assessmentId}`);
+  return data;
+}
+
+export async function getReportData(
+  candidateName: string,
+  assessmentId: number
+): Promise<any> {
+  const { data } = await api.get(
+    `/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/data`
+  );
+  return data;
+}
+
+export function getReportDownloadUrl(
+  candidateName: string,
+  assessmentId: number
+): string {
+  return `/api/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/download`;
+}
+
 export default api;
+

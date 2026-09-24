@@ -59,6 +59,7 @@ model Assessment {
 
   questions        AssessmentQuestion[]
   submissions      Submission[]
+  sessions         AssessmentSession[]
 }
 
 model AssessmentQuestion {
@@ -102,4 +103,33 @@ model TestCaseResult {
 
   submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
   testCase     TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+}
+
+model AssessmentSession {
+  id              Int       @id @default(autoincrement())
+  assessmentId    Int
+  candidateName   String
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime? // null = in progress, set on final submit
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  drafts          DraftAnswer[]
+
+  @@unique([assessmentId, candidateName])
+}
+
+model DraftAnswer {
+  id              Int       @id @default(autoincrement())
+  sessionId       Int
+  questionId      Int
+  languageId      Int
+  languageName    String
+  code            String
+  isFlagged       Boolean   @default(false)
+  isAnswered      Boolean   @default(false)
+  updatedAt       DateTime  @updatedAt
+
+  session         AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
 }

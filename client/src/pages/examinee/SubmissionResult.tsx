@@ -31,6 +31,22 @@ export default function SubmissionResult() {
     }
   }
 
+  const uniqueSubmissions = React.useMemo(() => {
+    if (!result?.submissions) return [];
+    const map = new Map<number, typeof result.submissions[0]>();
+    for (const sub of result.submissions) {
+      if (!map.has(sub.questionId)) {
+        map.set(sub.questionId, sub);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.questionId - b.questionId);
+  }, [result?.submissions]);
+
+  const displayOverallScore = React.useMemo(() => {
+    if (!uniqueSubmissions.length) return 0;
+    return uniqueSubmissions.reduce((acc, s) => acc + s.score, 0) / uniqueSubmissions.length;
+  }, [uniqueSubmissions]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-surface-950 flex items-center justify-center">
@@ -51,7 +67,7 @@ export default function SubmissionResult() {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
               <Code2 className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-white">Wissen Code</span>
+            <span className="text-lg font-bold text-white">WissenCode</span>
           </div>
           <button onClick={() => navigate('/exam')} className="btn-outline text-sm">
             <ArrowLeft className="w-4 h-4" /> Back to Dashboard
@@ -92,10 +108,10 @@ export default function SubmissionResult() {
                 <BarChart3 className="w-5 h-5 text-primary-400" />
                 <span className="text-surface-400">Overall Score:</span>
                 <span className={`text-2xl font-bold ${
-                  result.overallScore >= 70 ? 'text-emerald-400' :
-                  result.overallScore >= 40 ? 'text-amber-400' : 'text-red-400'
+                  displayOverallScore >= 70 ? 'text-emerald-400' :
+                  displayOverallScore >= 40 ? 'text-amber-400' : 'text-red-400'
                 }`}>
-                  {result.overallScore.toFixed(1)}%
+                  {displayOverallScore.toFixed(1)}%
                 </span>
               </div>
             </div>
@@ -106,7 +122,7 @@ export default function SubmissionResult() {
                 <BarChart3 className="w-5 h-5 text-primary-400" />
                 Question-wise Results
               </h3>
-              {result.submissions.map((sub, idx) => (
+              {uniqueSubmissions.map((sub, idx) => (
                 <div key={sub.id} className="card p-4">
                   <div className="flex items-center justify-between">
                     <div>

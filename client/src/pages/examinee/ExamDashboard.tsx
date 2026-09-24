@@ -38,7 +38,7 @@ export default function ExamDashboard() {
               <Code2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Wissen Code</h1>
+              <h1 className="text-lg font-bold text-white">WissenCode</h1>
               <p className="text-xs text-surface-500">Assessment Portal</p>
             </div>
           </div>
