@@ -7,6 +7,7 @@ import judgeRoutes from './routes/judge';
 import submissionRoutes from './routes/submissions';
 import sessionRoutes from './routes/sessions';
 import adminReportRoutes from './routes/admin-reports';
+import adminQuestionRoutes from './routes/admin-questions';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/judge', judgeRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/admin/reports', adminReportRoutes);
+app.use('/api/admin/questions', adminQuestionRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

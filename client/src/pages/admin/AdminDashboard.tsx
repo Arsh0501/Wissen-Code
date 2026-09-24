@@ -5,8 +5,9 @@ import { getQuestions, deleteQuestion } from '../../services/api';
 import type { Question } from '../../types';
 import {
   Plus, Edit, Trash2, Code2, LogOut, FileText,
-  ClipboardList, Search
+  ClipboardList, Search, ChevronDown, Upload
 } from 'lucide-react';
+import { importQuestionFromMd } from '../../services/api';
 
 export default function AdminDashboard() {
   const { candidateName, logout } = useAuth();
@@ -14,6 +15,9 @@ export default function AdminDashboard() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showNewDropdown, setShowNewDropdown] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadQuestions();
@@ -55,6 +59,41 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.md')) {
+      alert('Please select a Markdown (.md) file');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File is too large. Maximum size is 2MB.');
+      return;
+    }
+
+    setImporting(true);
+    setShowNewDropdown(false);
+    
+    try {
+      const text = await file.text();
+      const data = await importQuestionFromMd(text);
+      if (data.warnings && data.warnings.length > 0) {
+        alert('Import warnings:\\n' + data.warnings.join('\\n'));
+      }
+      navigate('/admin/questions/new', { state: { prefill: data } });
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to import MD file';
+      alert('Import failed: ' + errorMsg);
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-surface-950">
       {/* Header */}
@@ -65,7 +104,7 @@ export default function AdminDashboard() {
               <Code2 className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Wissen Code</h1>
+              <h1 className="text-lg font-bold text-white">WissenCode</h1>
               <p className="text-xs text-surface-500">Admin Panel</p>
             </div>
           </div>
@@ -89,10 +128,56 @@ export default function AdminDashboard() {
             <h2 className="text-2xl font-bold text-white">Question Bank</h2>
             <p className="text-surface-400 text-sm mt-1">{questions.length} questions created</p>
           </div>
-          <Link to="/admin/questions/new" className="btn-primary">
-            <Plus className="w-4 h-4" />
-            New Question
-          </Link>
+          <div className="relative">
+            <button
+              onClick={() => setShowNewDropdown(!showNewDropdown)}
+              disabled={importing}
+              className="btn-primary"
+            >
+              <Plus className="w-4 h-4" />
+              {importing ? 'Importing...' : 'New Question'}
+              <ChevronDown className="w-4 h-4 ml-1" />
+            </button>
+
+            {showNewDropdown && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setShowNewDropdown(false)} 
+                />
+                <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-surface-800 ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
+                  <div className="py-1">
+                    <Link
+                      to="/admin/questions/new"
+                      className="block px-4 py-2 text-sm text-surface-200 hover:bg-surface-700"
+                    >
+                      Manual
+                    </Link>
+                    <button
+                      className="w-full text-left px-4 py-2 text-sm text-surface-200 hover:bg-surface-700 opacity-50 cursor-not-allowed"
+                      title="URL import exists in another branch"
+                    >
+                      Import from link
+                    </button>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full text-left px-4 py-2 text-sm text-surface-200 hover:bg-surface-700 flex items-center justify-between"
+                    >
+                      <span>Import from MD file</span>
+                      <Upload className="w-3 h-3 text-surface-400" />
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept=".md,text/markdown"
+                      onChange={handleFileUpload}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Search */}

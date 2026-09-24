@@ -67,7 +67,7 @@ export default function SubmissionResult() {
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
               <Code2 className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-white">Wissen Code</span>
+            <span className="text-lg font-bold text-white">WissenCode</span>
           </div>
           <button onClick={() => navigate('/exam')} className="btn-outline text-sm">
             <ArrowLeft className="w-4 h-4" /> Back to Dashboard

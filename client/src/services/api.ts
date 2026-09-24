@@ -53,6 +53,15 @@ export async function deleteQuestion(id: number): Promise<void> {
   await api.delete(`/questions/${id}`);
 }
 
+export async function importQuestionFromMd(markdownContent: string): Promise<any> {
+  const { data } = await api.post('/admin/questions/import-md', { markdownContent });
+  return data;
+}
+
+export function getExportMdUrl(id: number): string {
+  return `/api/admin/questions/${id}/export-md`;
+}
+
 // ---- Test Cases ----
 
 export async function addTestCases(

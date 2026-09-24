@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import {
   getQuestion, createQuestion, updateQuestion,
-  addTestCases, deleteTestCase, saveStarterCode
+  addTestCases, deleteTestCase, saveStarterCode,
+  getExportMdUrl
 } from '../../services/api';
 import type { TestCase, StarterCode } from '../../types';
 import {
   ArrowLeft, Save, Plus, Trash2, Code2, FlaskConical,
-  Eye, EyeOff
+  Eye, EyeOff, Download
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -21,6 +22,7 @@ const LANGUAGES = [
 export default function QuestionForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isEdit = Boolean(id);
 
   const [title, setTitle] = useState('');
@@ -43,8 +45,43 @@ export default function QuestionForm() {
   useEffect(() => {
     if (isEdit && id) {
       loadQuestion(parseInt(id));
+    } else if (location.state?.prefill) {
+      loadPrefill(location.state.prefill);
     }
-  }, [id]);
+  }, [id, location.state]);
+
+  function loadPrefill(prefill: any) {
+    if (prefill.title) setTitle(prefill.title);
+    if (prefill.statement) setStatement(prefill.statement);
+    if (prefill.difficulty) setDifficulty(prefill.difficulty);
+    if (prefill.tags) setTagsInput(prefill.tags.join(', '));
+    if (prefill.timeLimit) setTimeLimit(prefill.timeLimit);
+    if (prefill.memoryLimit) setMemoryLimit(prefill.memoryLimit);
+    
+    const newTestCases: (TestCase & { isNew?: boolean })[] = [];
+    if (prefill.sample_testcases) {
+      prefill.sample_testcases.forEach((tc: any, i: number) => {
+        newTestCases.push({ id: Date.now() + i, questionId: 0, input: tc.input, expectedOutput: tc.expectedOutput, isSample: true, isNew: true });
+      });
+    }
+    if (prefill.hidden_testcases) {
+      prefill.hidden_testcases.forEach((tc: any, i: number) => {
+        newTestCases.push({ id: Date.now() + 1000 + i, questionId: 0, input: tc.input, expectedOutput: tc.expectedOutput, isSample: false, isNew: true });
+      });
+    }
+    setTestCases(newTestCases);
+
+    if (prefill.starter_code) {
+      const codes: Record<number, string> = {};
+      prefill.starter_code.forEach((sc: any) => {
+        codes[sc.languageId] = sc.code;
+      });
+      setStarterCodes(codes);
+    }
+    
+    // Clear location state so refresh doesn't trigger it again
+    window.history.replaceState({}, document.title);
+  }
 
   async function loadQuestion(qId: number) {
     try {
@@ -177,10 +214,22 @@ export default function QuestionForm() {
               </h1>
             </div>
           </div>
-          <button onClick={handleSave} disabled={saving} className="btn-primary">
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Question'}
-          </button>
+          <div className="flex items-center gap-3">
+            {isEdit && id && (
+              <a 
+                href={getExportMdUrl(parseInt(id))}
+                className="btn-outline"
+                download
+              >
+                <Download className="w-4 h-4" />
+                Export as MD
+              </a>
+            )}
+            <button onClick={handleSave} disabled={saving} className="btn-primary">
+              <Save className="w-4 h-4" />
+              {saving ? 'Saving...' : 'Save Question'}
+            </button>
+          </div>
         </div>
       </header>
 

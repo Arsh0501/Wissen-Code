@@ -996,7 +996,7 @@ export default function AssessmentView() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
             <Code2 className="w-4 h-4 text-white" />
           </div>
-          <span className="text-sm font-bold text-white tracking-tight">Wissen Code</span>
+          <span className="text-sm font-bold text-white tracking-tight">WissenCode</span>
         </div>
 
         <div className="flex-1 text-center">
