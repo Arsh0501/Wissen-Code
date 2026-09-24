@@ -1,15 +1,23 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
+import { adminOnly } from '../middleware/adminOnly';
 
 const router = Router();
 
-// GET /api/questions — List all questions
-router.get('/', async (_req: Request, res: Response) => {
+// GET /api/questions — List questions. Optional filters: ?search=&difficulty=&tag=
+router.get('/', async (req: Request, res: Response) => {
   try {
+    const { search, difficulty, tag } = req.query as Record<string, string | undefined>;
     const questions = await prisma.question.findMany({
+      where: {
+        ...(difficulty ? { difficulty } : {}),
+        ...(search ? { title: { contains: search } } : {}),
+        // Tags are a JSON string array, so match the quoted tag
+        ...(tag ? { tags: { contains: JSON.stringify(tag) } } : {}),
+      },
       include: {
         _count: {
-          select: { testCases: true, starterCodes: true },
+          select: { testCases: true, starterCodes: true, assessments: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -28,7 +36,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       where: { id: parseInt(req.params.id) },
       include: {
         starterCodes: true,
-        testCases: true,
+        // Hidden test cases are only visible to admins
+        testCases: (req as any).role === 'admin' ? true : { where: { isSample: true } },
       },
     });
     if (!question) {
@@ -42,7 +51,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/questions — Create a new question
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', adminOnly, async (req: Request, res: Response) => {
   try {
     const { title, statement, difficulty, tags, timeLimit, memoryLimit, starterCodes, testCases } =
       req.body;
@@ -88,7 +97,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/questions/:id — Update a question
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', adminOnly, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const { title, statement, difficulty, tags, timeLimit, memoryLimit } = req.body;
@@ -117,7 +126,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/questions/:id — Delete a question
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', adminOnly, async (req: Request, res: Response) => {
   try {
     await prisma.question.delete({
       where: { id: parseInt(req.params.id) },
@@ -132,7 +141,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // ---- Test Cases ----
 
 // POST /api/questions/:id/testcases — Add test cases
-router.post('/:id/testcases', async (req: Request, res: Response) => {
+router.post('/:id/testcases', adminOnly, async (req: Request, res: Response) => {
   try {
     const questionId = parseInt(req.params.id);
     const { testCases } = req.body; // Array of { input, expectedOutput, isSample }
@@ -166,7 +175,7 @@ router.post('/:id/testcases', async (req: Request, res: Response) => {
 });
 
 // PUT /api/questions/testcases/:tcId — Update a test case
-router.put('/testcases/:tcId', async (req: Request, res: Response) => {
+router.put('/testcases/:tcId', adminOnly, async (req: Request, res: Response) => {
   try {
     const tc = await prisma.testCase.update({
       where: { id: parseInt(req.params.tcId) },
@@ -184,7 +193,7 @@ router.put('/testcases/:tcId', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/questions/testcases/:tcId — Delete a test case
-router.delete('/testcases/:tcId', async (req: Request, res: Response) => {
+router.delete('/testcases/:tcId', adminOnly, async (req: Request, res: Response) => {
   try {
     await prisma.testCase.delete({
       where: { id: parseInt(req.params.tcId) },
@@ -199,7 +208,7 @@ router.delete('/testcases/:tcId', async (req: Request, res: Response) => {
 // ---- Starter Codes ----
 
 // POST /api/questions/:id/starter-code — Add/update starter code
-router.post('/:id/starter-code', async (req: Request, res: Response) => {
+router.post('/:id/starter-code', adminOnly, async (req: Request, res: Response) => {
   try {
     const questionId = parseInt(req.params.id);
     const { languageId, languageName, code } = req.body;

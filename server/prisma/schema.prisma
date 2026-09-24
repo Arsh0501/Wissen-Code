@@ -53,7 +53,16 @@ model TestCase {
 model Assessment {
   id               Int       @id @default(autoincrement())
   name             String
+  description      String    @default("")
+  instructions     String    @default("") // Markdown shown on the pre-test screen
   timeLimitMinutes Int       @default(60)
+  passingScore     Int       @default(60) // Percentage of total marks needed to pass
+  status           String    @default("published") // "draft" | "published" | "archived"
+  startAt          DateTime? // Candidates can start only after this (null = anytime)
+  endAt            DateTime? // Candidates can start only before this (null = no deadline)
+  shuffleQuestions Boolean   @default(false)
+  allowedLanguages String    @default("[]") // JSON array of Judge0 language IDs; empty = all
+  showResults      Boolean   @default(true) // Show score breakdown to the candidate after submit
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -67,6 +76,7 @@ model AssessmentQuestion {
   assessmentId Int
   questionId   Int
   orderIndex   Int        @default(0)
+  marks        Int        @default(10)
 
   assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   question     Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)

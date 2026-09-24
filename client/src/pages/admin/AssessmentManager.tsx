@@ -1,25 +1,38 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import AdminLayout from '../../components/AdminLayout';
 import {
-  getAssessments, getQuestions, createAssessment,
-  deleteAssessment, updateAssessment
+  AvailabilityBadge, Spinner, EmptyState, formatDate, formatPercent, scoreTextClass, parseJsonArray,
+} from '../../components/ui';
+import {
+  getAssessments, deleteAssessment, updateAssessment, duplicateAssessment, apiError,
 } from '../../services/api';
-import type { Assessment, Question } from '../../types';
+import type { Assessment, Availability, AssessmentStatus } from '../../types';
 import {
-  ArrowLeft, Plus, Trash2, Code2, Clock, Save, X, CheckSquare, Users
+  Plus, Trash2, Clock, Users, Search, Copy, Edit, Rocket, EyeOff, Archive, CheckSquare,
+  Target, Calendar, Shuffle, Code2, MoreHorizontal,
 } from 'lucide-react';
 
-export default function AssessmentManager() {
-  const [assessments, setAssessments] = useState<Assessment[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
+const FILTERS: { key: 'all' | Availability; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'open', label: 'Live' },
+  { key: 'upcoming', label: 'Scheduled' },
+  { key: 'draft', label: 'Drafts' },
+  { key: 'closed', label: 'Closed' },
+  { key: 'archived', label: 'Archived' },
+];
 
-  // Form state
-  const [name, setName] = useState('');
-  const [timeLimitMinutes, setTimeLimitMinutes] = useState(60);
-  const [selectedQuestionIds, setSelectedQuestionIds] = useState<number[]>([]);
+const LANGUAGE_NAMES: Record<number, string> = { 71: 'Python', 62: 'Java', 54: 'C++', 63: 'JavaScript' };
+
+export default function AssessmentManager() {
+  const navigate = useNavigate();
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filter, setFilter] = useState<'all' | Availability>('all');
+  const [search, setSearch] = useState('');
+  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -28,222 +41,202 @@ export default function AssessmentManager() {
   async function loadData() {
     try {
       setLoading(true);
-      const [a, q] = await Promise.all([getAssessments(), getQuestions()]);
-      setAssessments(a);
-      setQuestions(q);
+      setAssessments(await getAssessments());
     } catch (err) {
-      console.error('Failed to load data:', err);
+      setError(apiError(err, 'Failed to load assessments'));
     } finally {
       setLoading(false);
     }
   }
 
-  function openCreateForm() {
-    setEditId(null);
-    setName('');
-    setTimeLimitMinutes(60);
-    setSelectedQuestionIds([]);
-    setShowForm(true);
-  }
-
-  function openEditForm(a: Assessment) {
-    setEditId(a.id);
-    setName(a.name);
-    setTimeLimitMinutes(a.timeLimitMinutes);
-    setSelectedQuestionIds(a.questions.map((aq) => aq.questionId));
-    setShowForm(true);
-  }
-
-  async function handleSave() {
-    if (!name.trim() || selectedQuestionIds.length === 0) {
-      alert('Name and at least one question are required.');
-      return;
-    }
-
+  async function run(id: number, action: () => Promise<unknown>) {
+    setMenuFor(null);
+    setBusyId(id);
+    setError('');
     try {
-      if (editId) {
-        await updateAssessment(editId, { name, timeLimitMinutes, questionIds: selectedQuestionIds });
-      } else {
-        await createAssessment({ name, timeLimitMinutes, questionIds: selectedQuestionIds });
-      }
-      setShowForm(false);
-      loadData();
+      await action();
+      await loadData();
     } catch (err) {
-      console.error('Failed to save assessment:', err);
+      setError(apiError(err));
+    } finally {
+      setBusyId(null);
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!confirm('Delete this assessment?')) return;
-    try {
-      await deleteAssessment(id);
-      setAssessments((prev) => prev.filter((a) => a.id !== id));
-    } catch (err) {
-      console.error('Failed to delete assessment:', err);
-    }
+  const setStatus = (a: Assessment, status: AssessmentStatus) => run(a.id, () => updateAssessment(a.id, { status }));
+
+  function handleDelete(a: Assessment) {
+    const taken = a.stats?.candidatesStarted ?? 0;
+    const warning = taken
+      ? `Delete "${a.name}"? ${taken} candidate result${taken === 1 ? '' : 's'} will be permanently deleted too.`
+      : `Delete "${a.name}"? This cannot be undone.`;
+    if (!confirm(warning)) return;
+    run(a.id, () => deleteAssessment(a.id));
   }
 
-  function toggleQuestion(qId: number) {
-    setSelectedQuestionIds((prev) =>
-      prev.includes(qId) ? prev.filter((id) => id !== qId) : [...prev, qId]
-    );
-  }
+  const counts = Object.fromEntries(
+    FILTERS.map((f) => [f.key, f.key === 'all' ? assessments.length : assessments.filter((a) => a.availability === f.key).length])
+  );
+  const visible = assessments.filter(
+    (a) => (filter === 'all' || a.availability === filter) && a.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
-    <div className="min-h-screen bg-surface-950">
-      <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/admin" className="btn-ghost p-2">
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-primary-400" />
-              <h1 className="text-lg font-bold text-white">Assessment Manager</h1>
-            </div>
-          </div>
-          <button onClick={openCreateForm} className="btn-primary">
-            <Plus className="w-4 h-4" /> New Assessment
-          </button>
-        </div>
-      </header>
+    <AdminLayout
+      title="Assessments"
+      subtitle="Create, configure and publish coding assessments"
+      actions={
+        <Link to="/admin/assessments/new" className="btn-primary text-sm">
+          <Plus className="w-4 h-4" /> New Assessment
+        </Link>
+      }
+    >
+      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300">{error}</div>}
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
-        {/* Form Modal */}
-        {showForm && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="card w-full max-w-lg max-h-[80vh] overflow-y-auto animate-fade-in">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-white">
-                  {editId ? 'Edit Assessment' : 'Create Assessment'}
-                </h2>
-                <button onClick={() => setShowForm(false)} className="btn-ghost p-2">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="label">Assessment Name</label>
-                  <input
-                    className="input"
-                    placeholder="e.g. TCS Assessment 2021"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label className="label">Time Limit (minutes)</label>
-                  <input
-                    type="number"
-                    className="input"
-                    value={timeLimitMinutes}
-                    onChange={(e) => setTimeLimitMinutes(parseInt(e.target.value))}
-                    min={1}
-                  />
-                </div>
-
-                <div>
-                  <label className="label">
-                    Select Questions ({selectedQuestionIds.length} selected)
-                  </label>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {questions.map((q) => (
-                      <label
-                        key={q.id}
-                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                          selectedQuestionIds.includes(q.id)
-                            ? 'bg-primary-600/10 border border-primary-500/30'
-                            : 'bg-surface-800 border border-surface-700 hover:border-surface-600'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedQuestionIds.includes(q.id)}
-                          onChange={() => toggleQuestion(q.id)}
-                          className="w-4 h-4 rounded border-surface-600 bg-surface-800 text-primary-500"
-                        />
-                        <span className="text-sm text-surface-200 flex-1">{q.title}</span>
-                        <span className={`badge-${q.difficulty} text-xs`}>{q.difficulty}</span>
-                      </label>
-                    ))}
-                    {questions.length === 0 && (
-                      <p className="text-sm text-surface-500 text-center py-4">
-                        No questions available. Create questions first.
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <button onClick={handleSave} className="btn-primary w-full mt-4">
-                  <Save className="w-4 h-4" />
-                  {editId ? 'Update Assessment' : 'Create Assessment'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Assessment List */}
-        {loading ? (
-          <div className="text-center py-20 text-surface-500">Loading...</div>
-        ) : assessments.length === 0 ? (
-          <div className="text-center py-20">
-            <CheckSquare className="w-16 h-16 text-surface-700 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-surface-400 mb-2">No assessments yet</h3>
-            <p className="text-surface-500 text-sm mb-6">Create your first assessment.</p>
-            <button onClick={openCreateForm} className="btn-primary">
-              <Plus className="w-4 h-4" /> Create Assessment
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <div className="flex gap-1 p-1 rounded-lg bg-surface-900 border border-surface-800 overflow-x-auto">
+          {FILTERS.map((f) => (
+            <button
+              key={f.key}
+              onClick={() => setFilter(f.key)}
+              className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors ${
+                filter === f.key ? 'bg-surface-700 text-white' : 'text-surface-400 hover:text-white'
+              }`}
+            >
+              {f.label} <span className="text-surface-500 text-xs tabular-nums">{counts[f.key]}</span>
             </button>
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {assessments.map((a) => (
-              <div key={a.id} className="card flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-white">{a.name}</h3>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-surface-400">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes} min
-                    </span>
-                    <span>{a._count?.questions ?? a.questions?.length ?? 0} questions</span>
-                  </div>
-                  {a.questions && a.questions.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {a.questions.map((aq) => (
-                        <span key={aq.id} className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 text-xs">
-                          {aq.question.title}
-                        </span>
-                      ))}
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
+          <input className="input pl-9 py-1.5 text-sm" placeholder="Search assessments..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
+      </div>
+
+      {loading ? (
+        <Spinner label="Loading assessments..." />
+      ) : assessments.length === 0 ? (
+        <EmptyState
+          icon={CheckSquare}
+          title="No assessments yet"
+          body="Create your first assessment from the question bank."
+          action={<Link to="/admin/assessments/new" className="btn-primary"><Plus className="w-4 h-4" /> Create Assessment</Link>}
+        />
+      ) : visible.length === 0 ? (
+        <p className="text-center text-surface-500 py-16">No assessments match this filter.</p>
+      ) : (
+        <div className="grid gap-4">
+          {visible.map((a) => {
+            const langs = parseJsonArray<number>(a.allowedLanguages);
+            const totalMarks = a.questions.reduce((acc, q) => acc + (q.marks ?? 0), 0);
+            return (
+              <div key={a.id} className={`card p-5 ${busyId === a.id ? 'opacity-60 pointer-events-none' : ''}`}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link to={`/admin/assessments/${a.id}/edit`} className="text-lg font-semibold text-white hover:text-primary-300">
+                        {a.name}
+                      </Link>
+                      <AvailabilityBadge value={a.availability} />
                     </div>
-                  )}
+                    {a.description && <p className="text-sm text-surface-400 mt-1 line-clamp-2">{a.description}</p>}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-surface-400">
+                      <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes} min</span>
+                      <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" /> {a._count?.questions ?? 0} questions · {totalMarks} marks · pass {a.passingScore}%</span>
+                      {(a.startAt || a.endAt) && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3.5 h-3.5" />
+                          {a.startAt ? formatDate(a.startAt) : 'Now'} → {a.endAt ? formatDate(a.endAt) : 'no deadline'}
+                        </span>
+                      )}
+                      {a.shuffleQuestions && <span className="flex items-center gap-1"><Shuffle className="w-3.5 h-3.5" /> Shuffled</span>}
+                      {langs.length > 0 && (
+                        <span className="flex items-center gap-1"><Code2 className="w-3.5 h-3.5" /> {langs.map((l) => LANGUAGE_NAMES[l]).join(', ')}</span>
+                      )}
+                      {!a.showResults && <span className="flex items-center gap-1"><EyeOff className="w-3.5 h-3.5" /> Results hidden</span>}
+                    </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="flex gap-6 text-center">
+                    <div>
+                      <p className="text-lg font-semibold text-white tabular-nums">{a.stats?.candidatesCompleted ?? 0}</p>
+                      <p className="text-[11px] text-surface-500 uppercase tracking-wider">Completed</p>
+                    </div>
+                    <div>
+                      <p className={`text-lg font-semibold tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : 'text-surface-500'}`}>
+                        {formatPercent(a.stats?.averageScore, 0)}
+                      </p>
+                      <p className="text-[11px] text-surface-500 uppercase tracking-wider">Avg score</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-white tabular-nums">{formatPercent(a.stats?.passRate, 0)}</p>
+                      <p className="text-[11px] text-surface-500 uppercase tracking-wider">Pass rate</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Link
-                    to={`/admin/submissions/${a.id}`}
-                    className="btn-outline text-sm"
-                    id={`view-submissions-${a.id}`}
-                  >
-                    <Users className="w-4 h-4" />
-                    Submissions
-                  </Link>
-                  <button onClick={() => openEditForm(a)} className="btn-outline text-sm">
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(a.id)}
-                    className="btn-ghost p-2 text-red-400 hover:bg-red-500/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-surface-800">
+                  <div className="flex flex-wrap gap-1.5">
+                    {a.questions.map((aq) => (
+                      <span key={aq.id} className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 text-xs">
+                        {aq.question.title} <span className="text-surface-600 ml-1">{aq.marks}</span>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link to={`/admin/submissions/${a.id}`} className="btn-outline text-sm">
+                      <Users className="w-4 h-4" /> Results
+                      {!!a.stats?.inProgress && <span className="text-xs text-sky-400">+{a.stats.inProgress} live</span>}
+                    </Link>
+                    <button onClick={() => navigate(`/admin/assessments/${a.id}/edit`)} className="btn-outline text-sm">
+                      <Edit className="w-4 h-4" /> Edit
+                    </button>
+                    {a.status === 'draft' && (
+                      <button onClick={() => setStatus(a, 'published')} className="btn-primary text-sm" disabled={!a._count?.questions}
+                        title={a._count?.questions ? 'Make visible to candidates' : 'Add questions first'}>
+                        <Rocket className="w-4 h-4" /> Publish
+                      </button>
+                    )}
+                    <div className="relative">
+                      <button onClick={() => setMenuFor(menuFor === a.id ? null : a.id)} className="btn-ghost p-2" aria-label="More actions">
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                      {menuFor === a.id && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
+                          <div className="absolute right-0 mt-1 w-48 rounded-lg bg-surface-800 border border-surface-700 shadow-xl z-50 py-1 text-sm">
+                            <button onClick={() => run(a.id, () => duplicateAssessment(a.id))} className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700">
+                              <Copy className="w-4 h-4" /> Duplicate
+                            </button>
+                            {a.status === 'published' && (
+                              <button onClick={() => setStatus(a, 'draft')} className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700">
+                                <EyeOff className="w-4 h-4" /> Unpublish
+                              </button>
+                            )}
+                            {a.status !== 'archived' ? (
+                              <button onClick={() => setStatus(a, 'archived')} className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700">
+                                <Archive className="w-4 h-4" /> Archive
+                              </button>
+                            ) : (
+                              <button onClick={() => setStatus(a, 'draft')} className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700">
+                                <Archive className="w-4 h-4" /> Restore as draft
+                              </button>
+                            )}
+                            <button onClick={() => handleDelete(a)} className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:bg-red-500/10">
+                              <Trash2 className="w-4 h-4" /> Delete
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
+            );
+          })}
+        </div>
+      )}
+    </AdminLayout>
   );
 }

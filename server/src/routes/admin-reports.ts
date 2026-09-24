@@ -3,6 +3,8 @@ import prisma from '../prisma';
 import puppeteer from 'puppeteer';
 import { adminOnly } from '../middleware/adminOnly';
 import { generateReportHTML } from '../templates/report-html';
+import { summarizeCandidates, aggregate } from '../services/stats';
+import { computeEvaluation } from '../services/grading';
 
 const router = Router();
 
@@ -22,84 +24,45 @@ router.get('/submissions/:assessmentId', async (req: Request, res: Response) => 
 
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      select: { id: true, name: true, timeLimitMinutes: true },
+      select: {
+        id: true,
+        name: true,
+        timeLimitMinutes: true,
+        passingScore: true,
+        questions: { select: { questionId: true, marks: true } },
+      },
     });
 
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
     }
 
-    // Get all unique candidates who have submissions for this assessment
-    const submissions = await prisma.submission.findMany({
-      where: { assessmentId },
-      select: {
-        candidateName: true,
-        score: true,
-        createdAt: true,
-        questionId: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [submissions, sessions] = await Promise.all([
+      prisma.submission.findMany({
+        where: { assessmentId },
+        select: { candidateName: true, score: true, createdAt: true, questionId: true },
+      }),
+      prisma.assessmentSession.findMany({
+        where: { assessmentId },
+        select: { candidateName: true, finishedAt: true, startedAt: true },
+      }),
+    ]);
 
-    // Group by candidateName, keeping latest per question for scoring
-    const candidateMap = new Map<string, {
-      name: string;
-      submittedAt: string;
-      totalQuestions: number;
-      overallScore: number;
-    }>();
+    const candidates = summarizeCandidates(assessment.questions, assessment.passingScore, submissions, sessions)
+      .map((c) => {
+        const s = sessions.find((x) => x.candidateName === c.name);
+        return {
+          ...c,
+          session: s ? { startedAt: s.startedAt.toISOString(), finishedAt: s.finishedAt?.toISOString() || null } : null,
+        };
+      })
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
 
-    for (const sub of submissions) {
-      if (!candidateMap.has(sub.candidateName)) {
-        candidateMap.set(sub.candidateName, {
-          name: sub.candidateName,
-          submittedAt: sub.createdAt.toISOString(),
-          totalQuestions: 0,
-          overallScore: 0,
-        });
-      }
-    }
-
-    // Compute per-candidate overall scores
-    for (const [name, info] of candidateMap) {
-      const candidateSubs = submissions.filter((s) => s.candidateName === name);
-      // Deduplicate: keep latest per question
-      const latestByQ = new Map<number, typeof candidateSubs[0]>();
-      for (const s of candidateSubs) {
-        if (!latestByQ.has(s.questionId)) {
-          latestByQ.set(s.questionId, s);
-        }
-      }
-      const dedupedSubs = Array.from(latestByQ.values());
-      info.totalQuestions = dedupedSubs.length;
-      info.overallScore =
-        dedupedSubs.length > 0
-          ? dedupedSubs.reduce((acc, s) => acc + s.score, 0) / dedupedSubs.length
-          : 0;
-    }
-
-    // Also check sessions for finishedAt info
-    const sessions = await prisma.assessmentSession.findMany({
-      where: { assessmentId },
-      select: { candidateName: true, finishedAt: true, startedAt: true },
-    });
-
-    const sessionMap = new Map<string, { finishedAt: string | null; startedAt: string }>();
-    for (const s of sessions) {
-      sessionMap.set(s.candidateName, {
-        finishedAt: s.finishedAt?.toISOString() || null,
-        startedAt: s.startedAt.toISOString(),
-      });
-    }
-
-    const candidates = Array.from(candidateMap.values()).map((c) => ({
-      ...c,
-      session: sessionMap.get(c.name) || null,
-    }));
-
+    const { questions: _q, ...assessmentInfo } = assessment;
     res.json({
-      assessment,
+      assessment: assessmentInfo,
       candidates,
+      stats: aggregate(candidates),
     });
   } catch (error) {
     console.error('Error fetching assessment submissions:', error);
@@ -270,6 +233,7 @@ async function buildReportData(candidateName: string, assessmentId: number) {
   });
 
   const overallPercentage = totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
+  const evaluation = await computeEvaluation(assessmentId, candidateName);
 
   // Static placeholder timestamps based on the submission time
   const baseTime = session?.startedAt || new Date();
@@ -294,7 +258,20 @@ async function buildReportData(candidateName: string, assessmentId: number) {
       total: totalTests,
       percentage: overallPercentage,
     },
-    questions,
+    // Marks-weighted result — this is what pass/fail is based on
+    marks: {
+      obtained: evaluation?.marksObtained ?? 0,
+      total: evaluation?.totalMarks ?? 0,
+      percentage: evaluation?.percentage ?? 0,
+      passing_score: evaluation?.assessment.passingScore ?? 0,
+      passed: evaluation?.passed ?? false,
+      time_taken_seconds: evaluation?.timeTakenSeconds ?? null,
+    },
+    questions: questions.map((q) => ({
+      ...q,
+      marks: evaluation?.questions.find((eq) => eq.questionId === q.question_id)?.marks ?? 0,
+      marks_obtained: evaluation?.questions.find((eq) => eq.questionId === q.question_id)?.marksObtained ?? 0,
+    })),
     // ═══ STATIC PLACEHOLDER DATA ═══
     // Everything below is hardcoded sample data.
     // These modules are NOT connected to any real capture mechanism.

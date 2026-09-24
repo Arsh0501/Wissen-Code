@@ -1,175 +1,271 @@
 import { PrismaClient } from '@prisma/client';
+import { MOCK_QUESTIONS, GENERIC_STARTERS, LANGUAGE_NAMES } from './mock-data';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('🌱 Seeding database...\n');
+const DAY = 24 * 60 * 60 * 1000;
+const now = Date.now();
 
-  // Clear existing data
+// Deterministic pseudo-random numbers so every seed run produces the same data
+let rngState = 42;
+function rand() {
+  rngState = (rngState * 1103515245 + 12345) & 0x7fffffff;
+  return rngState / 0x7fffffff;
+}
+
+const CANDIDATES = [
+  'Aarav Sharma', 'Priya Patel', 'Rohan Gupta', 'Ananya Iyer', 'Vikram Singh',
+  'Sneha Reddy', 'Karan Mehta', 'Isha Verma', 'Arjun Nair', 'Meera Joshi',
+  'Rahul Das', 'Kavya Menon',
+];
+
+interface AssessmentSpec {
+  name: string;
+  description: string;
+  instructions?: string;
+  timeLimitMinutes: number;
+  passingScore: number;
+  status: 'draft' | 'published' | 'archived';
+  startAt?: Date;
+  endAt?: Date;
+  shuffleQuestions?: boolean;
+  allowedLanguages?: number[];
+  showResults?: boolean;
+  questions: [string, number][]; // [question title, marks]
+  // Mock candidates: [name, skill 0–1, days ago started]; skill drives how many tests pass
+  candidates?: [string, number, number][];
+  inProgress?: string[]; // candidates currently taking the test
+}
+
+const DEFAULT_INSTRUCTIONS = `- Read every question carefully before you start coding.
+- Use **Run code** to test against sample cases; hidden test cases are used for final grading.
+- Click **Confirm** on a question once you're happy with your answer.
+- Your work is auto-saved every few seconds. If you get disconnected, reopen the test to continue.
+- The test is submitted automatically when the timer reaches zero.`;
+
+const ASSESSMENTS: AssessmentSpec[] = [
+  {
+    name: 'Campus Hiring 2026 — Round 1',
+    description: 'First coding round for the 2026 campus hiring drive. Covers arrays, strings and basic DP.',
+    timeLimitMinutes: 90,
+    passingScore: 60,
+    status: 'published',
+    endAt: new Date(now + 10 * DAY),
+    questions: [['Two Sum', 10], ['Valid Parentheses', 10], ['Maximum Subarray', 20], ['Longest Substring Without Repeating Characters', 20]],
+    candidates: [
+      ['Aarav Sharma', 0.95, 6], ['Priya Patel', 0.8, 5], ['Rohan Gupta', 0.45, 5], ['Ananya Iyer', 0.9, 4],
+      ['Vikram Singh', 0.3, 3], ['Sneha Reddy', 0.7, 2], ['Karan Mehta', 0.55, 1], ['Isha Verma', 0.15, 1],
+    ],
+    inProgress: ['Arjun Nair'],
+  },
+  {
+    name: 'Backend Engineer — DSA Screen',
+    description: 'Screening test for experienced backend engineers. Python or Java only; results are reviewed by the hiring panel.',
+    timeLimitMinutes: 60,
+    passingScore: 50,
+    status: 'published',
+    endAt: new Date(now + 14 * DAY),
+    shuffleQuestions: true,
+    allowedLanguages: [71, 62],
+    showResults: false,
+    questions: [['Merge Intervals', 20], ['Number of Islands', 30], ['Coin Change', 30], ['Kth Largest Element', 20]],
+    candidates: [['Meera Joshi', 0.85, 3], ['Rahul Das', 0.5, 2], ['Kavya Menon', 0.65, 1], ['Aarav Sharma', 0.9, 1], ['Rohan Gupta', 0.35, 0]],
+  },
+  {
+    name: 'Graduate Trainee Warm-up',
+    description: 'A short practice test to get familiar with the platform. Scores are not used for hiring decisions.',
+    timeLimitMinutes: 30,
+    passingScore: 40,
+    status: 'published',
+    questions: [['Fizz Buzz', 5], ['Reverse a String', 5], ['Climbing Stairs', 10], ['Valid Palindrome', 10]],
+    candidates: [['Isha Verma', 0.6, 8], ['Karan Mehta', 0.9, 7], ['Vikram Singh', 0.75, 7]],
+  },
+  {
+    name: 'Summer Internship Test 2026',
+    description: 'Closed internship test — kept for reporting.',
+    timeLimitMinutes: 45,
+    passingScore: 50,
+    status: 'published',
+    startAt: new Date(now - 30 * DAY),
+    endAt: new Date(now - 16 * DAY),
+    questions: [['Two Sum', 10], ['Fizz Buzz', 10], ['Climbing Stairs', 10]],
+    candidates: [
+      ['Sneha Reddy', 0.9, 25], ['Meera Joshi', 0.7, 24], ['Rahul Das', 0.4, 22],
+      ['Kavya Menon', 0.85, 20], ['Arjun Nair', 0.2, 19], ['Ananya Iyer', 0.6, 18],
+    ],
+  },
+  {
+    name: 'Senior Engineer — Advanced Algorithms',
+    description: 'Hard problems for senior candidates. Still being reviewed by the interview panel.',
+    timeLimitMinutes: 120,
+    passingScore: 70,
+    status: 'draft',
+    startAt: new Date(now + 7 * DAY),
+    questions: [['Trapping Rain Water', 40], ['Coin Change', 30], ['Number of Islands', 30]],
+  },
+];
+
+async function main() {
+  console.log('🌱 Seeding database with mock data...\n');
+
+  // Clear existing data (children first)
   await prisma.testCaseResult.deleteMany();
   await prisma.submission.deleteMany();
+  await prisma.draftAnswer.deleteMany();
+  await prisma.assessmentSession.deleteMany();
   await prisma.assessmentQuestion.deleteMany();
   await prisma.assessment.deleteMany();
   await prisma.testCase.deleteMany();
   await prisma.starterCode.deleteMany();
   await prisma.question.deleteMany();
+  // Restart SQLite autoincrement counters so IDs (and URLs like /exam/1) are stable across re-seeds
+  await prisma.$executeRawUnsafe('DELETE FROM sqlite_sequence').catch(() => {});
 
-  // ── Question 1: Two Sum ──
-  const q1 = await prisma.question.create({
-    data: {
-      title: 'Two Sum',
-      statement: `Given an array of integers \`nums\` and an integer \`target\`, return the indices of the two numbers such that they add up to \`target\`.
-
-You may assume that each input would have **exactly one solution**, and you may not use the same element twice.
-
-You can return the answer in any order.
-
-**Constraints:**
-- 2 ≤ nums.length ≤ 10⁴
-- -10⁹ ≤ nums[i] ≤ 10⁹
-- -10⁹ ≤ target ≤ 10⁹
-- Only one valid answer exists.`,
-      difficulty: 'easy',
-      tags: JSON.stringify(['array', 'hash-map']),
-      timeLimit: 2,
-      memoryLimit: 256000,
-      starterCodes: {
-        create: [
-          {
-            languageId: 71,
-            languageName: 'Python',
-            code: `# Read input\nnums = list(map(int, input().split()))\ntarget = int(input())\n\n# Your solution here\ndef two_sum(nums, target):\n    pass\n\nresult = two_sum(nums, target)\nprint(result[0], result[1])`,
-          },
-          {
-            languageId: 62,
-            languageName: 'Java',
-            code: `import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        String[] parts = sc.nextLine().split(" ");\n        int[] nums = new int[parts.length];\n        for (int i = 0; i < parts.length; i++) nums[i] = Integer.parseInt(parts[i]);\n        int target = sc.nextInt();\n        \n        // Your solution here\n        int[] result = twoSum(nums, target);\n        System.out.println(result[0] + " " + result[1]);\n    }\n    \n    static int[] twoSum(int[] nums, int target) {\n        return new int[]{0, 0};\n    }\n}`,
-          },
-          {
-            languageId: 54,
-            languageName: 'C++',
-            code: `#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    string line;\n    getline(cin, line);\n    istringstream iss(line);\n    vector<int> nums;\n    int x;\n    while (iss >> x) nums.push_back(x);\n    \n    int target;\n    cin >> target;\n    \n    // Your solution here\n    \n    return 0;\n}`,
-          },
-          {
-            languageId: 63,
-            languageName: 'JavaScript',
-            code: `const readline = require('readline');\nconst rl = readline.createInterface({ input: process.stdin });\nconst lines = [];\n\nrl.on('line', (line) => lines.push(line.trim()));\nrl.on('close', () => {\n    const nums = lines[0].split(' ').map(Number);\n    const target = parseInt(lines[1]);\n    \n    // Your solution here\n    function twoSum(nums, target) {\n        return [0, 0];\n    }\n    \n    const result = twoSum(nums, target);\n    console.log(result[0] + ' ' + result[1]);\n});`,
-          },
-        ],
+  // ── Questions ──
+  const questions = new Map<string, { id: number; testCases: { id: number; expectedOutput: string }[] }>();
+  for (const [idx, q] of MOCK_QUESTIONS.entries()) {
+    const starters = { ...GENERIC_STARTERS, ...(q.starterCodes || {}) };
+    const created = await prisma.question.create({
+      data: {
+        title: q.title,
+        statement: q.statement,
+        difficulty: q.difficulty,
+        tags: JSON.stringify(q.tags),
+        timeLimit: q.timeLimit,
+        memoryLimit: 256000,
+        createdAt: new Date(now - (40 - idx) * DAY),
+        starterCodes: {
+          create: Object.entries(starters).map(([langId, code]) => ({
+            languageId: Number(langId),
+            languageName: LANGUAGE_NAMES[Number(langId)],
+            code,
+          })),
+        },
+        testCases: { create: q.testCases },
       },
-      testCases: {
-        create: [
-          { input: '2 7 11 15\n9', expectedOutput: '0 1', isSample: true },
-          { input: '3 2 4\n6', expectedOutput: '1 2', isSample: true },
-          { input: '3 3\n6', expectedOutput: '0 1', isSample: false },
-          { input: '1 5 3 7 2\n9', expectedOutput: '1 3', isSample: false },
-          { input: '-1 -2 -3 -4 -5\n-8', expectedOutput: '2 4', isSample: false },
-        ],
+      include: { testCases: { orderBy: { id: 'asc' } } },
+    });
+    questions.set(q.title, created);
+  }
+  console.log(`✅ Created ${questions.size} questions`);
+
+  // ── Assessments + mock candidate activity ──
+  let sessionCount = 0;
+  for (const [idx, spec] of ASSESSMENTS.entries()) {
+    const assessment = await prisma.assessment.create({
+      data: {
+        name: spec.name,
+        description: spec.description,
+        instructions: spec.instructions ?? DEFAULT_INSTRUCTIONS,
+        timeLimitMinutes: spec.timeLimitMinutes,
+        passingScore: spec.passingScore,
+        status: spec.status,
+        startAt: spec.startAt ?? null,
+        endAt: spec.endAt ?? null,
+        shuffleQuestions: spec.shuffleQuestions ?? false,
+        allowedLanguages: JSON.stringify(spec.allowedLanguages ?? []),
+        showResults: spec.showResults ?? true,
+        createdAt: new Date(now - (35 - idx * 3) * DAY),
+        questions: {
+          create: spec.questions.map(([title, marks], orderIndex) => ({
+            questionId: questions.get(title)!.id,
+            orderIndex,
+            marks,
+          })),
+        },
       },
-    },
-  });
-  console.log(`✅ Created question: ${q1.title}`);
+    });
 
-  // ── Question 2: Fizz Buzz ──
-  const q2 = await prisma.question.create({
-    data: {
-      title: 'Fizz Buzz',
-      statement: `Given an integer \`n\`, return a string array \`answer\` (1-indexed) where:
+    const langs = spec.allowedLanguages?.length ? spec.allowedLanguages : [71, 71, 62, 54, 63];
 
-- \`answer[i] == "FizzBuzz"\` if \`i\` is divisible by 3 and 5.
-- \`answer[i] == "Fizz"\` if \`i\` is divisible by 3.
-- \`answer[i] == "Buzz"\` if \`i\` is divisible by 5.
-- \`answer[i] == i\` (as a string) if none of the above conditions are true.
+    for (const [name, skill, daysAgo] of spec.candidates ?? []) {
+      const startedAt = new Date(now - daysAgo * DAY - (2 + rand() * 6) * 60 * 60 * 1000);
+      const minutesUsed = Math.round(spec.timeLimitMinutes * (0.45 + rand() * 0.55));
+      const finishedAt = new Date(startedAt.getTime() + minutesUsed * 60 * 1000);
+      const session = await prisma.assessmentSession.create({
+        data: { assessmentId: assessment.id, candidateName: name, startedAt, finishedAt },
+      });
+      sessionCount++;
 
-**Input:** A single integer n
-**Output:** Print each answer on a new line
+      for (const [qIdx, [title]] of spec.questions.entries()) {
+        const q = questions.get(title)!;
+        const mock = MOCK_QUESTIONS.find((m) => m.title === title)!;
+        // Weaker candidates sometimes skip later questions entirely
+        if (rand() > skill + 0.35 && qIdx > 0) continue;
 
-**Constraints:**
-- 1 ≤ n ≤ 10⁴`,
-      difficulty: 'easy',
-      tags: JSON.stringify(['math', 'string']),
-      timeLimit: 2,
-      memoryLimit: 256000,
-      starterCodes: {
-        create: [
-          {
-            languageId: 71,
-            languageName: 'Python',
-            code: `n = int(input())\n\n# Your solution here\nfor i in range(1, n + 1):\n    pass`,
+        // Solved answers carry the real (Python) reference solution; partial ones keep the starter code
+        const solved = rand() < skill;
+        const languageId = solved ? 71 : langs[Math.floor(rand() * langs.length)];
+        const code = solved ? mock.solution : (mock.starterCodes?.[languageId] ?? GENERIC_STARTERS[languageId]);
+
+        await prisma.draftAnswer.create({
+          data: {
+            sessionId: session.id,
+            questionId: q.id,
+            languageId,
+            languageName: LANGUAGE_NAMES[languageId],
+            code,
+            isAnswered: true,
+            isFlagged: rand() < 0.15,
           },
-          {
-            languageId: 63,
-            languageName: 'JavaScript',
-            code: `const readline = require('readline');\nconst rl = readline.createInterface({ input: process.stdin });\n\nrl.on('line', (line) => {\n    const n = parseInt(line.trim());\n    // Your solution here\n    for (let i = 1; i <= n; i++) {\n        console.log(i);\n    }\n    rl.close();\n});`,
+        });
+
+        // Solved → all tests pass; otherwise a skill-weighted share of tests pass
+        const results = q.testCases.map((tc) => {
+          const passed = solved || rand() < skill * 0.7;
+          const status = passed ? 'Accepted' : rand() < 0.75 ? 'Wrong Answer' : rand() < 0.5 ? 'Time Limit Exceeded' : 'Runtime Error (NZEC)';
+          return {
+            testCaseId: tc.id,
+            passed,
+            actualOutput: passed ? tc.expectedOutput : status === 'Wrong Answer' ? '0' : '',
+            statusDesc: status,
+            executionTime: Math.round((0.01 + rand() * 0.3) * 1000) / 1000,
+            memoryUsed: 3000 + Math.floor(rand() * 20000),
+          };
+        });
+        const passedCount = results.filter((r) => r.passed).length;
+
+        await prisma.submission.create({
+          data: {
+            assessmentId: assessment.id,
+            questionId: q.id,
+            candidateName: name,
+            languageId,
+            languageName: LANGUAGE_NAMES[languageId],
+            code,
+            status: 'graded',
+            score: (passedCount / results.length) * 100,
+            createdAt: finishedAt,
+            testCaseResults: { create: results },
           },
-        ],
-      },
-      testCases: {
-        create: [
-          { input: '5', expectedOutput: '1\n2\nFizz\n4\nBuzz', isSample: true },
-          { input: '15', expectedOutput: '1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz', isSample: false },
-          { input: '1', expectedOutput: '1', isSample: false },
-          { input: '3', expectedOutput: '1\n2\nFizz', isSample: false },
-        ],
-      },
-    },
-  });
-  console.log(`✅ Created question: ${q2.title}`);
+        });
+      }
+    }
 
-  // ── Question 3: Reverse String ──
-  const q3 = await prisma.question.create({
-    data: {
-      title: 'Reverse a String',
-      statement: `Write a function that reverses a string. The input string is given as a single line.
+    // Candidates currently mid-test (started 10 minutes ago, drafts saved)
+    for (const name of spec.inProgress ?? []) {
+      const session = await prisma.assessmentSession.create({
+        data: { assessmentId: assessment.id, candidateName: name, startedAt: new Date(now - 10 * 60 * 1000) },
+      });
+      sessionCount++;
+      const [firstTitle] = spec.questions[0];
+      await prisma.draftAnswer.create({
+        data: {
+          sessionId: session.id,
+          questionId: questions.get(firstTitle)!.id,
+          languageId: 71,
+          languageName: 'Python',
+          code: MOCK_QUESTIONS.find((m) => m.title === firstTitle)!.solution,
+          isAnswered: true,
+        },
+      });
+    }
 
-**Input:** A single string s
-**Output:** The reversed string
+    console.log(`✅ Created assessment: ${spec.name} [${spec.status}] — ${spec.questions.length} questions, ${(spec.candidates?.length ?? 0) + (spec.inProgress?.length ?? 0)} candidates`);
+  }
 
-**Constraints:**
-- 1 ≤ s.length ≤ 10⁵
-- s consists of printable ASCII characters`,
-      difficulty: 'easy',
-      tags: JSON.stringify(['string', 'two-pointers']),
-      timeLimit: 1,
-      memoryLimit: 256000,
-      starterCodes: {
-        create: [
-          {
-            languageId: 71,
-            languageName: 'Python',
-            code: `s = input()\n\n# Your solution here\nprint(s)`,
-          },
-        ],
-      },
-      testCases: {
-        create: [
-          { input: 'hello', expectedOutput: 'olleh', isSample: true },
-          { input: 'Hannah', expectedOutput: 'hannaH', isSample: true },
-          { input: 'a', expectedOutput: 'a', isSample: false },
-          { input: 'racecar', expectedOutput: 'racecar', isSample: false },
-        ],
-      },
-    },
-  });
-  console.log(`✅ Created question: ${q3.title}`);
-
-  // ── Assessment ──
-  const assessment = await prisma.assessment.create({
-    data: {
-      name: 'Assessment 2021',
-      timeLimitMinutes: 60,
-      questions: {
-        create: [
-          { questionId: q1.id, orderIndex: 0 },
-          { questionId: q2.id, orderIndex: 1 },
-          { questionId: q3.id, orderIndex: 2 },
-        ],
-      },
-    },
-  });
-  console.log(`\n Created assessment: ${assessment.name} (${3} questions, ${assessment.timeLimitMinutes} min)\n`);
-
-  console.log('Seed complete! You can now start the server and explore the platform.');
+  console.log(`\n✅ Created ${sessionCount} candidate sessions with graded submissions`);
+  console.log('\nSeed complete! Log in as Admin to see the dashboard, or as an Examinee (e.g. a new name) to take a test.');
 }
 
 main()

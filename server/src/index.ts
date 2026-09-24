@@ -8,6 +8,7 @@ import submissionRoutes from './routes/submissions';
 import sessionRoutes from './routes/sessions';
 import adminReportRoutes from './routes/admin-reports';
 import adminQuestionRoutes from './routes/admin-questions';
+import { isMockMode } from './services/judge0';
 
 dotenv.config();
 
@@ -39,13 +40,17 @@ app.use('/api/admin/questions', adminQuestionRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', judgeMode: isMockMode() ? 'mock' : 'live', timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Wissen-Code server running on http://localhost:${PORT}`);
-  console.log(`📊 Judge0 API: ${process.env.JUDGE0_API_URL || 'https://ce.judge0.com'}`);
-  console.log(`💾 Database: SQLite (prisma/dev.db)\n`);
+  console.log(
+    isMockMode()
+      ? '🧪 Judge: MOCK mode (simulated verdicts — set JUDGE_MODE=live for real execution)'
+      : `📊 Judge0 API: ${process.env.JUDGE0_API_URL || 'https://ce.judge0.com'}`
+  );
+  console.log(`💾 Database: ${process.env.DATABASE_URL}\n`);
 });
 
 export default app;

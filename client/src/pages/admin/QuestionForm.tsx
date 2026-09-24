@@ -161,7 +161,7 @@ export default function QuestionForm() {
         });
       }
 
-      navigate('/admin');
+      navigate('/admin/questions');
     } catch (err) {
       console.error('Failed to save question:', err);
       alert('Failed to save question. Check the console for details.');
@@ -204,7 +204,7 @@ export default function QuestionForm() {
       <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/admin" className="btn-ghost p-2">
+            <Link to="/admin/questions" className="btn-ghost p-2">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">

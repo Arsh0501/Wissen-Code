@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
-import { executeCode } from '../services/judge0';
+import { gradeAnswer, computeEvaluation } from '../services/grading';
 
 const router = Router();
 
@@ -15,116 +14,17 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const results = [];
-
     for (const answer of answers) {
-      // Remove any prior submission for this question to prevent duplicates
-      await prisma.submission.deleteMany({
-        where: {
-          assessmentId,
-          candidateName,
-          questionId: answer.questionId,
-        },
-      });
-
-      // Create submission record
-      const submission = await prisma.submission.create({
-        data: {
-          assessmentId,
-          questionId: answer.questionId,
-          candidateName,
-          languageId: answer.languageId,
-          languageName: answer.languageName,
-          code: answer.code,
-          status: 'grading',
-        },
-      });
-
-      // Get ALL test cases for this question (sample + hidden)
-      const testCases = await prisma.testCase.findMany({
-        where: { questionId: answer.questionId },
-      });
-
-      let passedCount = 0;
-      const testCaseResults = [];
-
-      // Run code against each test case
-      for (const tc of testCases) {
-        try {
-          const result = await executeCode({
-            sourceCode: answer.code,
-            languageId: answer.languageId,
-            stdin: tc.input,
-            cpuTimeLimit: 5,
-            memoryLimit: 256000,
-          });
-
-          const actualOutput = (result.stdout || '').trim();
-          const expectedOutput = tc.expectedOutput.trim();
-          const passed = result.status.id === 3 && actualOutput === expectedOutput;
-
-          if (passed) passedCount++;
-
-          const tcResult = await prisma.testCaseResult.create({
-            data: {
-              submissionId: submission.id,
-              testCaseId: tc.id,
-              passed,
-              actualOutput: actualOutput || result.compile_output || result.stderr || '',
-              statusDesc: result.status.description,
-              executionTime: result.time ? parseFloat(result.time) : null,
-              memoryUsed: result.memory,
-            },
-          });
-
-          testCaseResults.push({
-            ...tcResult,
-            isSample: tc.isSample,
-          });
-        } catch (execError: any) {
-          // If Judge0 fails for a test case, record it as failed
-          const tcResult = await prisma.testCaseResult.create({
-            data: {
-              submissionId: submission.id,
-              testCaseId: tc.id,
-              passed: false,
-              actualOutput: execError.message || 'Execution error',
-              statusDesc: 'Internal Error',
-            },
-          });
-
-          testCaseResults.push({
-            ...tcResult,
-            isSample: tc.isSample,
-          });
-        }
-      }
-
-      // Update submission with final score
-      const score = testCases.length > 0 ? (passedCount / testCases.length) * 100 : 0;
-      const updatedSubmission = await prisma.submission.update({
-        where: { id: submission.id },
-        data: {
-          status: 'graded',
-          score,
-        },
-      });
-
-      results.push({
-        ...updatedSubmission,
-        totalTestCases: testCases.length,
-        passedTestCases: passedCount,
-        testCaseResults,
-      });
+      results.push(await gradeAnswer(assessmentId, candidateName, answer));
     }
 
+    const evaluation = await computeEvaluation(assessmentId, candidateName);
     res.status(201).json({
       assessmentId,
       candidateName,
       submissions: results,
-      overallScore:
-        results.length > 0
-          ? results.reduce((acc, r) => acc + r.score, 0) / results.length
-          : 0,
+      overallScore: evaluation?.percentage ?? 0,
+      evaluation,
     });
   } catch (error) {
     console.error('Error processing submission:', error);
@@ -132,56 +32,53 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/submissions/:assessmentId/:candidateName — Get submission results
+// GET /api/submissions/:assessmentId/:candidateName — Evaluation for one candidate
 router.get('/:assessmentId/:candidateName', async (req: Request, res: Response) => {
   try {
     const assessmentId = parseInt(req.params.assessmentId);
     const candidateName = req.params.candidateName;
+    const role = (req as any).role;
 
-    const submissions = await prisma.submission.findMany({
-      where: { assessmentId, candidateName },
-      include: {
-        question: {
-          select: { id: true, title: true },
-        },
-        testCaseResults: {
-          include: {
-            testCase: {
-              select: { id: true, isSample: true },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Examinees may only view their own results
+    if (role !== 'admin' && (req as any).candidateName !== candidateName) {
+      return res.status(403).json({ error: 'You can only view your own results' });
+    }
 
-    if (submissions.length === 0) {
+    const evaluation = await computeEvaluation(assessmentId, candidateName);
+    if (!evaluation || !evaluation.hasSubmissions) {
       return res.status(404).json({ error: 'No submissions found' });
     }
 
-    // Deduplicate: keep only the latest submission per questionId
-    const latestByQuestion = new Map<number, typeof submissions[0]>();
-    for (const sub of submissions) {
-      if (!latestByQuestion.has(sub.questionId)) {
-        latestByQuestion.set(sub.questionId, sub);
-      }
+    // Admin can hide the breakdown from candidates
+    if (role !== 'admin' && !evaluation.assessment.showResults) {
+      return res.json({
+        assessmentId,
+        candidateName,
+        resultsHidden: true,
+        evaluation: {
+          assessment: evaluation.assessment,
+          candidateName,
+          finishedAt: evaluation.finishedAt,
+          timeTakenSeconds: evaluation.timeTakenSeconds,
+        },
+      });
     }
 
-    const deduplicatedSubmissions = Array.from(latestByQuestion.values()).sort(
-      (a, b) => a.questionId - b.questionId
-    );
-
-    const overallScore =
-      deduplicatedSubmissions.length > 0
-        ? deduplicatedSubmissions.reduce((acc, s) => acc + s.score, 0) /
-          deduplicatedSubmissions.length
-        : 0;
+    // Candidates never see hidden test case outputs
+    if (role !== 'admin') {
+      for (const q of evaluation.questions) {
+        for (const r of q.submission?.testCaseResults || []) {
+          if (!r.testCase.isSample) r.actualOutput = '';
+        }
+      }
+    }
 
     res.json({
       assessmentId,
       candidateName,
-      submissions: deduplicatedSubmissions,
-      overallScore,
+      submissions: evaluation.questions.flatMap((q) => (q.submission ? [q.submission] : [])),
+      overallScore: evaluation.percentage,
+      evaluation,
     });
   } catch (error) {
     console.error('Error fetching submissions:', error);

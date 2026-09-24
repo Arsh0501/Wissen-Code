@@ -86,6 +86,7 @@ router.post('/run-tests', async (req: Request, res: Response) => {
           sourceCode,
           languageId,
           stdin: tc.input,
+          expectedOutput: tc.expectedOutput,
           cpuTimeLimit,
           memoryLimit,
         });

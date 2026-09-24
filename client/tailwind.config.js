@@ -4,6 +4,8 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  // Built dynamically as `badge-${difficulty}`, so the scanner can't see them
+  safelist: ['badge-easy', 'badge-medium', 'badge-hard'],
   theme: {
     extend: {
       colors: {

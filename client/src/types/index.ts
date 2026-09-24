@@ -15,6 +15,7 @@ export interface Question {
   _count?: {
     testCases: number;
     starterCodes: number;
+    assessments?: number;
   };
 }
 
@@ -34,13 +35,53 @@ export interface TestCase {
   isSample: boolean;
 }
 
+export type AssessmentStatus = 'draft' | 'published' | 'archived';
+// 'open' | 'upcoming' | 'closed' apply to published assessments
+export type Availability = 'open' | 'upcoming' | 'closed' | 'draft' | 'archived';
+
+export interface AssessmentStats {
+  candidatesStarted: number;
+  candidatesCompleted: number;
+  inProgress: number;
+  averageScore: number | null;
+  passRate: number | null;
+  highestScore: number | null;
+}
+
+export interface CandidateSummary {
+  name: string;
+  status: 'in-progress' | 'completed';
+  startedAt: string | null;
+  submittedAt: string | null;
+  totalQuestions: number;
+  attemptedQuestions: number;
+  marksObtained: number;
+  totalMarks: number;
+  overallScore: number;
+  passed: boolean;
+}
+
 export interface Assessment {
   id: number;
   name: string;
+  description: string;
+  instructions: string;
   timeLimitMinutes: number;
+  passingScore: number;
+  status: AssessmentStatus;
+  startAt: string | null;
+  endAt: string | null;
+  shuffleQuestions: boolean;
+  allowedLanguages: string; // JSON array of language IDs; empty = all
+  showResults: boolean;
   createdAt: string;
   updatedAt: string;
   questions: AssessmentQuestion[];
+  availability?: Availability;
+  stats?: AssessmentStats;
+  candidates?: CandidateSummary[];
+  // Examinee listing only
+  candidateStatus?: 'not-started' | 'in-progress' | 'completed';
   _count?: {
     questions: number;
   };
@@ -51,7 +92,45 @@ export interface AssessmentQuestion {
   assessmentId: number;
   questionId: number;
   orderIndex: number;
+  marks: number;
   question: Question;
+}
+
+// Payload for creating/updating an assessment
+export interface AssessmentInput {
+  name: string;
+  description: string;
+  instructions: string;
+  timeLimitMinutes: number;
+  passingScore: number;
+  status: AssessmentStatus;
+  startAt: string | null;
+  endAt: string | null;
+  shuffleQuestions: boolean;
+  allowedLanguages: number[];
+  showResults: boolean;
+  questions: { questionId: number; marks: number }[];
+}
+
+export interface DashboardData {
+  totals: AssessmentStats & {
+    assessments: number;
+    published: number;
+    drafts: number;
+    questions: number;
+  };
+  assessments: Assessment[];
+  scoreDistribution: { range: string; count: number }[];
+  recentActivity: {
+    candidateName: string;
+    assessmentId: number;
+    assessmentName: string;
+    startedAt: string;
+    finishedAt: string | null;
+    status: 'in-progress' | 'completed';
+    overallScore: number | null;
+    passed: boolean | null;
+  }[];
 }
 
 export interface Submission {
@@ -116,14 +195,45 @@ export interface RunTestsResponse {
   message?: string;
 }
 
+export interface QuestionEvaluation {
+  questionId: number;
+  title: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  marks: number;
+  marksObtained: number;
+  score: number;
+  attempted: boolean;
+  passedTestCases: number;
+  totalTestCases: number;
+  submission: Submission | null;
+}
+
+export interface Evaluation {
+  assessment: {
+    id: number;
+    name: string;
+    timeLimitMinutes: number;
+    passingScore: number;
+    showResults: boolean;
+  };
+  candidateName: string;
+  startedAt?: string | null;
+  finishedAt: string | null;
+  timeTakenSeconds: number | null;
+  totalMarks?: number;
+  marksObtained?: number;
+  percentage?: number;
+  passed?: boolean;
+  questions?: QuestionEvaluation[];
+}
+
 export interface SubmissionResult {
   assessmentId: number;
   candidateName: string;
-  submissions: (Submission & {
-    totalTestCases: number;
-    passedTestCases: number;
-  })[];
-  overallScore: number;
+  resultsHidden?: boolean;
+  submissions?: Submission[];
+  overallScore?: number;
+  evaluation: Evaluation;
 }
 
 export interface Language {

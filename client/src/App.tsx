@@ -2,9 +2,11 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
-import AdminDashboard from './pages/admin/AdminDashboard';
+import AssessmentDashboard from './pages/admin/AssessmentDashboard';
+import QuestionBank from './pages/admin/QuestionBank';
 import QuestionForm from './pages/admin/QuestionForm';
 import AssessmentManager from './pages/admin/AssessmentManager';
+import AssessmentForm from './pages/admin/AssessmentForm';
 import SubmissionsViewer from './pages/admin/SubmissionsViewer';
 import CandidateReport from './pages/admin/CandidateReport';
 import ExamDashboard from './pages/examinee/ExamDashboard';
@@ -25,10 +27,13 @@ function AppRoutes() {
   return (
     <Routes>
       {/* Admin Routes */}
-      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/admin" element={<AssessmentDashboard />} />
+      <Route path="/admin/questions" element={<QuestionBank />} />
       <Route path="/admin/questions/new" element={<QuestionForm />} />
       <Route path="/admin/questions/:id/edit" element={<QuestionForm />} />
       <Route path="/admin/assessments" element={<AssessmentManager />} />
+      <Route path="/admin/assessments/new" element={<AssessmentForm />} />
+      <Route path="/admin/assessments/:id/edit" element={<AssessmentForm />} />
       <Route path="/admin/submissions/:assessmentId" element={<SubmissionsViewer />} />
       <Route path="/admin/reports/:candidateName/:assessmentId" element={<CandidateReport />} />
 

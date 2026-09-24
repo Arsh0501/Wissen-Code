@@ -27,22 +27,37 @@ cd server && npm install
 cd ../client && npm install
 ```
 
-### 2. Set Up Database
+### 2. Configure & Set Up Database
+
+Create `server/.env`:
+
+```bash
+DATABASE_URL="file:./wissen.db"
+PORT=4000
+JUDGE0_API_URL=https://ce.judge0.com
+# mock = simulated verdicts, no Judge0 calls (good for demos); live = real Judge0 execution
+JUDGE_MODE=mock
+```
 
 ```bash
 cd server
-npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate dev
 ```
 
-### 3. Seed Sample Data (Optional)
+### 3. Seed Mock Data (Optional)
 
-Creates 3 sample questions (Two Sum, Fizz Buzz, Reverse String) and a "TCS Assessment 2021":
+Creates 13 questions across topics (arrays, strings, stacks, DP, graphs, heaps), 5 assessments in
+different states (live, scheduled/draft, closed, results-hidden) and ~23 mock candidates with graded results:
 
 ```bash
 cd server
-npx tsx src/seed.ts
+npm run db:seed          # resets the database
+npm run db:verify-mock   # checks every mock test case against its Python reference solution
 ```
+
+**Mock judge:** with `JUDGE_MODE=mock`, code is never executed. Unbalanced brackets → compile/runtime
+error, untouched starter code (`pass`, `TODO`) → wrong answer, anything else → accepted. The admin header
+shows a "Mock judge" badge while this mode is on.
 
 ### 4. Start Development Servers
 
@@ -63,16 +78,15 @@ Open **http://localhost:3000** in your browser.
 ## How to Use
 
 ### Admin Flow
-1. Go to http://localhost:3000
-2. Enter your name, select **Admin**, click "Continue"
-3. Click **"New Question"** to create a question:
-   - Fill in title, problem statement (Markdown), difficulty, tags
-   - Switch to **Test Cases** tab: add sample (visible) and hidden test cases
-   - Switch to **Starter Code** tab: write starter code per language
-   - Click **Save Question**
-4. Go to **Assessments** → **New Assessment**
-   - Name it, set time limit, select questions
-   - Click **Create Assessment**
+1. Go to http://localhost:3000, enter your name, select **Admin**
+2. **Dashboard** (`/admin`) — KPIs, score distribution, recent activity, per-assessment stats
+3. **Question Bank** (`/admin/questions`) — filter by difficulty/topic, preview, create/edit/import questions
+4. **Assessments** → **New Assessment** — a 4-step flow:
+   - **Details**: name, description, Markdown instructions
+   - **Questions**: pick from the bank, reorder, set marks per question
+   - **Configuration**: duration, passing score, open/close window, shuffle order, allowed languages, show/hide results
+   - **Review**: then **Save draft** or **Publish**
+5. From the list: publish/unpublish, duplicate, archive, delete, or open **Results** for per-candidate marks and pass/fail
 
 ### Examinee Flow
 1. Go to http://localhost:3000
@@ -88,10 +102,14 @@ Open **http://localhost:3000** in your browser.
 9. Click **Submit Test** when done → graded against ALL test cases
 
 ### Verify Grading
-After submission, the results page shows:
-- Overall score percentage
-- Per-question pass/fail with test case breakdown
-- Hidden test cases are graded but never revealed
+After submission, the evaluation screen shows:
+- Score as a percentage of total marks, marks obtained, and pass/fail against the passing score
+- Time taken, questions fully solved, tests passed
+- Per-question marks with a test case breakdown (hidden test outputs are never revealed)
+- If the admin turned off "Show results", candidates only see a submission confirmation
+
+The timer starts only when the candidate clicks **Start Assessment**, is enforced on the server
+(drafts are rejected 30s after time is up), shows warnings at 5 and 1 minute, and auto-submits at zero.
 
 ## Project Structure
 
@@ -141,8 +159,11 @@ Wissen-Code/
 | `/api/questions/:id` | GET, PUT, DELETE | Read/update/delete question |
 | `/api/questions/:id/testcases` | POST | Add test cases |
 | `/api/questions/:id/starter-code` | POST | Add/update starter code |
-| `/api/assessments` | GET, POST | List/create assessments |
+| `/api/assessments` | GET, POST | List (admin: with stats; examinee: published + own status) / create |
+| `/api/assessments/dashboard` | GET | Admin dashboard totals, score distribution, recent activity |
 | `/api/assessments/:id` | GET, PUT, DELETE | Read/update/delete assessment |
+| `/api/assessments/:id/duplicate` | POST | Copy an assessment as a draft |
+| `/api/sessions/status/:assessmentId` | GET | Candidate's existing session (never starts the timer) |
 | `/api/judge/run` | POST | Run code (Judge0 CE) |
 | `/api/judge/languages` | GET | Supported languages |
 | `/api/submissions` | POST | Submit & grade assessment |

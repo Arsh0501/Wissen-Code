@@ -1,18 +1,18 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../context/AuthContext';
 import {
-  getAssessment, runCode, runTests, submitAssessment,
-  startSession, saveDraft, saveAllDrafts, finishSession,
-  type SessionResponse,
+  getAssessment, runCode, runTests,
+  startSession, getSessionStatus, saveDraft, saveAllDrafts, finishSession, apiError,
 } from '../../services/api';
 import type { Assessment, QuestionState, AssessmentQuestion, TestCaseVerdict } from '../../types';
 import {
   Code2, Clock, ChevronLeft, ChevronRight, Flag,
   AlertTriangle, Maximize2, Minimize2, Play, Check,
   Menu, X, CheckCircle, XCircle, AlertOctagon, Timer,
-  BookOpen, Zap, FileText, Shield, ChevronDown,
+  BookOpen, Zap, FileText, Shield, ChevronDown, Target, Award, Lock, ArrowLeft,
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -21,6 +21,18 @@ const LANGUAGES = [
   { id: 54, name: 'C++', monacoLang: 'cpp' },
   { id: 63, name: 'JavaScript', monacoLang: 'javascript' },
 ];
+
+// Languages the assessment allows (all when not restricted)
+function allowedLanguagesFor(assessment: Assessment) {
+  let ids: number[] = [];
+  try {
+    ids = JSON.parse(assessment.allowedLanguages || '[]');
+  } catch {
+    ids = [];
+  }
+  const allowed = LANGUAGES.filter((l) => ids.includes(l.id));
+  return allowed.length ? allowed : LANGUAGES;
+}
 
 // ── Verdict rendering helpers ──
 
@@ -161,6 +173,9 @@ export default function AssessmentView() {
   const [activeOutputTab, setActiveOutputTab] = useState<'output' | 'input'>('output');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOverview, setShowOverview] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [startError, setStartError] = useState('');
+  const [timeWarning, setTimeWarning] = useState('');
 
   // Session state
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -212,6 +227,18 @@ export default function AssessmentView() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [phase, timeLeft > 0]);
+
+  // One-off warnings as the deadline approaches
+  useEffect(() => {
+    if (phase !== 'in-progress') return;
+    const message =
+      timeLeft === 300 ? '5 minutes left — make sure your answers are confirmed.' :
+      timeLeft === 60 ? '1 minute left — your test will be submitted automatically.' : '';
+    if (!message) return;
+    setTimeWarning(message);
+    const t = setTimeout(() => setTimeWarning(''), 8000);
+    return () => clearTimeout(t);
+  }, [phase, timeLeft]);
 
   // Auto-save interval (every 12 seconds)
   useEffect(() => {
@@ -282,8 +309,11 @@ export default function AssessmentView() {
       const states = new Map<number, QuestionState>();
       data.questions.forEach((aq: AssessmentQuestion) => {
         const q = aq.question;
-        const starterCode = q.starterCodes?.[0];
-        const defaultLang = LANGUAGES[0];
+        // Prefer the first allowed language (Python unless restricted) when it has a starter
+        const allowed = allowedLanguagesFor(data);
+        const starterCode =
+          allowed.map((l) => q.starterCodes?.find((sc) => sc.languageId === l.id)).find(Boolean) ?? q.starterCodes?.[0];
+        const defaultLang = allowed[0];
 
         states.set(q.id, {
           questionId: q.id,
@@ -302,72 +332,50 @@ export default function AssessmentView() {
       });
       setQuestionStates(states);
 
-      // Check if there's already a session (resume case)
-      try {
-        const sessionData = await startSession(id);
-        if (sessionData.isFinished) {
-          setPhase('submitted');
-          return;
-        }
-        if (sessionData.remainingSeconds > 0 && sessionData.drafts.length > 0) {
-          // Resume — restore drafts
-          setSessionId(sessionData.sessionId);
-          sessionIdRef.current = sessionData.sessionId;
-          setTimeLeft(sessionData.remainingSeconds);
-
-          // Restore draft states
-          const updatedStates = new Map(states);
-          for (const draft of sessionData.drafts) {
-            const existing = updatedStates.get(draft.questionId);
-            if (existing) {
-              updatedStates.set(draft.questionId, {
-                ...existing,
-                code: draft.code,
-                languageId: draft.languageId,
-                languageName: draft.languageName,
-                monacoLang: LANGUAGES.find(l => l.id === draft.languageId)?.monacoLang || existing.monacoLang,
-                isFlagged: draft.isFlagged,
-                isAnswered: draft.isAnswered,
-              });
-            }
-          }
-          setQuestionStates(updatedStates);
-          setPhase('in-progress');
-          return;
-        }
-        // Session exists but time is up
-        if (sessionData.remainingSeconds <= 0) {
-          // Time already expired
-          setSessionId(sessionData.sessionId);
-          sessionIdRef.current = sessionData.sessionId;
-          if (!hasSubmittedRef.current && !isSubmittingRef.current) {
-            hasSubmittedRef.current = true;
-            isSubmittingRef.current = true;
-            await finishSession(sessionData.sessionId);
-          }
-          setPhase('submitted');
-          return;
-        }
-        // Session exists, has time, no drafts → show pre-test or continue
-        // If session was just created (within last 5 seconds), show pre-test
-        const sessionAge = Date.now() - new Date(sessionData.startedAt).getTime();
-        if (sessionAge < 5000) {
-          // Fresh session — show pre-test (timer hasn't really started yet conceptually)
-          // We'll delete this session and create a new one when they click Start
-          setPhase('pre-test');
-        } else {
-          // Old session, must be resuming
-          setSessionId(sessionData.sessionId);
-          sessionIdRef.current = sessionData.sessionId;
-          setTimeLeft(sessionData.remainingSeconds);
-          setPhase('in-progress');
-        }
-      } catch {
-        // No existing session — show pre-test screen
+      // Resume an existing session if there is one. This never creates a session,
+      // so the timer only starts when the candidate clicks "Start Assessment".
+      const status = await getSessionStatus(id);
+      if (!status.exists) {
         setPhase('pre-test');
+        return;
       }
+      if (status.isFinished) {
+        setPhase('submitted');
+        return;
+      }
+      setSessionId(status.sessionId);
+      sessionIdRef.current = status.sessionId;
+
+      if (status.remainingSeconds <= 0) {
+        // Time ran out while the candidate was away — grade the saved drafts
+        hasSubmittedRef.current = true;
+        isSubmittingRef.current = true;
+        await finishSession(status.sessionId).catch(console.error);
+        setPhase('submitted');
+        return;
+      }
+
+      const updatedStates = new Map(states);
+      for (const draft of status.drafts) {
+        const existing = updatedStates.get(draft.questionId);
+        if (existing) {
+          updatedStates.set(draft.questionId, {
+            ...existing,
+            code: draft.code,
+            languageId: draft.languageId,
+            languageName: draft.languageName,
+            monacoLang: LANGUAGES.find(l => l.id === draft.languageId)?.monacoLang || existing.monacoLang,
+            isFlagged: draft.isFlagged,
+            isAnswered: draft.isAnswered,
+          });
+        }
+      }
+      setQuestionStates(updatedStates);
+      setTimeLeft(status.remainingSeconds);
+      setPhase('in-progress');
     } catch (err) {
       console.error('Failed to load assessment:', err);
+      setLoadError(apiError(err, 'Failed to load assessment'));
       setPhase('pre-test');
     }
   }
@@ -383,7 +391,7 @@ export default function AssessmentView() {
       setPhase('in-progress');
     } catch (err) {
       console.error('Failed to start session:', err);
-      alert('Failed to start assessment. Please try again.');
+      setStartError(apiError(err, 'Failed to start assessment. Please try again.'));
     }
   }
 
@@ -397,6 +405,7 @@ export default function AssessmentView() {
   const answered = Array.from(questionStates.values()).filter((s) => s.isAnswered).length;
   const flagged = Array.from(questionStates.values()).filter((s) => s.isFlagged).length;
   const unanswered = questionStates.size - answered;
+  const totalMarks = assessmentQuestions.reduce((acc, aq) => acc + (aq.marks ?? 0), 0);
 
   const formatTime = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -687,15 +696,7 @@ export default function AssessmentView() {
     return null;
   }
 
-  // Get available languages (only those with starter codes across the assessment)
-  function getAvailableLanguages() {
-    const langIds = new Set<number>();
-    assessmentQuestions.forEach(aq => {
-      aq.question.starterCodes?.forEach(sc => langIds.add(sc.languageId));
-    });
-    if (langIds.size === 0) return LANGUAGES;
-    return LANGUAGES.filter(l => langIds.has(l.id));
-  }
+  const availableLangs = assessment ? allowedLanguagesFor(assessment) : LANGUAGES;
 
   // ═══════════════════════════════════════════
   // ── RENDER: LOADING ──
@@ -711,12 +712,25 @@ export default function AssessmentView() {
     );
   }
 
+  if (loadError || !assessment) {
+    return (
+      <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+        <div className="card max-w-md w-full text-center">
+          <Lock className="w-12 h-12 text-surface-600 mx-auto mb-4" />
+          <h2 className="text-lg font-bold text-white mb-2">This assessment isn't available</h2>
+          <p className="text-sm text-surface-400 mb-6">{loadError || 'Assessment not found.'}</p>
+          <button onClick={() => navigate('/exam')} className="btn-outline">
+            <ArrowLeft className="w-4 h-4" /> Back to my assessments
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // ═══════════════════════════════════════════
   // ── RENDER: PRE-TEST SCREEN ──
   // ═══════════════════════════════════════════
   if (phase === 'pre-test' && assessment) {
-    const availableLangs = getAvailableLanguages();
-
     return (
       <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -736,9 +750,24 @@ export default function AssessmentView() {
                 <p className="text-sm text-surface-400">Coding Assessment</p>
               </div>
             </div>
+            {assessment.description && <p className="text-sm text-surface-300 -mt-2 mb-6">{assessment.description}</p>}
 
             {/* Assessment details */}
             <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
+                <Award className="w-5 h-5 text-primary-400" />
+                <div>
+                  <p className="text-xs text-surface-500 uppercase tracking-wider">Total marks</p>
+                  <p className="text-sm font-semibold text-white">{totalMarks} marks</p>
+                </div>
+              </div>
+              <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
+                <Target className="w-5 h-5 text-primary-400" />
+                <div>
+                  <p className="text-xs text-surface-500 uppercase tracking-wider">To pass</p>
+                  <p className="text-sm font-semibold text-white">{assessment.passingScore}% of marks</p>
+                </div>
+              </div>
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
                 <Clock className="w-5 h-5 text-primary-400" />
                 <div>
@@ -773,33 +802,20 @@ export default function AssessmentView() {
                 <BookOpen className="w-4 h-4 text-primary-400" />
                 <h3 className="text-sm font-semibold text-white">Instructions</h3>
               </div>
-              <ul className="space-y-2 text-sm text-surface-300">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-400 mt-0.5">•</span>
-                  The timer starts once you click "Start Assessment" and cannot be paused.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-400 mt-0.5">•</span>
-                  You can switch between questions at any time using the navigation bar.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-400 mt-0.5">•</span>
-                  Use "Run code" to test your solution against sample test cases before submitting.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-400 mt-0.5">•</span>
-                  Your code is auto-saved periodically. You can safely refresh the page without losing work.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary-400 mt-0.5">•</span>
-                  When the timer expires, your answers will be auto-submitted.
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-amber-400 mt-0.5">•</span>
-                  <span className="text-amber-300">Final grading runs against hidden test cases, not just the samples shown.</span>
-                </li>
+              {assessment.instructions && (
+                <div className="text-sm text-surface-300 space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1.5 [&_strong]:text-white mb-3">
+                  <ReactMarkdown>{assessment.instructions}</ReactMarkdown>
+                </div>
+              )}
+              <ul className="space-y-1.5 text-sm text-surface-300 pl-5 list-disc">
+                <li>The timer starts once you click "Start Assessment" and cannot be paused.</li>
+                <li className="text-amber-300">Final grading runs against hidden test cases, not just the samples shown.</li>
               </ul>
             </div>
+
+            {startError && (
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300">{startError}</div>
+            )}
 
             {/* Start button */}
             <button
@@ -987,6 +1003,7 @@ export default function AssessmentView() {
   }
 
   const isTimeLow = timeLeft < 300;
+  const timeFraction = assessment.timeLimitMinutes > 0 ? timeLeft / (assessment.timeLimitMinutes * 60) : 0;
 
   return (
     <div className="h-screen flex flex-col bg-surface-950 overflow-hidden">
@@ -1019,6 +1036,27 @@ export default function AssessmentView() {
           </button>
         </div>
       </header>
+
+      {/* Time remaining */}
+      <div
+        className="flex-none h-1 bg-surface-800"
+        role="progressbar"
+        aria-label="Time remaining"
+        aria-valuemin={0}
+        aria-valuemax={assessment.timeLimitMinutes * 60}
+        aria-valuenow={timeLeft}
+      >
+        <div
+          className={`h-full transition-all duration-1000 ease-linear ${isTimeLow ? 'bg-red-500' : timeFraction < 0.25 ? 'bg-amber-500' : 'bg-primary-500'}`}
+          style={{ width: `${Math.max(0, Math.min(1, timeFraction)) * 100}%` }}
+        />
+      </div>
+      {timeWarning && (
+        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/90 text-white text-sm font-medium shadow-xl animate-fade-in">
+          <Clock className="w-4 h-4" /> {timeWarning}
+          <button onClick={() => setTimeWarning('')} className="ml-2 opacity-80 hover:opacity-100" aria-label="Dismiss"><X className="w-4 h-4" /></button>
+        </div>
+      )}
 
       {/* ─── NAVIGATION BAR ─── */}
       <nav className="flex-none h-12 bg-surface-900/60 border-b border-surface-800 flex items-center px-4 gap-4 z-20">
@@ -1115,9 +1153,14 @@ export default function AssessmentView() {
         }`}>
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-white">
-                Question {currentQuestionIndex + 1}
-              </h2>
+              <div>
+                <p className="text-xs text-surface-500 uppercase tracking-wider">Question {currentQuestionIndex + 1} of {assessmentQuestions.length}</p>
+                <h2 className="text-lg font-bold text-white">{currentQuestion.title}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`badge-${currentQuestion.difficulty}`}>{currentQuestion.difficulty}</span>
+                  <span className="text-xs text-surface-400">{currentAQ.marks} marks</span>
+                </div>
+              </div>
               <button className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Report a problem
@@ -1125,8 +1168,8 @@ export default function AssessmentView() {
             </div>
 
             <div className="prose prose-invert prose-sm max-w-none mb-6">
-              <div className="text-surface-200 leading-relaxed whitespace-pre-wrap">
-                {currentQuestion.statement}
+              <div className="text-surface-200 leading-relaxed space-y-3 [&_code]:text-primary-300 [&_code]:bg-surface-800 [&_code]:px-1 [&_code]:rounded [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:text-white">
+                <ReactMarkdown>{currentQuestion.statement}</ReactMarkdown>
               </div>
             </div>
 
@@ -1187,7 +1230,7 @@ export default function AssessmentView() {
                 onChange={(e) => handleLanguageChange(parseInt(e.target.value))}
                 className="bg-surface-800 border border-surface-700 rounded-md px-2.5 py-1 text-sm text-surface-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
               >
-                {LANGUAGES.map((lang) => (
+                {availableLangs.map((lang) => (
                   <option key={lang.id} value={lang.id}>{lang.name}</option>
                 ))}
               </select>

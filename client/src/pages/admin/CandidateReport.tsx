@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getReportData, getReportDownloadUrl } from '../../services/api';
+import { PassFailBadge, formatDuration } from '../../components/ui';
 import {
   ArrowLeft, Code2, Download, CheckCircle, XCircle,
   BarChart3, AlertTriangle, Shield, Copy, Camera,
@@ -22,6 +23,8 @@ interface ReportQuestion {
   testcases_passed: number;
   testcases_total: number;
   score: number;
+  marks: number;
+  marks_obtained: number;
   failed_cases: FailedCase[];
 }
 
@@ -29,6 +32,14 @@ interface ReportDataType {
   candidate: { id: string; name: string; email: string };
   assessment: { id: number; title: string; duration_minutes: number; submitted_at: string };
   overall_score: { passed: number; total: number; percentage: number };
+  marks: {
+    obtained: number;
+    total: number;
+    percentage: number;
+    passing_score: number;
+    passed: boolean;
+    time_taken_seconds: number | null;
+  };
   questions: ReportQuestion[];
   integrity_placeholder: {
     is_placeholder: boolean;
@@ -213,16 +224,21 @@ export default function CandidateReport() {
                       Duration: {report.assessment.duration_minutes} min
                     </span>
                     <span>Submitted: {formatDate(report.assessment.submitted_at)}</span>
+                    <span>Time taken: {formatDuration(report.marks.time_taken_seconds)}</span>
                   </div>
                 </div>
 
-                <div className={`px-5 py-3 rounded-xl ring-1 text-center ${scoreBg(report.overall_score.percentage)}`}>
+                <div className={`px-5 py-3 rounded-xl ring-1 text-center ${scoreBg(report.marks.percentage)}`}>
                   <div className="text-xs text-surface-500 uppercase tracking-wider mb-1">Overall</div>
-                  <div className={`text-3xl font-extrabold ${scoreColor(report.overall_score.percentage)}`}>
-                    {report.overall_score.percentage.toFixed(1)}%
+                  <div className={`text-3xl font-extrabold ${scoreColor(report.marks.percentage)}`}>
+                    {report.marks.percentage.toFixed(1)}%
                   </div>
-                  <div className="text-xs text-surface-500 mt-1">
-                    {report.overall_score.passed}/{report.overall_score.total} passed
+                  <div className="text-xs text-surface-400 mt-1 tabular-nums">
+                    {report.marks.obtained}/{report.marks.total} marks · pass {report.marks.passing_score}%
+                  </div>
+                  <div className="mt-2"><PassFailBadge passed={report.marks.passed} /></div>
+                  <div className="text-xs text-surface-500 mt-2">
+                    {report.overall_score.passed}/{report.overall_score.total} test cases passed
                   </div>
                 </div>
               </div>
@@ -249,8 +265,8 @@ export default function CandidateReport() {
                         <span className="text-sm text-surface-400">
                           {q.testcases_passed}/{q.testcases_total} test cases
                         </span>
-                        <span className={`text-lg font-bold ${scoreColor(q.score)}`}>
-                          {q.score.toFixed(0)}%
+                        <span className={`text-lg font-bold tabular-nums ${scoreColor(q.score)}`}>
+                          {q.marks_obtained}<span className="text-surface-500 text-sm font-normal">/{q.marks}</span>
                         </span>
                       </div>
                     </div>

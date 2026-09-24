@@ -1,10 +1,65 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
-import { executeCode } from '../services/judge0';
+import { gradeAnswer, computeEvaluation } from '../services/grading';
 
 const router = Router();
 
-// POST /api/sessions/start — Start or resume an assessment session
+// Drafts arriving shortly after the deadline (network lag, auto-submit) are still accepted
+const GRACE_PERIOD_MS = 30 * 1000;
+
+function remainingSeconds(startedAt: Date, timeLimitMinutes: number): number {
+  const remainingMs = timeLimitMinutes * 60 * 1000 - (Date.now() - startedAt.getTime());
+  return Math.max(0, Math.floor(remainingMs / 1000));
+}
+
+function isPastDeadline(startedAt: Date, timeLimitMinutes: number): boolean {
+  return Date.now() > startedAt.getTime() + timeLimitMinutes * 60 * 1000 + GRACE_PERIOD_MS;
+}
+
+function sessionResponse(
+  session: { id: number; startedAt: Date; finishedAt: Date | null; drafts: any[] },
+  timeLimitMinutes: number
+) {
+  return {
+    sessionId: session.id,
+    startedAt: session.startedAt.toISOString(),
+    finishedAt: session.finishedAt?.toISOString() || null,
+    timeLimitMinutes,
+    remainingSeconds: session.finishedAt ? 0 : remainingSeconds(session.startedAt, timeLimitMinutes),
+    isFinished: !!session.finishedAt,
+    drafts: session.drafts,
+  };
+}
+
+// Returns an error message if the assessment can't be started right now
+export function availabilityError(a: { status: string; startAt: Date | null; endAt: Date | null }): string | null {
+  if (a.status !== 'published') return 'This assessment is not open for candidates';
+  const now = new Date();
+  if (a.startAt && now < a.startAt) return `This assessment opens on ${a.startAt.toISOString()}`;
+  if (a.endAt && now > a.endAt) return 'This assessment has closed';
+  return null;
+}
+
+// GET /api/sessions/status/:assessmentId — Existing session for the current candidate (never creates one)
+router.get('/status/:assessmentId', async (req: Request, res: Response) => {
+  try {
+    const assessmentId = parseInt(req.params.assessmentId);
+    const candidateName = (req as any).candidateName || 'Anonymous';
+
+    const session = await prisma.assessmentSession.findUnique({
+      where: { assessmentId_candidateName: { assessmentId, candidateName } },
+      include: { drafts: true, assessment: { select: { timeLimitMinutes: true } } },
+    });
+
+    if (!session) return res.json({ exists: false });
+    res.json({ exists: true, ...sessionResponse(session, session.assessment.timeLimitMinutes) });
+  } catch (error: any) {
+    console.error('Error fetching session status:', error);
+    res.status(500).json({ error: 'Failed to fetch session status' });
+  }
+});
+
+// POST /api/sessions/start — Start or resume an assessment session (starts the timer)
 router.post('/start', async (req: Request, res: Response) => {
   try {
     const { assessmentId } = req.body;
@@ -14,68 +69,32 @@ router.post('/start', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'assessmentId is required' });
     }
 
-    // Check if assessment exists
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      select: { id: true, timeLimitMinutes: true, name: true },
+      select: { id: true, timeLimitMinutes: true, status: true, startAt: true, endAt: true },
     });
 
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
     }
 
-    // Upsert session — create if new, return existing if already started
     let session = await prisma.assessmentSession.findUnique({
-      where: {
-        assessmentId_candidateName: { assessmentId, candidateName },
-      },
-      include: {
-        drafts: true,
-      },
+      where: { assessmentId_candidateName: { assessmentId, candidateName } },
+      include: { drafts: true },
     });
 
     if (!session) {
+      // Only new sessions are gated — a candidate mid-test can always resume
+      const blocked = availabilityError(assessment);
+      if (blocked) return res.status(403).json({ error: blocked });
+
       session = await prisma.assessmentSession.create({
-        data: {
-          assessmentId,
-          candidateName,
-        },
-        include: {
-          drafts: true,
-        },
+        data: { assessmentId, candidateName },
+        include: { drafts: true },
       });
     }
 
-    // Check if already finished
-    if (session.finishedAt) {
-      return res.json({
-        sessionId: session.id,
-        startedAt: session.startedAt.toISOString(),
-        finishedAt: session.finishedAt.toISOString(),
-        timeLimitMinutes: assessment.timeLimitMinutes,
-        remainingSeconds: 0,
-        isFinished: true,
-        drafts: session.drafts,
-      });
-    }
-
-    // Compute remaining time
-    const nowMs = Date.now();
-    const startMs = session.startedAt.getTime();
-    const limitMs = assessment.timeLimitMinutes * 60 * 1000;
-    const elapsedMs = nowMs - startMs;
-    const remainingMs = Math.max(0, limitMs - elapsedMs);
-    const remainingSeconds = Math.floor(remainingMs / 1000);
-
-    res.json({
-      sessionId: session.id,
-      startedAt: session.startedAt.toISOString(),
-      finishedAt: null,
-      timeLimitMinutes: assessment.timeLimitMinutes,
-      remainingSeconds,
-      isFinished: false,
-      drafts: session.drafts,
-    });
+    res.json(sessionResponse(session, assessment.timeLimitMinutes));
   } catch (error: any) {
     console.error('Error starting session:', error);
     res.status(500).json({ error: 'Failed to start session' });
@@ -91,9 +110,7 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
       where: { id: sessionId },
       include: {
         drafts: true,
-        assessment: {
-          select: { timeLimitMinutes: true },
-        },
+        assessment: { select: { timeLimitMinutes: true } },
       },
     });
 
@@ -101,24 +118,10 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Compute remaining time
-    const nowMs = Date.now();
-    const startMs = session.startedAt.getTime();
-    const limitMs = session.assessment.timeLimitMinutes * 60 * 1000;
-    const elapsedMs = nowMs - startMs;
-    const remainingMs = Math.max(0, limitMs - elapsedMs);
-    const remainingSeconds = Math.floor(remainingMs / 1000);
-
     res.json({
-      sessionId: session.id,
+      ...sessionResponse(session, session.assessment.timeLimitMinutes),
       assessmentId: session.assessmentId,
       candidateName: session.candidateName,
-      startedAt: session.startedAt.toISOString(),
-      finishedAt: session.finishedAt?.toISOString() || null,
-      timeLimitMinutes: session.assessment.timeLimitMinutes,
-      remainingSeconds: session.finishedAt ? 0 : remainingSeconds,
-      isFinished: !!session.finishedAt,
-      drafts: session.drafts,
     });
   } catch (error: any) {
     console.error('Error fetching session:', error);
@@ -126,50 +129,65 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
   }
 });
 
+// Loads a session that is still accepting answers, or sends the error response
+async function getWritableSession(req: Request, res: Response) {
+  const sessionId = parseInt(req.params.sessionId);
+  const session = await prisma.assessmentSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      candidateName: true,
+      startedAt: true,
+      finishedAt: true,
+      assessment: { select: { timeLimitMinutes: true } },
+    },
+  });
+
+  if (!session) {
+    res.status(404).json({ error: 'Session not found' });
+    return null;
+  }
+  if (session.candidateName !== (req as any).candidateName) {
+    res.status(403).json({ error: 'This session belongs to another candidate' });
+    return null;
+  }
+  if (session.finishedAt) {
+    res.status(400).json({ error: 'Session is already finished' });
+    return null;
+  }
+  if (isPastDeadline(session.startedAt, session.assessment.timeLimitMinutes)) {
+    res.status(400).json({ error: 'Time is up for this session' });
+    return null;
+  }
+  return session;
+}
+
+function draftData(d: any) {
+  return {
+    languageId: d.languageId,
+    languageName: d.languageName,
+    code: d.code || '',
+    isFlagged: d.isFlagged ?? false,
+    isAnswered: d.isAnswered ?? false,
+  };
+}
+
 // POST /api/sessions/:sessionId/save-draft — Upsert a draft answer for a question
 router.post('/:sessionId/save-draft', async (req: Request, res: Response) => {
   try {
-    const sessionId = parseInt(req.params.sessionId);
-    const { questionId, languageId, languageName, code, isFlagged, isAnswered } = req.body;
+    const { questionId, languageId, languageName } = req.body;
 
     if (!questionId || !languageId || !languageName) {
       return res.status(400).json({ error: 'questionId, languageId, and languageName are required' });
     }
 
-    // Verify session exists and isn't finished
-    const session = await prisma.assessmentSession.findUnique({
-      where: { id: sessionId },
-      select: { finishedAt: true },
-    });
-
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
-
-    if (session.finishedAt) {
-      return res.status(400).json({ error: 'Session is already finished' });
-    }
+    const session = await getWritableSession(req, res);
+    if (!session) return;
 
     const draft = await prisma.draftAnswer.upsert({
-      where: {
-        sessionId_questionId: { sessionId, questionId },
-      },
-      update: {
-        languageId,
-        languageName,
-        code: code || '',
-        isFlagged: isFlagged ?? false,
-        isAnswered: isAnswered ?? false,
-      },
-      create: {
-        sessionId,
-        questionId,
-        languageId,
-        languageName,
-        code: code || '',
-        isFlagged: isFlagged ?? false,
-        isAnswered: isAnswered ?? false,
-      },
+      where: { sessionId_questionId: { sessionId: session.id, questionId } },
+      update: draftData(req.body),
+      create: { sessionId: session.id, questionId, ...draftData(req.body) },
     });
 
     res.json(draft);
@@ -182,56 +200,26 @@ router.post('/:sessionId/save-draft', async (req: Request, res: Response) => {
 // POST /api/sessions/:sessionId/save-all-drafts — Batch save all drafts at once
 router.post('/:sessionId/save-all-drafts', async (req: Request, res: Response) => {
   try {
-    const sessionId = parseInt(req.params.sessionId);
     const { drafts } = req.body;
-    // drafts: Array of { questionId, languageId, languageName, code, isFlagged, isAnswered }
 
     if (!drafts || !Array.isArray(drafts)) {
       return res.status(400).json({ error: 'drafts array is required' });
     }
 
-    // Verify session exists and isn't finished
-    const session = await prisma.assessmentSession.findUnique({
-      where: { id: sessionId },
-      select: { finishedAt: true },
-    });
+    const session = await getWritableSession(req, res);
+    if (!session) return;
 
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
+    await prisma.$transaction(
+      drafts.map((d: any) =>
+        prisma.draftAnswer.upsert({
+          where: { sessionId_questionId: { sessionId: session.id, questionId: d.questionId } },
+          update: draftData(d),
+          create: { sessionId: session.id, questionId: d.questionId, ...draftData(d) },
+        })
+      )
+    );
 
-    if (session.finishedAt) {
-      return res.status(400).json({ error: 'Session is already finished' });
-    }
-
-    // Upsert each draft
-    const results = [];
-    for (const d of drafts) {
-      const draft = await prisma.draftAnswer.upsert({
-        where: {
-          sessionId_questionId: { sessionId, questionId: d.questionId },
-        },
-        update: {
-          languageId: d.languageId,
-          languageName: d.languageName,
-          code: d.code || '',
-          isFlagged: d.isFlagged ?? false,
-          isAnswered: d.isAnswered ?? false,
-        },
-        create: {
-          sessionId,
-          questionId: d.questionId,
-          languageId: d.languageId,
-          languageName: d.languageName,
-          code: d.code || '',
-          isFlagged: d.isFlagged ?? false,
-          isAnswered: d.isAnswered ?? false,
-        },
-      });
-      results.push(draft);
-    }
-
-    res.json({ saved: results.length });
+    res.json({ saved: drafts.length });
   } catch (error: any) {
     console.error('Error saving drafts:', error);
     res.status(500).json({ error: 'Failed to save drafts' });
@@ -250,7 +238,6 @@ router.post('/:sessionId/finish', async (req: Request, res: Response) => {
     });
 
     if (updateResult.count === 0) {
-      // Session does not exist or was already finished
       const existing = await prisma.assessmentSession.findUnique({
         where: { id: sessionId },
         select: { finishedAt: true },
@@ -261,15 +248,9 @@ router.post('/:sessionId/finish', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    // Get session with drafts
     const session = await prisma.assessmentSession.findUnique({
       where: { id: sessionId },
-      include: {
-        drafts: true,
-        assessment: {
-          select: { id: true, timeLimitMinutes: true },
-        },
-      },
+      include: { drafts: true },
     });
 
     if (!session) {
@@ -277,117 +258,18 @@ router.post('/:sessionId/finish', async (req: Request, res: Response) => {
     }
 
     // Grade each draft answer against ALL test cases (sample + hidden)
-    const results = [];
-
     for (const draft of session.drafts) {
-      // Remove any prior submission for this question to prevent duplicates
-      await prisma.submission.deleteMany({
-        where: {
-          assessmentId: session.assessmentId,
-          candidateName: session.candidateName,
-          questionId: draft.questionId,
-        },
-      });
-
-      // Create submission record
-      const submission = await prisma.submission.create({
-        data: {
-          assessmentId: session.assessmentId,
-          questionId: draft.questionId,
-          candidateName: session.candidateName,
-          languageId: draft.languageId,
-          languageName: draft.languageName,
-          code: draft.code,
-          status: 'grading',
-        },
-      });
-
-      // Get ALL test cases
-      const testCases = await prisma.testCase.findMany({
-        where: { questionId: draft.questionId },
-      });
-
-      let passedCount = 0;
-      const testCaseResults = [];
-
-      for (const tc of testCases) {
-        try {
-          const result = await executeCode({
-            sourceCode: draft.code,
-            languageId: draft.languageId,
-            stdin: tc.input,
-            cpuTimeLimit: 5,
-            memoryLimit: 256000,
-          });
-
-          const actualOutput = (result.stdout || '').trim();
-          const expectedOutput = tc.expectedOutput.trim();
-          const passed = result.status.id === 3 && actualOutput === expectedOutput;
-
-          if (passed) passedCount++;
-
-          const tcResult = await prisma.testCaseResult.create({
-            data: {
-              submissionId: submission.id,
-              testCaseId: tc.id,
-              passed,
-              actualOutput: actualOutput || result.compile_output || result.stderr || '',
-              statusDesc: result.status.description,
-              executionTime: result.time ? parseFloat(result.time) : null,
-              memoryUsed: result.memory,
-            },
-          });
-
-          testCaseResults.push({
-            ...tcResult,
-            isSample: tc.isSample,
-          });
-        } catch (execError: any) {
-          const tcResult = await prisma.testCaseResult.create({
-            data: {
-              submissionId: submission.id,
-              testCaseId: tc.id,
-              passed: false,
-              actualOutput: execError.message || 'Execution error',
-              statusDesc: 'Internal Error',
-            },
-          });
-
-          testCaseResults.push({
-            ...tcResult,
-            isSample: tc.isSample,
-          });
-        }
-      }
-
-      // Update submission with final score
-      const score = testCases.length > 0 ? (passedCount / testCases.length) * 100 : 0;
-      const updatedSubmission = await prisma.submission.update({
-        where: { id: submission.id },
-        data: {
-          status: 'graded',
-          score,
-        },
-      });
-
-      results.push({
-        ...updatedSubmission,
-        totalTestCases: testCases.length,
-        passedTestCases: passedCount,
-        testCaseResults,
-      });
+      await gradeAnswer(session.assessmentId, session.candidateName, draft);
     }
 
+    const evaluation = await computeEvaluation(session.assessmentId, session.candidateName);
     res.json({
       sessionId,
       assessmentId: session.assessmentId,
       candidateName: session.candidateName,
-      finishedAt: new Date().toISOString(),
-      submissions: results,
-      overallScore:
-        results.length > 0
-          ? results.reduce((acc, r) => acc + r.score, 0) / results.length
-          : 0,
+      finishedAt: session.finishedAt?.toISOString(),
+      overallScore: evaluation?.percentage ?? 0,
+      passed: evaluation?.passed ?? false,
     });
   } catch (error: any) {
     console.error('Error finishing session:', error);

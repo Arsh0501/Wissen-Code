@@ -9,7 +9,8 @@
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:seed": "tsx src/seed.ts"
+    "db:seed": "tsx src/seed.ts",
+    "db:verify-mock": "tsx src/verify-mock-data.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.9.0",
@@ -26,5 +27,8 @@
     "prisma": "^6.9.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
+  },
+  "prisma": {
+    "seed": "tsx src/seed.ts"
   }
 }

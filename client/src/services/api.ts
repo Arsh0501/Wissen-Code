@@ -6,6 +6,10 @@ import type {
   RunTestsResponse,
   SubmissionResult,
   Language,
+  AssessmentInput,
+  DashboardData,
+  CandidateSummary,
+  AssessmentStats,
 } from '../types';
 
 const api = axios.create({
@@ -26,8 +30,12 @@ api.interceptors.request.use((config) => {
 
 // ---- Questions ----
 
-export async function getQuestions(): Promise<Question[]> {
-  const { data } = await api.get('/questions');
+export async function getQuestions(filters?: {
+  search?: string;
+  difficulty?: string;
+  tag?: string;
+}): Promise<Question[]> {
+  const { data } = await api.get('/questions', { params: filters });
   return data;
 }
 
@@ -36,7 +44,17 @@ export async function getQuestion(id: number): Promise<Question> {
   return data;
 }
 
-export async function createQuestion(question: Partial<Question> & {
+// Tags are sent as an array; the server stores them as a JSON string
+export interface QuestionInput {
+  title?: string;
+  statement?: string;
+  difficulty?: Question['difficulty'];
+  tags?: string[];
+  timeLimit?: number;
+  memoryLimit?: number;
+}
+
+export async function createQuestion(question: QuestionInput & {
   starterCodes?: { languageId: number; languageName: string; code: string }[];
   testCases?: { input: string; expectedOutput: string; isSample: boolean }[];
 }): Promise<Question> {
@@ -44,7 +62,7 @@ export async function createQuestion(question: Partial<Question> & {
   return data;
 }
 
-export async function updateQuestion(id: number, question: Partial<Question>): Promise<Question> {
+export async function updateQuestion(id: number, question: QuestionInput): Promise<Question> {
   const { data } = await api.put(`/questions/${id}`, question);
   return data;
 }
@@ -103,18 +121,14 @@ export async function getAssessment(id: number): Promise<Assessment> {
   return data;
 }
 
-export async function createAssessment(assessment: {
-  name: string;
-  timeLimitMinutes: number;
-  questionIds: number[];
-}): Promise<Assessment> {
+export async function createAssessment(assessment: AssessmentInput): Promise<Assessment> {
   const { data } = await api.post('/assessments', assessment);
   return data;
 }
 
 export async function updateAssessment(
   id: number,
-  assessment: { name?: string; timeLimitMinutes?: number; questionIds?: number[] }
+  assessment: Partial<AssessmentInput>
 ): Promise<Assessment> {
   const { data } = await api.put(`/assessments/${id}`, assessment);
   return data;
@@ -122,6 +136,21 @@ export async function updateAssessment(
 
 export async function deleteAssessment(id: number): Promise<void> {
   await api.delete(`/assessments/${id}`);
+}
+
+export async function duplicateAssessment(id: number): Promise<Assessment> {
+  const { data } = await api.post(`/assessments/${id}/duplicate`);
+  return data;
+}
+
+export async function getDashboard(): Promise<DashboardData> {
+  const { data } = await api.get('/assessments/dashboard');
+  return data;
+}
+
+// Extracts the server's error message from an axios error
+export function apiError(err: any, fallback = 'Something went wrong'): string {
+  return err?.response?.data?.error || err?.message || fallback;
 }
 
 // ---- Judge / Run Code ----
@@ -169,7 +198,7 @@ export async function getSubmissionResults(
   assessmentId: number,
   candidateName: string
 ): Promise<SubmissionResult> {
-  const { data } = await api.get(`/submissions/${assessmentId}/${candidateName}`);
+  const { data } = await api.get(`/submissions/${assessmentId}/${encodeURIComponent(candidateName)}`);
   return data;
 }
 
@@ -192,6 +221,14 @@ export interface SessionResponse {
     isFlagged: boolean;
     isAnswered: boolean;
   }[];
+}
+
+// Existing session for the current candidate; never creates one (so the timer doesn't start)
+export async function getSessionStatus(
+  assessmentId: number
+): Promise<({ exists: true } & SessionResponse) | { exists: false }> {
+  const { data } = await api.get(`/sessions/status/${assessmentId}`);
+  return data;
 }
 
 export async function startSession(assessmentId: number): Promise<SessionResponse> {
@@ -239,17 +276,14 @@ export async function finishSession(sessionId: number): Promise<any> {
 
 // ---- Admin Reports ----
 
-export interface CandidateSubmissionSummary {
-  name: string;
-  submittedAt: string;
-  totalQuestions: number;
-  overallScore: number;
+export interface CandidateSubmissionSummary extends CandidateSummary {
   session: { finishedAt: string | null; startedAt: string } | null;
 }
 
 export interface AssessmentSubmissionsResponse {
-  assessment: { id: number; name: string; timeLimitMinutes: number };
+  assessment: { id: number; name: string; timeLimitMinutes: number; passingScore: number };
   candidates: CandidateSubmissionSummary[];
+  stats: AssessmentStats;
 }
 
 export async function getAssessmentSubmissions(
