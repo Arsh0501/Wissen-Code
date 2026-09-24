@@ -7,11 +7,12 @@ const router = Router();
 // POST /api/submissions — Submit and grade a full assessment
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { assessmentId, candidateName, answers } = req.body;
+    const { assessmentId, answers } = req.body;
+    const candidateName = req.user!.name;
     // answers: Array of { questionId, languageId, languageName, code }
 
-    if (!assessmentId || !candidateName || !answers || !Array.isArray(answers)) {
-      return res.status(400).json({ error: 'assessmentId, candidateName, and answers array are required' });
+    if (!assessmentId || !answers || !Array.isArray(answers)) {
+      return res.status(400).json({ error: 'assessmentId and answers array are required' });
     }
 
     const results = [];
@@ -128,6 +129,11 @@ router.get('/:assessmentId/:candidateName', async (req: Request, res: Response) 
   try {
     const assessmentId = parseInt(req.params.assessmentId);
     const candidateName = req.params.candidateName;
+
+    // Examinees may only view their own results; admins can view any
+    if (req.user!.role !== 'admin' && req.user!.name !== candidateName) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
 
     const submissions = await prisma.submission.findMany({
       where: { assessmentId, candidateName },

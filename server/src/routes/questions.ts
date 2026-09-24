@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
+const requireAdmin = requireRole('admin');
 
 // GET /api/questions — List all questions
 router.get('/', async (_req: Request, res: Response) => {
@@ -42,7 +44,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/questions — Create a new question
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { title, statement, difficulty, tags, timeLimit, memoryLimit, starterCodes, testCases } =
       req.body;
@@ -88,7 +90,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/questions/:id — Update a question
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const { title, statement, difficulty, tags, timeLimit, memoryLimit } = req.body;
@@ -117,7 +119,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/questions/:id — Delete a question
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     await prisma.question.delete({
       where: { id: parseInt(req.params.id) },
@@ -132,7 +134,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
 // ---- Test Cases ----
 
 // POST /api/questions/:id/testcases — Add test cases
-router.post('/:id/testcases', async (req: Request, res: Response) => {
+router.post('/:id/testcases', requireAdmin, async (req: Request, res: Response) => {
   try {
     const questionId = parseInt(req.params.id);
     const { testCases } = req.body; // Array of { input, expectedOutput, isSample }
@@ -166,7 +168,7 @@ router.post('/:id/testcases', async (req: Request, res: Response) => {
 });
 
 // PUT /api/questions/testcases/:tcId — Update a test case
-router.put('/testcases/:tcId', async (req: Request, res: Response) => {
+router.put('/testcases/:tcId', requireAdmin, async (req: Request, res: Response) => {
   try {
     const tc = await prisma.testCase.update({
       where: { id: parseInt(req.params.tcId) },
@@ -184,7 +186,7 @@ router.put('/testcases/:tcId', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/questions/testcases/:tcId — Delete a test case
-router.delete('/testcases/:tcId', async (req: Request, res: Response) => {
+router.delete('/testcases/:tcId', requireAdmin, async (req: Request, res: Response) => {
   try {
     await prisma.testCase.delete({
       where: { id: parseInt(req.params.tcId) },
@@ -199,7 +201,7 @@ router.delete('/testcases/:tcId', async (req: Request, res: Response) => {
 // ---- Starter Codes ----
 
 // POST /api/questions/:id/starter-code — Add/update starter code
-router.post('/:id/starter-code', async (req: Request, res: Response) => {
+router.post('/:id/starter-code', requireAdmin, async (req: Request, res: Response) => {
   try {
     const questionId = parseInt(req.params.id);
     const { languageId, languageName, code } = req.body;

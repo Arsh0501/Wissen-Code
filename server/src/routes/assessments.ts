@@ -1,7 +1,9 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
+import { requireRole } from '../middleware/auth';
 
 const router = Router();
+const requireAdmin = requireRole('admin');
 
 // GET /api/assessments — List all assessments
 router.get('/', async (_req: Request, res: Response) => {
@@ -63,7 +65,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/assessments — Create a new assessment
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { name, timeLimitMinutes, questionIds } = req.body;
 
@@ -100,7 +102,7 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // PUT /api/assessments/:id — Update an assessment
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
     const { name, timeLimitMinutes, questionIds } = req.body;
@@ -145,7 +147,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // DELETE /api/assessments/:id — Delete an assessment
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', requireAdmin, async (req: Request, res: Response) => {
   try {
     await prisma.assessment.delete({
       where: { id: parseInt(req.params.id) },

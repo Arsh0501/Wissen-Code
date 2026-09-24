@@ -5,6 +5,8 @@ import questionRoutes from './routes/questions';
 import assessmentRoutes from './routes/assessments';
 import judgeRoutes from './routes/judge';
 import submissionRoutes from './routes/submissions';
+import authRoutes from './routes/auth';
+import { authenticate } from './middleware/auth';
 
 dotenv.config();
 
@@ -18,23 +20,22 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
-// Mock auth middleware — reads role from header
-app.use((req, _res, next) => {
-  (req as any).role = req.headers['x-role'] || 'examinee';
-  (req as any).candidateName = req.headers['x-candidate-name'] || 'Anonymous';
-  next();
+// Health check (public)
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+// Auth routes (register/login are public; /me requires a token internally)
+app.use('/api/auth', authRoutes);
+
+// Everything below requires a valid Bearer token
+app.use('/api', authenticate);
 
 // Routes
 app.use('/api/questions', questionRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/judge', judgeRoutes);
 app.use('/api/submissions', submissionRoutes);
-
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 
 app.listen(PORT, () => {
   console.log(`\n🚀 Wissen-Code server running on http://localhost:${PORT}`);
@@ -43,3 +44,4 @@ app.listen(PORT, () => {
 });
 
 export default app;
+

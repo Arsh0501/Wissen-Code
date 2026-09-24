@@ -1,4 +1,5 @@
-import axios from 'axios';
+// No backend is wired up yet — every function below reads/writes the mock
+// in-memory + localStorage store in ./mockData instead of making HTTP calls.
 import type {
   Question,
   Assessment,
@@ -6,50 +7,53 @@ import type {
   SubmissionResult,
   Language,
 } from '../types';
-
-const api = axios.create({
-  baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Inject role headers from localStorage
-api.interceptors.request.use((config) => {
-  const role = localStorage.getItem('wissen-role') || 'examinee';
-  const name = localStorage.getItem('wissen-name') || 'Anonymous';
-  config.headers['x-role'] = role;
-  config.headers['x-candidate-name'] = name;
-  return config;
-});
+import * as mock from './mockData';
 
 // ---- Questions ----
 
 export async function getQuestions(): Promise<Question[]> {
-  const { data } = await api.get('/questions');
-  return data;
+  return mock.delay(mock.listQuestions());
 }
 
 export async function getQuestion(id: number): Promise<Question> {
-  const { data } = await api.get(`/questions/${id}`);
-  return data;
+  const question = mock.getQuestionById(id);
+  if (!question) throw new Error('Question not found');
+  return mock.delay(question);
 }
 
 export async function createQuestion(question: Partial<Question> & {
   starterCodes?: { languageId: number; languageName: string; code: string }[];
   testCases?: { input: string; expectedOutput: string; isSample: boolean }[];
 }): Promise<Question> {
-  const { data } = await api.post('/questions', question);
-  return data;
+  const created = mock.createQuestionRecord({
+    title: question.title ?? '',
+    statement: question.statement ?? '',
+    difficulty: question.difficulty,
+    tags: question.tags ? JSON.parse(question.tags) : undefined,
+    timeLimit: question.timeLimit,
+    memoryLimit: question.memoryLimit,
+    starterCodes: question.starterCodes,
+    testCases: question.testCases,
+  });
+  return mock.delay(created);
 }
 
 export async function updateQuestion(id: number, question: Partial<Question>): Promise<Question> {
-  const { data } = await api.put(`/questions/${id}`, question);
-  return data;
+  const updated = mock.updateQuestionRecord(id, {
+    title: question.title,
+    statement: question.statement,
+    difficulty: question.difficulty,
+    tags: question.tags ? JSON.parse(question.tags) : undefined,
+    timeLimit: question.timeLimit,
+    memoryLimit: question.memoryLimit,
+  });
+  if (!updated) throw new Error('Question not found');
+  return mock.delay(updated);
 }
 
 export async function deleteQuestion(id: number): Promise<void> {
-  await api.delete(`/questions/${id}`);
+  mock.deleteQuestionRecord(id);
+  return mock.delay(undefined);
 }
 
 // ---- Test Cases ----
@@ -58,18 +62,21 @@ export async function addTestCases(
   questionId: number,
   testCases: { input: string; expectedOutput: string; isSample: boolean }[]
 ): Promise<void> {
-  await api.post(`/questions/${questionId}/testcases`, { testCases });
+  mock.addTestCasesToQuestion(questionId, testCases);
+  return mock.delay(undefined);
 }
 
 export async function updateTestCase(
   tcId: number,
   data: { input?: string; expectedOutput?: string; isSample?: boolean }
 ): Promise<void> {
-  await api.put(`/questions/testcases/${tcId}`, data);
+  mock.updateTestCaseRecord(tcId, data);
+  return mock.delay(undefined);
 }
 
 export async function deleteTestCase(tcId: number): Promise<void> {
-  await api.delete(`/questions/testcases/${tcId}`);
+  mock.deleteTestCaseRecord(tcId);
+  return mock.delay(undefined);
 }
 
 // ---- Starter Code ----
@@ -78,19 +85,20 @@ export async function saveStarterCode(
   questionId: number,
   starterCode: { languageId: number; languageName: string; code: string }
 ): Promise<void> {
-  await api.post(`/questions/${questionId}/starter-code`, starterCode);
+  mock.upsertStarterCodeRecord(questionId, starterCode);
+  return mock.delay(undefined);
 }
 
 // ---- Assessments ----
 
 export async function getAssessments(): Promise<Assessment[]> {
-  const { data } = await api.get('/assessments');
-  return data;
+  return mock.delay(mock.listAssessments());
 }
 
 export async function getAssessment(id: number): Promise<Assessment> {
-  const { data } = await api.get(`/assessments/${id}`);
-  return data;
+  const assessment = mock.getAssessmentById(id);
+  if (!assessment) throw new Error('Assessment not found');
+  return mock.delay(assessment);
 }
 
 export async function createAssessment(assessment: {
@@ -98,20 +106,21 @@ export async function createAssessment(assessment: {
   timeLimitMinutes: number;
   questionIds: number[];
 }): Promise<Assessment> {
-  const { data } = await api.post('/assessments', assessment);
-  return data;
+  return mock.delay(mock.createAssessmentRecord(assessment));
 }
 
 export async function updateAssessment(
   id: number,
   assessment: { name?: string; timeLimitMinutes?: number; questionIds?: number[] }
 ): Promise<Assessment> {
-  const { data } = await api.put(`/assessments/${id}`, assessment);
-  return data;
+  const updated = mock.updateAssessmentRecord(id, assessment);
+  if (!updated) throw new Error('Assessment not found');
+  return mock.delay(updated);
 }
 
 export async function deleteAssessment(id: number): Promise<void> {
-  await api.delete(`/assessments/${id}`);
+  mock.deleteAssessmentRecord(id);
+  return mock.delay(undefined);
 }
 
 // ---- Judge / Run Code ----
@@ -121,13 +130,11 @@ export async function runCode(params: {
   languageId: number;
   stdin?: string;
 }): Promise<RunCodeResponse> {
-  const { data } = await api.post('/judge/run', params);
-  return data;
+  return mock.delay(mock.runMockCode(params.sourceCode, params.stdin ?? ''), 400);
 }
 
 export async function getLanguages(): Promise<Language[]> {
-  const { data } = await api.get('/judge/languages');
-  return data;
+  return mock.delay(mock.LANGUAGES);
 }
 
 // ---- Submissions ----
@@ -142,16 +149,15 @@ export async function submitAssessment(params: {
     code: string;
   }[];
 }): Promise<SubmissionResult> {
-  const { data } = await api.post('/submissions', params);
-  return data;
+  return mock.delay(mock.submitAssessmentRecord(params), 500);
 }
 
 export async function getSubmissionResults(
   assessmentId: number,
   candidateName: string
 ): Promise<SubmissionResult> {
-  const { data } = await api.get(`/submissions/${assessmentId}/${candidateName}`);
-  return data;
+  const result = mock.getSubmissionResultsRecord(assessmentId, candidateName);
+  if (!result) throw new Error('No submissions found');
+  return mock.delay(result);
 }
 
-export default api;

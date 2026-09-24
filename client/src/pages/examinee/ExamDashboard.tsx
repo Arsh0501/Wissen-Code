@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getAssessments } from '../../services/api';
 import type { Assessment } from '../../types';
 import {
-  Code2, LogOut, Clock, FileText, ChevronRight, Zap
+  Code2, LogOut, Clock, FileText, ChevronRight, Zap, Home
 } from 'lucide-react';
 
 export default function ExamDashboard() {
@@ -43,8 +43,11 @@ export default function ExamDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Link to="/" className="btn-ghost text-sm" title="Back to dashboard">
+              <Home className="w-4 h-4" />
+            </Link>
             <span className="text-sm text-surface-400">Welcome, {candidateName}</span>
-            <button onClick={() => { logout(); navigate('/'); }} className="btn-ghost text-sm">
+            <button onClick={() => { logout(); navigate('/login'); }} className="btn-ghost text-sm">
               <LogOut className="w-4 h-4" />
             </button>
           </div>

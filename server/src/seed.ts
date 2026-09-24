@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -13,6 +14,19 @@ async function main() {
   await prisma.testCase.deleteMany();
   await prisma.starterCode.deleteMany();
   await prisma.question.deleteMany();
+  await prisma.user.deleteMany();
+
+  // ── Default admin account ──
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'ChangeMe123!';
+  await prisma.user.create({
+    data: {
+      name: 'Admin',
+      email: 'admin@wissen.test',
+      password: await bcrypt.hash(adminPassword, 10),
+      role: 'admin',
+    },
+  });
+  console.log(`👤 Seeded admin user: admin@wissen.test / ${adminPassword}\n`);
 
   // ── Question 1: Two Sum ──
   const q1 = await prisma.question.create({

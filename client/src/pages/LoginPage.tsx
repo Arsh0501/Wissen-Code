@@ -1,17 +1,32 @@
-import React, { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Code2, Shield, UserCheck } from 'lucide-react';
+import { MOCK_USERS } from '../data/mockUsers';
+import { Code2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login } = useAuth();
-  const [name, setName] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'admin' | 'examinee'>('examinee');
+  const { login, isLoggedIn } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  if (isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
+  function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
-    login(selectedRole, name.trim());
-  };
+    const success = login(email.trim(), password);
+    if (!success) {
+      setError('Invalid email or password.');
+    }
+  }
+
+  function fillDemoAccount(demoEmail: string, demoPassword: string) {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    setError(null);
+  }
 
   return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
@@ -38,69 +53,75 @@ export default function LoginPage() {
 
         {/* Login Card */}
         <div className="card">
-          <form onSubmit={handleLogin} className="space-y-6">
-            {/* Name Input */}
+          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
             <div>
-              <label className="label">Your Name</label>
+              <label className="label" htmlFor="login-email">
+                Email
+              </label>
               <input
-                type="text"
+                id="login-email"
+                type="email"
                 className="input"
-                placeholder="Enter your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                placeholder="you@wissen.dev"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 autoFocus
+                required
               />
             </div>
 
-            {/* Role Selection */}
             <div>
-              <label className="label">Select Role</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('admin')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
-                    selectedRole === 'admin'
-                      ? 'border-primary-500 bg-primary-500/10 text-primary-300'
-                      : 'border-surface-700 bg-surface-800 text-surface-400 hover:border-surface-600'
-                  }`}
-                >
-                  <Shield className="w-8 h-8" />
-                  <span className="text-sm font-medium">Admin</span>
-                  <span className="text-xs text-surface-500">Manage questions</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedRole('examinee')}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
-                    selectedRole === 'examinee'
-                      ? 'border-primary-500 bg-primary-500/10 text-primary-300'
-                      : 'border-surface-700 bg-surface-800 text-surface-400 hover:border-surface-600'
-                  }`}
-                >
-                  <UserCheck className="w-8 h-8" />
-                  <span className="text-sm font-medium">Examinee</span>
-                  <span className="text-xs text-surface-500">Take assessment</span>
-                </button>
-              </div>
+              <label className="label" htmlFor="login-password">
+                Password
+              </label>
+              <input
+                id="login-password"
+                type="password"
+                className="input"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
 
-            {/* Submit */}
+            {error && (
+              <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
+
             <button
               type="submit"
-              disabled={!name.trim()}
+              disabled={!email.trim() || !password}
               className="btn-primary w-full py-3 text-base"
             >
-              Continue as {selectedRole === 'admin' ? 'Admin' : 'Examinee'}
+              Sign In
             </button>
           </form>
         </div>
 
-        <p className="text-center text-surface-600 text-xs mt-6">
-          Demo prototype — no real authentication
-        </p>
+        {/* Demo accounts for the mock auth layer */}
+        <div className="card mt-4">
+          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider mb-3">Demo Accounts</p>
+          <div className="space-y-2">
+            {MOCK_USERS.map((u) => (
+              <button
+                key={u.id}
+                type="button"
+                onClick={() => fillDemoAccount(u.email, u.password)}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-surface-800 hover:border-surface-600 text-left transition-colors cursor-pointer"
+              >
+                <span className="text-sm text-surface-300">{u.name}</span>
+                <span className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 capitalize">
+                  {u.role}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
+
