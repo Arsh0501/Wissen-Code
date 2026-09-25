@@ -11,7 +11,7 @@ function getInitials(name: string): string {
 }
 
 interface UserAvatarProps {
-  user: MockUser | null;
+  user: { name: string; avatarColor?: string } | null;
   size?: 'sm' | 'lg';
 }
 
@@ -22,7 +22,7 @@ export default function UserAvatar({ user, size = 'sm' }: UserAvatarProps) {
 
   return (
     <div
-      className={`${dimensionClasses} ${user.avatarColor} rounded-full flex items-center justify-center font-semibold text-on-accent shrink-0`}
+      className={`${dimensionClasses} ${user.avatarColor || 'bg-primary-600'} rounded-full flex items-center justify-center font-semibold text-on-accent shrink-0`}
       aria-hidden="true"
     >
       {getInitials(user.name)}

@@ -27,7 +27,7 @@ describe('Topbar', () => {
 
     expect(screen.queryByRole('menuitem', { name: /sign out/i })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: adminUser.name, exact: false }));
+    await user.click(screen.getByRole('button', { name: new RegExp(adminUser.name, 'i') }));
     expect(screen.getByRole('menuitem', { name: /sign out/i })).toBeInTheDocument();
 
     await user.click(screen.getByRole('menuitem', { name: /sign out/i }));
