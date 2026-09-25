@@ -5,8 +5,10 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../context/AuthContext';
 import {
   getAssessment, runCode, runTests,
-  startSession, getSessionStatus, saveDraft, saveAllDrafts, finishSession, apiError,
+  startSession, getSessionStatus, saveDraft, saveAllDrafts, finishSession, recordTabSwitch, apiError,
 } from '../../services/api';
+import { useTabSwitchDetection } from '../../hooks/useTabSwitchDetection';
+import { TabSwitchWarning, TabSwitchStatus } from '../../components/exam/TabSwitchWarning';
 import type { Assessment, QuestionState, AssessmentQuestion, TestCaseVerdict } from '../../types';
 import {
   Code2, Clock, ChevronLeft, ChevronRight, Flag,
@@ -57,11 +59,11 @@ function getVerdictLabel(verdict: TestCaseVerdict) {
 }
 
 function VerdictIcon({ verdict }: { verdict: TestCaseVerdict }) {
-  if (verdict.passed) return <CheckCircle className="w-4 h-4 text-emerald-400" />;
-  if (verdict.statusId === 5) return <Timer className="w-4 h-4 text-amber-400" />;
-  if (verdict.statusId === 6) return <AlertOctagon className="w-4 h-4 text-red-400" />;
-  if (verdict.statusId >= 7 && verdict.statusId <= 12) return <AlertOctagon className="w-4 h-4 text-red-400" />;
-  return <XCircle className="w-4 h-4 text-red-400" />;
+  if (verdict.passed) return <CheckCircle className="w-4 h-4 text-emerald-600" />;
+  if (verdict.statusId === 5) return <Timer className="w-4 h-4 text-amber-600" />;
+  if (verdict.statusId === 6) return <AlertOctagon className="w-4 h-4 text-red-600" />;
+  if (verdict.statusId >= 7 && verdict.statusId <= 12) return <AlertOctagon className="w-4 h-4 text-red-600" />;
+  return <XCircle className="w-4 h-4 text-red-600" />;
 }
 
 function VerdictCard({ verdict, index }: { verdict: TestCaseVerdict; index: number }) {
@@ -76,8 +78,8 @@ function VerdictCard({ verdict, index }: { verdict: TestCaseVerdict; index: numb
     color === 'emerald' ? 'bg-emerald-500/5' :
     color === 'amber' ? 'bg-amber-500/5' : 'bg-red-500/5';
   const labelClass =
-    color === 'emerald' ? 'text-emerald-400' :
-    color === 'amber' ? 'text-amber-400' : 'text-red-400';
+    color === 'emerald' ? 'text-emerald-600' :
+    color === 'amber' ? 'text-amber-600' : 'text-red-600';
 
   return (
     <div className={`border rounded-lg ${borderClass} ${bgClass} overflow-hidden`}>
@@ -99,22 +101,22 @@ function VerdictCard({ verdict, index }: { verdict: TestCaseVerdict; index: numb
         <div className="px-3 pb-3 space-y-2 text-xs font-mono">
           {verdict.statusId === 6 && (verdict.compileOutput || verdict.stderr) && (
             <div>
-              <span className="text-red-400 font-sans text-xs font-semibold uppercase tracking-wider">Compiler Output</span>
-              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-300 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
+              <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">Compiler Output</span>
+              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
                 {verdict.compileOutput || verdict.stderr}
               </pre>
             </div>
           )}
           {verdict.statusId >= 7 && verdict.statusId <= 12 && verdict.stderr && (
             <div>
-              <span className="text-red-400 font-sans text-xs font-semibold uppercase tracking-wider">Error Output</span>
-              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-300 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
+              <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">Error Output</span>
+              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
                 {verdict.stderr}
               </pre>
             </div>
           )}
           {verdict.statusId === 5 && (
-            <div className="p-2 rounded bg-amber-500/10 text-amber-300 font-sans border border-amber-500/20">
+            <div className="p-2 rounded bg-amber-500/10 text-amber-700 font-sans border border-amber-500/20">
               Your code exceeded the time limit. Optimize your solution and try again.
             </div>
           )}
@@ -122,28 +124,28 @@ function VerdictCard({ verdict, index }: { verdict: TestCaseVerdict; index: numb
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <span className="text-surface-400 font-sans text-xs font-semibold uppercase tracking-wider">Expected</span>
-                <pre className="mt-1 p-2 rounded bg-surface-800 text-emerald-300 whitespace-pre-wrap overflow-x-auto border border-surface-700">
+                <pre className="mt-1 p-2 rounded bg-surface-800 text-emerald-700 whitespace-pre-wrap overflow-x-auto border border-surface-700">
                   {verdict.expectedOutput}
                 </pre>
               </div>
               <div>
                 <span className="text-surface-400 font-sans text-xs font-semibold uppercase tracking-wider">Actual</span>
-                <pre className="mt-1 p-2 rounded bg-surface-800 text-red-300 whitespace-pre-wrap overflow-x-auto border border-surface-700">
+                <pre className="mt-1 p-2 rounded bg-surface-800 text-red-700 whitespace-pre-wrap overflow-x-auto border border-surface-700">
                   {verdict.actualOutput || '(no output)'}
                 </pre>
               </div>
             </div>
           )}
           {verdict.passed && (
-            <div className="flex items-center gap-2 text-emerald-400 font-sans">
+            <div className="flex items-center gap-2 text-emerald-600 font-sans">
               <CheckCircle className="w-3.5 h-3.5" />
               <span className="text-xs">Output matches expected</span>
             </div>
           )}
           {verdict.statusId === -1 && (
             <div>
-              <span className="text-red-400 font-sans text-xs font-semibold uppercase tracking-wider">Error</span>
-              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-300 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
+              <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">Error</span>
+              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
                 {verdict.stderr || verdict.message || 'Unknown error'}
               </pre>
             </div>
@@ -176,6 +178,10 @@ export default function AssessmentView() {
   const [loadError, setLoadError] = useState('');
   const [startError, setStartError] = useState('');
   const [timeWarning, setTimeWarning] = useState('');
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [tabSwitchLimit, setTabSwitchLimit] = useState(3);
+  const [autoSubmitReason, setAutoSubmitReason] = useState<'tab-switch' | null>(null);
+  const [tabWarning, setTabWarning] = useState<{ count: number; awayMs: number } | null>(null);
 
   // Session state
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -239,6 +245,44 @@ export default function AssessmentView() {
     const t = setTimeout(() => setTimeWarning(''), 8000);
     return () => clearTimeout(t);
   }, [phase, timeLeft]);
+
+  // Tab-switch detection — runs for the whole live session (answering + review), stops once submitting.
+  // Switches before the limit show a warning; reaching the limit auto-submits the test.
+  useTabSwitchDetection(
+    (phase === 'in-progress' || phase === 'review') && !submitting,
+    ({ leftAt, durationMs }) => {
+      const sid = sessionIdRef.current;
+      const event = { leftAt: leftAt.toISOString(), durationMs };
+      const count = tabSwitchCount + 1;
+      setTabSwitchCount(count);
+
+      if (count >= tabSwitchLimit) {
+        setTabWarning(null);
+        setAutoSubmitReason('tab-switch');
+        // Drafts are saved first; recording the limit-reaching switch then makes the server finish the session
+        handleAutoSubmit(async () => {
+          if (sid) await recordTabSwitch(sid, event);
+        });
+        return;
+      }
+
+      setTabWarning({ count, awayMs: durationMs });
+      if (sid) {
+        recordTabSwitch(sid, event)
+          .then((res) => {
+            setTabSwitchCount(res.count);
+            if (res.autoSubmitted) {
+              // Server's count had already reached the limit (e.g. switches from another device)
+              setTabWarning(null);
+              setAutoSubmitReason('tab-switch');
+              hasSubmittedRef.current = true;
+              setPhase('submitted');
+            }
+          })
+          .catch((err) => console.error('Failed to record tab switch:', err));
+      }
+    }
+  );
 
   // Auto-save interval (every 12 seconds)
   useEffect(() => {
@@ -371,6 +415,8 @@ export default function AssessmentView() {
         }
       }
       setQuestionStates(updatedStates);
+      setTabSwitchCount(status.tabSwitchCount ?? 0);
+      if (status.tabSwitchLimit) setTabSwitchLimit(status.tabSwitchLimit);
       setTimeLeft(status.remainingSeconds);
       setPhase('in-progress');
     } catch (err) {
@@ -387,6 +433,8 @@ export default function AssessmentView() {
       const sessionData = await startSession(parseInt(assessmentId));
       setSessionId(sessionData.sessionId);
       sessionIdRef.current = sessionData.sessionId;
+      setTabSwitchCount(sessionData.tabSwitchCount ?? 0);
+      if (sessionData.tabSwitchLimit) setTabSwitchLimit(sessionData.tabSwitchLimit);
       setTimeLeft(sessionData.remainingSeconds);
       setPhase('in-progress');
     } catch (err) {
@@ -562,8 +610,9 @@ export default function AssessmentView() {
     }
   }
 
-  // Auto-submit on timeout (skips review/confirmation)
-  async function handleAutoSubmit() {
+  // Auto-submit on timeout or tab-switch limit (skips review/confirmation).
+  // `beforeFinish` runs after drafts are saved and before the session is finalised.
+  async function handleAutoSubmit(beforeFinish?: () => Promise<void>) {
     if (hasSubmittedRef.current || isSubmittingRef.current || submitting) return;
     hasSubmittedRef.current = true;
     isSubmittingRef.current = true;
@@ -585,6 +634,7 @@ export default function AssessmentView() {
           };
         });
         await saveAllDrafts(sessionIdRef.current, allDrafts);
+        if (beforeFinish) await beforeFinish().catch((err) => console.error('Pre-submit step failed:', err));
         await finishSession(sessionIdRef.current);
       }
       setPhase('submitted');
@@ -631,7 +681,7 @@ export default function AssessmentView() {
               Custom Input
             </span>
           </div>
-          <pre className={currentState.isError ? 'text-red-400 text-sm font-mono' : 'text-emerald-300 text-sm font-mono'}>
+          <pre className={currentState.isError ? 'text-red-600 text-sm font-mono' : 'text-emerald-700 text-sm font-mono'}>
             {currentState.output}
           </pre>
         </div>
@@ -642,7 +692,7 @@ export default function AssessmentView() {
       if (currentState.testVerdicts.length === 0 && currentState.output) {
         return (
           <div className="p-3">
-            <pre className="text-red-400 text-sm font-mono">{currentState.output}</pre>
+            <pre className="text-red-600 text-sm font-mono">{currentState.output}</pre>
           </div>
         );
       }
@@ -655,14 +705,14 @@ export default function AssessmentView() {
               <span className="text-xs font-semibold uppercase tracking-wider text-surface-500 bg-surface-800 px-2 py-0.5 rounded">
                 Sample Test Cases
               </span>
-              <span className="text-xs font-semibold text-red-400">0/{currentState.testVerdicts.length} passed</span>
+              <span className="text-xs font-semibold text-red-600">0/{currentState.testVerdicts.length} passed</span>
             </div>
             <div className="border border-red-500/30 bg-red-500/5 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
-                <AlertOctagon className="w-4 h-4 text-red-400" />
-                <span className="text-sm font-semibold text-red-400">Compilation Failed</span>
+                <AlertOctagon className="w-4 h-4 text-red-600" />
+                <span className="text-sm font-semibold text-red-600">Compilation Failed</span>
               </div>
-              <pre className="text-xs font-mono p-2 rounded bg-red-500/10 text-red-300 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
+              <pre className="text-xs font-mono p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
                 {firstVerdict.compileOutput || firstVerdict.stderr}
               </pre>
             </div>
@@ -680,7 +730,7 @@ export default function AssessmentView() {
             <span className="text-xs font-semibold uppercase tracking-wider text-surface-500 bg-surface-800 px-2 py-0.5 rounded">
               Sample Test Cases
             </span>
-            <span className={`text-xs font-semibold ${allPassed ? 'text-emerald-400' : 'text-red-400'}`}>
+            <span className={`text-xs font-semibold ${allPassed ? 'text-emerald-600' : 'text-red-600'}`}>
               {passedCount}/{total} passed
             </span>
           </div>
@@ -743,7 +793,7 @@ export default function AssessmentView() {
             {/* Header */}
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-600/30">
-                <Code2 className="w-6 h-6 text-white" />
+                <Code2 className="w-6 h-6 text-on-accent" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-white">{assessment.name}</h1>
@@ -755,28 +805,28 @@ export default function AssessmentView() {
             {/* Assessment details */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
-                <Award className="w-5 h-5 text-primary-400" />
+                <Award className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-surface-500 uppercase tracking-wider">Total marks</p>
                   <p className="text-sm font-semibold text-white">{totalMarks} marks</p>
                 </div>
               </div>
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
-                <Target className="w-5 h-5 text-primary-400" />
+                <Target className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-surface-500 uppercase tracking-wider">To pass</p>
                   <p className="text-sm font-semibold text-white">{assessment.passingScore}% of marks</p>
                 </div>
               </div>
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
-                <Clock className="w-5 h-5 text-primary-400" />
+                <Clock className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-surface-500 uppercase tracking-wider">Duration</p>
                   <p className="text-sm font-semibold text-white">{assessment.timeLimitMinutes} minutes</p>
                 </div>
               </div>
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
-                <FileText className="w-5 h-5 text-primary-400" />
+                <FileText className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-surface-500 uppercase tracking-wider">Questions</p>
                   <p className="text-sm font-semibold text-white">{assessmentQuestions.length} questions</p>
@@ -789,7 +839,7 @@ export default function AssessmentView() {
               <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Allowed Languages</p>
               <div className="flex flex-wrap gap-2">
                 {availableLangs.map(lang => (
-                  <span key={lang.id} className="badge bg-primary-500/15 text-primary-300 ring-1 ring-primary-500/25">
+                  <span key={lang.id} className="badge bg-primary-500/15 text-primary-700 ring-1 ring-primary-500/25">
                     {lang.name}
                   </span>
                 ))}
@@ -799,7 +849,7 @@ export default function AssessmentView() {
             {/* Instructions */}
             <div className="bg-surface-800/50 rounded-lg p-4 mb-6 border border-surface-700">
               <div className="flex items-center gap-2 mb-3">
-                <BookOpen className="w-4 h-4 text-primary-400" />
+                <BookOpen className="w-4 h-4 text-primary-600" />
                 <h3 className="text-sm font-semibold text-white">Instructions</h3>
               </div>
               {assessment.instructions && (
@@ -809,12 +859,16 @@ export default function AssessmentView() {
               )}
               <ul className="space-y-1.5 text-sm text-surface-300 pl-5 list-disc">
                 <li>The timer starts once you click "Start Assessment" and cannot be paused.</li>
-                <li className="text-amber-300">Final grading runs against hidden test cases, not just the samples shown.</li>
+                <li className="text-amber-700">
+                  Stay on this tab. Leaving it (switching tabs, minimising, or opening another app) is recorded. You get{' '}
+                  <span className="font-semibold">{tabSwitchLimit - 1} warnings</span>. Leaving {tabSwitchLimit} times submits your test automatically.
+                </li>
+                <li className="text-amber-700">Final grading runs against hidden test cases, not just the samples shown.</li>
               </ul>
             </div>
 
             {startError && (
-              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300">{startError}</div>
+              <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{startError}</div>
             )}
 
             {/* Start button */}
@@ -849,7 +903,7 @@ export default function AssessmentView() {
           <div className="card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-lg bg-amber-500/15 flex items-center justify-center">
-                <Shield className="w-5 h-5 text-amber-400" />
+                <Shield className="w-5 h-5 text-amber-600" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Review & Submit</h2>
@@ -860,7 +914,7 @@ export default function AssessmentView() {
             {/* Time remaining */}
             <div className="bg-surface-800 rounded-lg p-3 mb-6 flex items-center justify-between">
               <span className="text-sm text-surface-400">Time remaining</span>
-              <span className={`text-sm font-mono font-semibold ${timeLeft < 300 ? 'text-red-400' : 'text-surface-200'}`}>
+              <span className={`text-sm font-mono font-semibold ${timeLeft < 300 ? 'text-red-600' : 'text-surface-200'}`}>
                 {formatTime(timeLeft)}
               </span>
             </div>
@@ -868,12 +922,12 @@ export default function AssessmentView() {
             {/* Summary */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-emerald-400">{answered}</p>
-                <p className="text-xs text-emerald-300/70 mt-1">Answered</p>
+                <p className="text-2xl font-bold text-emerald-600">{answered}</p>
+                <p className="text-xs text-emerald-700/70 mt-1">Answered</p>
               </div>
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-amber-400">{flagged}</p>
-                <p className="text-xs text-amber-300/70 mt-1">Flagged</p>
+                <p className="text-2xl font-bold text-amber-600">{flagged}</p>
+                <p className="text-xs text-amber-700/70 mt-1">Flagged</p>
               </div>
               <div className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-center">
                 <p className="text-2xl font-bold text-surface-300">{unanswered}</p>
@@ -894,9 +948,9 @@ export default function AssessmentView() {
                       <span className="text-sm text-surface-400 truncate max-w-[200px]">{aq.question.title}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      {isFlagged && <Flag className="w-3.5 h-3.5 text-amber-400" />}
+                      {isFlagged && <Flag className="w-3.5 h-3.5 text-amber-600" />}
                       {isAnswered ? (
-                        <span className="badge bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25">Answered</span>
+                        <span className="badge bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25">Answered</span>
                       ) : (
                         <span className="badge bg-surface-700 text-surface-400">Unanswered</span>
                       )}
@@ -908,7 +962,7 @@ export default function AssessmentView() {
 
             {/* Warning */}
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6">
-              <p className="text-sm text-amber-300 flex items-start gap-2">
+              <p className="text-sm text-amber-700 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
                 Are you sure you want to submit? You cannot make changes after submission.
               </p>
@@ -930,7 +984,7 @@ export default function AssessmentView() {
               >
                 {submitting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-on-accent border-t-transparent rounded-full animate-spin" />
                     Submitting...
                   </>
                 ) : (
@@ -943,6 +997,9 @@ export default function AssessmentView() {
             </div>
           </div>
         </div>
+        {tabWarning && !submitting && (
+          <TabSwitchWarning count={tabWarning.count} limit={tabSwitchLimit} awayMs={tabWarning.awayMs} onDismiss={() => setTabWarning(null)} />
+        )}
       </div>
     );
   }
@@ -959,13 +1016,28 @@ export default function AssessmentView() {
 
         <div className="relative w-full max-w-md animate-fade-in">
           <div className="card text-center">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/15 flex items-center justify-center">
-              <CheckCircle className="w-12 h-12 text-emerald-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-white mb-3">Assessment Submitted</h2>
-            <p className="text-surface-400 mb-1">
-              Your assessment has been submitted successfully.
-            </p>
+            {autoSubmitReason === 'tab-switch' ? (
+              <>
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
+                  <AlertOctagon className="w-11 h-11 text-red-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">Test Auto-Submitted</h2>
+                <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-700 text-left">
+                  You left the test window {tabSwitchLimit} times. Your saved answers were submitted
+                  automatically, and the reviewer can see every tab switch.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                  <CheckCircle className="w-12 h-12 text-emerald-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-3">Assessment Submitted</h2>
+                <p className="text-surface-400 mb-1">
+                  Your assessment has been submitted successfully.
+                </p>
+              </>
+            )}
             <p className="text-surface-500 text-sm mb-8">
               Thank you, <span className="text-surface-300 font-medium">{candidateName}</span>.
               Your responses are being evaluated.
@@ -1011,7 +1083,7 @@ export default function AssessmentView() {
       <header className="flex-none h-14 bg-surface-900 border-b border-surface-800 flex items-center px-4 z-30">
         <div className="flex items-center gap-2.5 min-w-[180px]">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-            <Code2 className="w-4 h-4 text-white" />
+            <Code2 className="w-4 h-4 text-on-accent" />
           </div>
           <span className="text-sm font-bold text-white tracking-tight">WissenCode</span>
         </div>
@@ -1020,9 +1092,10 @@ export default function AssessmentView() {
           <span className="text-sm font-semibold text-surface-200">{assessment.name}</span>
         </div>
 
-        <div className="flex items-center gap-4 min-w-[280px] justify-end">
+        <div className="flex items-center gap-3 min-w-[280px] justify-end">
+          <TabSwitchStatus count={tabSwitchCount} limit={tabSwitchLimit} />
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
-            isTimeLow ? 'bg-red-500/15 text-red-400 animate-pulse-dot' : 'bg-surface-800 text-surface-300'
+            isTimeLow ? 'bg-red-500/15 text-red-600 animate-pulse-dot' : 'bg-surface-800 text-surface-300'
           }`}>
             <Clock className="w-4 h-4" />
             <span className="text-sm font-mono font-medium">{formatTime(timeLeft)}</span>
@@ -1052,7 +1125,7 @@ export default function AssessmentView() {
         />
       </div>
       {timeWarning && (
-        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/90 text-white text-sm font-medium shadow-xl animate-fade-in">
+        <div role="alert" className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-500/90 text-on-accent text-sm font-medium shadow-xl animate-fade-in">
           <Clock className="w-4 h-4" /> {timeWarning}
           <button onClick={() => setTimeWarning('')} className="ml-2 opacity-80 hover:opacity-100" aria-label="Dismiss"><X className="w-4 h-4" /></button>
         </div>
@@ -1161,14 +1234,14 @@ export default function AssessmentView() {
                   <span className="text-xs text-surface-400">{currentAQ.marks} marks</span>
                 </div>
               </div>
-              <button className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 transition-colors">
+              <button className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 transition-colors">
                 <AlertTriangle className="w-3.5 h-3.5" />
                 Report a problem
               </button>
             </div>
 
             <div className="prose prose-invert prose-sm max-w-none mb-6">
-              <div className="text-surface-200 leading-relaxed space-y-3 [&_code]:text-primary-300 [&_code]:bg-surface-800 [&_code]:px-1 [&_code]:rounded [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:text-white">
+              <div className="text-surface-200 leading-relaxed space-y-3 [&_code]:text-primary-700 [&_code]:bg-surface-800 [&_code]:px-1 [&_code]:rounded [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:text-white">
                 <ReactMarkdown>{currentQuestion.statement}</ReactMarkdown>
               </div>
             </div>
@@ -1191,7 +1264,7 @@ export default function AssessmentView() {
             <button
               onClick={handleToggleFlag}
               className={`btn-outline text-sm ${
-                currentState.isFlagged ? 'border-amber-500/50 text-amber-400 bg-amber-500/10' : ''
+                currentState.isFlagged ? 'border-amber-500/50 text-amber-600 bg-amber-500/10' : ''
               }`}
             >
               <Flag className="w-4 h-4" />
@@ -1254,7 +1327,7 @@ export default function AssessmentView() {
                   updateState(currentQuestion.id, { code: value || '' });
                 }
               }}
-              theme="vs-dark"
+              theme="light"
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,
@@ -1342,9 +1415,9 @@ export default function AssessmentView() {
                   const isFlagged = state?.isFlagged;
 
                   let bg = 'bg-surface-800 text-surface-400';
-                  if (isActive) bg = 'bg-primary-600 text-white';
-                  else if (isAnswered) bg = 'bg-emerald-600/30 text-emerald-400 ring-1 ring-emerald-500/40';
-                  else if (isFlagged) bg = 'bg-amber-600/30 text-amber-400 ring-1 ring-amber-500/40';
+                  if (isActive) bg = 'bg-primary-600 text-on-accent';
+                  else if (isAnswered) bg = 'bg-emerald-600/30 text-emerald-600 ring-1 ring-emerald-500/40';
+                  else if (isFlagged) bg = 'bg-amber-600/30 text-amber-600 ring-1 ring-amber-500/40';
 
                   return (
                     <button
@@ -1379,6 +1452,10 @@ export default function AssessmentView() {
           </div>
         )}
       </div>
+
+      {tabWarning && !submitting && (
+        <TabSwitchWarning count={tabWarning.count} limit={tabSwitchLimit} awayMs={tabWarning.awayMs} onDismiss={() => setTabWarning(null)} />
+      )}
 
       {/* Submitting overlay */}
       {submitting && (

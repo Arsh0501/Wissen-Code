@@ -5,6 +5,7 @@ import { adminOnly } from '../middleware/adminOnly';
 import { generateReportHTML } from '../templates/report-html';
 import { summarizeCandidates, aggregate } from '../services/stats';
 import { computeEvaluation } from '../services/grading';
+import { MAX_TAB_SWITCHES } from './sessions';
 
 const router = Router();
 
@@ -193,8 +194,13 @@ async function buildReportData(candidateName: string, assessmentId: number) {
   // Fetch session info for submission timestamp
   const session = await prisma.assessmentSession.findFirst({
     where: { assessmentId, candidateName },
-    select: { finishedAt: true, startedAt: true },
+    select: {
+      finishedAt: true,
+      startedAt: true,
+      tabSwitches: { orderBy: { leftAt: 'asc' }, select: { leftAt: true, durationMs: true } },
+    },
   });
+  const tabSwitches = session?.tabSwitches ?? [];
 
   const submittedAt =
     session?.finishedAt?.toISOString() ||
@@ -235,11 +241,6 @@ async function buildReportData(candidateName: string, assessmentId: number) {
   const overallPercentage = totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
   const evaluation = await computeEvaluation(assessmentId, candidateName);
 
-  // Static placeholder timestamps based on the submission time
-  const baseTime = session?.startedAt || new Date();
-  const placeholderTime1 = new Date(baseTime.getTime() + 5 * 60000).toISOString();
-  const placeholderTime2 = new Date(baseTime.getTime() + 12 * 60000).toISOString();
-  const placeholderTime3 = new Date(baseTime.getTime() + 25 * 60000).toISOString();
 
   return {
     candidate: {
@@ -272,21 +273,21 @@ async function buildReportData(candidateName: string, assessmentId: number) {
       marks: evaluation?.questions.find((eq) => eq.questionId === q.question_id)?.marks ?? 0,
       marks_obtained: evaluation?.questions.find((eq) => eq.questionId === q.question_id)?.marksObtained ?? 0,
     })),
+    // REAL data — captured by the exam page while the session was in progress
+    tab_switches: {
+      count: tabSwitches.length,
+      limit: MAX_TAB_SWITCHES,
+      limit_exceeded: tabSwitches.length >= MAX_TAB_SWITCHES, // limit reached, test was auto-submitted
+
+      total_duration_ms: tabSwitches.reduce((sum, e) => sum + e.durationMs, 0),
+      events: tabSwitches.map((e) => ({ duration_ms: e.durationMs, occurred_at: e.leftAt.toISOString() })),
+    },
     // ═══ STATIC PLACEHOLDER DATA ═══
     // Everything below is hardcoded sample data.
     // These modules are NOT connected to any real capture mechanism.
     // Replace each section as the corresponding feature is implemented.
     integrity_placeholder: {
       is_placeholder: true,
-      tab_switches: {
-        count: 3,
-        total_duration_ms: 14200,
-        events: [
-          { duration_ms: 4800, occurred_at: placeholderTime1 },
-          { duration_ms: 6100, occurred_at: placeholderTime2 },
-          { duration_ms: 3300, occurred_at: placeholderTime3 },
-        ],
-      },
       copy_paste: {
         count: 1,
         events: [

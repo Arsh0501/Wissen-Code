@@ -22,7 +22,7 @@ export default function UserAvatar({ user, size = 'sm' }: UserAvatarProps) {
 
   return (
     <div
-      className={`${dimensionClasses} ${user.avatarColor} rounded-full flex items-center justify-center font-semibold text-white shrink-0`}
+      className={`${dimensionClasses} ${user.avatarColor} rounded-full flex items-center justify-center font-semibold text-on-accent shrink-0`}
       aria-hidden="true"
     >
       {getInitials(user.name)}

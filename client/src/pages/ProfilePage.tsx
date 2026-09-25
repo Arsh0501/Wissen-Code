@@ -44,7 +44,7 @@ export default function ProfilePage() {
           <UserAvatar user={user} size="lg" />
           <div>
             <p className="text-lg font-semibold text-white">{user.name}</p>
-            <span className="badge bg-primary-500/15 text-primary-400 ring-1 ring-primary-500/25 capitalize">
+            <span className="badge bg-primary-500/15 text-primary-600 ring-1 ring-primary-500/25 capitalize">
               {role}
             </span>
           </div>
@@ -90,7 +90,7 @@ export default function ProfilePage() {
           </div>
 
           {formError && (
-            <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            <p role="alert" className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
               {formError}
             </p>
           )}

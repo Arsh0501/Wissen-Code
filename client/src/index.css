@@ -4,6 +4,23 @@
 
 /* ── Custom Base Styles ── */
 @layer base {
+  /* Light theme palette (space-separated RGB so Tailwind opacity modifiers work) */
+  :root {
+    color-scheme: light;
+    --ink: 15 23 42;            /* headings / emphasis */
+    --surface-50: 2 6 23;
+    --surface-100: 15 23 42;    /* body text */
+    --surface-200: 30 41 59;
+    --surface-300: 51 65 85;
+    --surface-400: 71 85 105;
+    --surface-500: 100 116 139; /* muted text */
+    --surface-600: 131 145 167;
+    --surface-700: 203 213 225; /* strong borders */
+    --surface-800: 232 237 243; /* borders, inputs, hover fills */
+    --surface-900: 255 255 255; /* cards, panels */
+    --surface-950: 244 246 250; /* page background */
+  }
+
   * {
     margin: 0;
     padding: 0;
@@ -47,17 +64,17 @@
   }
 
   .btn-primary {
-    @apply btn bg-primary-600 text-white hover:bg-primary-500
+    @apply btn bg-primary-600 text-on-accent hover:bg-primary-500
            shadow-lg shadow-primary-600/25 hover:shadow-primary-500/30;
   }
 
   .btn-success {
-    @apply btn bg-emerald-600 text-white hover:bg-emerald-500
+    @apply btn bg-emerald-600 text-on-accent hover:bg-emerald-500
            shadow-lg shadow-emerald-600/25;
   }
 
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-500;
+    @apply btn bg-red-600 text-on-accent hover:bg-red-500;
   }
 
   .btn-outline {
@@ -89,15 +106,15 @@
   }
 
   .badge-easy {
-    @apply badge bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25;
+    @apply badge bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25;
   }
 
   .badge-medium {
-    @apply badge bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/25;
+    @apply badge bg-amber-500/15 text-amber-600 ring-1 ring-amber-500/25;
   }
 
   .badge-hard {
-    @apply badge bg-red-500/15 text-red-400 ring-1 ring-red-500/25;
+    @apply badge bg-red-500/15 text-red-600 ring-1 ring-red-500/25;
   }
 
   /* Exam-specific styles */
@@ -112,15 +129,15 @@
   }
 
   .question-pill-active {
-    @apply question-pill border-primary-500 bg-primary-600/20 text-primary-300;
+    @apply question-pill border-primary-500 bg-primary-600/20 text-primary-700;
   }
 
   .question-pill-answered {
-    @apply question-pill border-emerald-500/50 bg-emerald-500/10 text-emerald-400;
+    @apply question-pill border-emerald-500/50 bg-emerald-500/10 text-emerald-600;
   }
 
   .question-pill-flagged {
-    @apply question-pill border-amber-500/50 bg-amber-500/10 text-amber-400;
+    @apply question-pill border-amber-500/50 bg-amber-500/10 text-amber-600;
   }
 
   .sample-box {
@@ -134,7 +151,7 @@
   }
 
   .tab-active {
-    @apply text-primary-400 border-b-2 border-primary-400;
+    @apply text-primary-600 border-b-2 border-primary-400;
   }
 
   .tab-inactive {

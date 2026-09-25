@@ -91,7 +91,7 @@ export default function AssessmentManager() {
         </Link>
       }
     >
-      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300">{error}</div>}
+      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{error}</div>}
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div className="flex gap-1 p-1 rounded-lg bg-surface-900 border border-surface-800 overflow-x-auto">
@@ -134,7 +134,7 @@ export default function AssessmentManager() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Link to={`/admin/assessments/${a.id}/edit`} className="text-lg font-semibold text-white hover:text-primary-300">
+                      <Link to={`/admin/assessments/${a.id}/edit`} className="text-lg font-semibold text-white hover:text-primary-700">
                         {a.name}
                       </Link>
                       <AvailabilityBadge value={a.availability} />
@@ -187,7 +187,7 @@ export default function AssessmentManager() {
                   <div className="flex items-center gap-2">
                     <Link to={`/admin/submissions/${a.id}`} className="btn-outline text-sm">
                       <Users className="w-4 h-4" /> Results
-                      {!!a.stats?.inProgress && <span className="text-xs text-sky-400">+{a.stats.inProgress} live</span>}
+                      {!!a.stats?.inProgress && <span className="text-xs text-sky-600">+{a.stats.inProgress} live</span>}
                     </Link>
                     <button onClick={() => navigate(`/admin/assessments/${a.id}/edit`)} className="btn-outline text-sm">
                       <Edit className="w-4 h-4" /> Edit
@@ -223,7 +223,7 @@ export default function AssessmentManager() {
                                 <Archive className="w-4 h-4" /> Restore as draft
                               </button>
                             )}
-                            <button onClick={() => handleDelete(a)} className="w-full flex items-center gap-2 px-3 py-2 text-red-400 hover:bg-red-500/10">
+                            <button onClick={() => handleDelete(a)} className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-500/10">
                               <Trash2 className="w-4 h-4" /> Delete
                             </button>
                           </div>

@@ -208,7 +208,7 @@ export default function QuestionForm() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-primary-400" />
+              <Code2 className="w-5 h-5 text-primary-600" />
               <h1 className="text-lg font-bold text-white">
                 {isEdit ? 'Edit Question' : 'New Question'}
               </h1>
@@ -257,8 +257,8 @@ export default function QuestionForm() {
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab
-                  ? 'bg-primary-600 text-white shadow-lg'
-                  : 'text-surface-400 hover:text-white hover:bg-surface-800'
+                  ? 'bg-primary-600 text-on-accent shadow-lg'
+                  : 'text-surface-400 hover:text-on-accent hover:bg-surface-800'
               }`}
             >
               {tab === 'details' && 'Question Details'}
@@ -367,7 +367,7 @@ export default function QuestionForm() {
                       <span
                         className={`badge text-xs ${
                           tc.isSample
-                            ? 'bg-primary-500/15 text-primary-400 ring-1 ring-primary-500/25'
+                            ? 'bg-primary-500/15 text-primary-600 ring-1 ring-primary-500/25'
                             : 'bg-surface-800 text-surface-500 ring-1 ring-surface-700'
                         }`}
                       >
@@ -379,7 +379,7 @@ export default function QuestionForm() {
                       </span>
                       <button
                         onClick={() => removeTestCase(tc)}
-                        className="btn-ghost p-1.5 text-red-400 hover:bg-red-500/10"
+                        className="btn-ghost p-1.5 text-red-600 hover:bg-red-500/10"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -471,7 +471,7 @@ export default function QuestionForm() {
                     [activeStarterLang]: value || '',
                   }));
                 }}
-                theme="vs-dark"
+                theme="light"
                 options={{
                   minimap: { enabled: false },
                   fontSize: 14,

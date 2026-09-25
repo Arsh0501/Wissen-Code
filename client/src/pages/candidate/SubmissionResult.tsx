@@ -19,7 +19,7 @@ function QuestionResult({ q, index }: { q: QuestionEvaluation; index: number }) 
           <h4 className="font-medium text-white truncate">Q{index + 1}. {q.title}</h4>
           <div className="flex items-center gap-2 mt-1 text-xs text-surface-500">
             <span className={`badge-${q.difficulty}`}>{q.difficulty}</span>
-            {q.attempted ? <span>{q.submission?.languageName}</span> : <span className="text-amber-400">Not attempted</span>}
+            {q.attempted ? <span>{q.submission?.languageName}</span> : <span className="text-amber-600">Not attempted</span>}
           </div>
         </div>
         <div className="flex items-center gap-4 shrink-0">
@@ -40,7 +40,7 @@ function QuestionResult({ q, index }: { q: QuestionEvaluation; index: number }) 
             <div
               key={r.id}
               className={`flex items-center justify-center w-8 h-8 rounded-md ${
-                r.passed ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25' : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/25'
+                r.passed ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25' : 'bg-red-500/15 text-red-600 ring-1 ring-red-500/25'
               }`}
               title={`Test ${i + 1}: ${r.statusDesc} (${r.testCase?.isSample ? 'sample' : 'hidden'})`}
             >
@@ -72,7 +72,7 @@ function QuestionResult({ q, index }: { q: QuestionEvaluation; index: number }) 
                     <td className="py-1.5 text-surface-400">
                       {r.testCase?.isSample ? 'Sample' : <span className="inline-flex items-center gap-1"><EyeOff className="w-3 h-3" /> Hidden</span>}
                     </td>
-                    <td className={`py-1.5 ${r.passed ? 'text-emerald-400' : 'text-red-400'}`}>{r.statusDesc}</td>
+                    <td className={`py-1.5 ${r.passed ? 'text-emerald-600' : 'text-red-600'}`}>{r.statusDesc}</td>
                     <td className="py-1.5 text-right text-surface-400 tabular-nums">{r.executionTime != null ? `${r.executionTime}s` : '—'}</td>
                     <td className="py-1.5 text-right text-surface-400 tabular-nums">{r.memoryUsed != null ? `${Math.round(r.memoryUsed / 1024)} MB` : '—'}</td>
                   </tr>
@@ -119,7 +119,7 @@ export default function SubmissionResult() {
         <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-              <Code2 className="w-5 h-5 text-white" />
+              <Code2 className="w-5 h-5 text-on-accent" />
             </div>
             <span className="text-lg font-bold text-white">WissenCode</span>
           </div>
@@ -134,7 +134,7 @@ export default function SubmissionResult() {
           <Spinner label="Loading results..." />
         ) : error || !e ? (
           <div className="card text-center">
-            <Trophy className="w-16 h-16 text-primary-400 mx-auto mb-4" />
+            <Trophy className="w-16 h-16 text-primary-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-white mb-3">Test Submitted!</h2>
             <p className="text-surface-400 mb-2">Your test has been submitted successfully.</p>
             <p className="text-surface-500 text-sm">{error}</p>
@@ -143,7 +143,7 @@ export default function SubmissionResult() {
         ) : result?.resultsHidden ? (
           <div className="card text-center animate-fade-in">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 flex items-center justify-center">
-              <CheckCircle className="w-9 h-9 text-emerald-400" />
+              <CheckCircle className="w-9 h-9 text-emerald-600" />
             </div>
             <h2 className="text-2xl font-bold text-white mb-2">{e.assessment.name}</h2>
             <p className="text-surface-400">
@@ -172,21 +172,21 @@ export default function SubmissionResult() {
 
               <div className="grid grid-cols-3 gap-3 mt-6">
                 <div className="bg-surface-800 rounded-lg p-3">
-                  <Award className="w-4 h-4 text-primary-400 mx-auto mb-1" />
+                  <Award className="w-4 h-4 text-primary-600 mx-auto mb-1" />
                   <p className="text-sm font-semibold text-white tabular-nums">
                     {e.questions?.filter((q) => q.score === 100).length}/{e.questions?.length}
                   </p>
                   <p className="text-[11px] text-surface-500 uppercase tracking-wider">Fully solved</p>
                 </div>
                 <div className="bg-surface-800 rounded-lg p-3">
-                  <Target className="w-4 h-4 text-primary-400 mx-auto mb-1" />
+                  <Target className="w-4 h-4 text-primary-600 mx-auto mb-1" />
                   <p className="text-sm font-semibold text-white tabular-nums">
                     {e.questions?.reduce((a, q) => a + q.passedTestCases, 0)}/{e.questions?.reduce((a, q) => a + q.totalTestCases, 0)}
                   </p>
                   <p className="text-[11px] text-surface-500 uppercase tracking-wider">Tests passed</p>
                 </div>
                 <div className="bg-surface-800 rounded-lg p-3">
-                  <Clock className="w-4 h-4 text-primary-400 mx-auto mb-1" />
+                  <Clock className="w-4 h-4 text-primary-600 mx-auto mb-1" />
                   <p className="text-sm font-semibold text-white tabular-nums">{formatDuration(e.timeTakenSeconds)}</p>
                   <p className="text-[11px] text-surface-500 uppercase tracking-wider">of {e.assessment.timeLimitMinutes} min</p>
                 </div>

@@ -133,8 +133,22 @@ model AssessmentSession {
 
   assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   drafts          DraftAnswer[]
+  tabSwitches     TabSwitchEvent[]
 
   @@unique([assessmentId, candidateName])
+}
+
+// One row each time the candidate leaves the exam tab/window during a session
+model TabSwitchEvent {
+  id          Int      @id @default(autoincrement())
+  sessionId   Int
+  leftAt      DateTime
+  durationMs  Int      // time spent away before returning
+  createdAt   DateTime @default(now())
+
+  session     AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
 }
 
 model DraftAnswer {

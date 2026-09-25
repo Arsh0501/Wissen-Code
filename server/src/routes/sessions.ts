@@ -4,6 +4,9 @@ import { gradeAnswer, computeEvaluation } from '../services/grading';
 
 const router = Router();
 
+// Reaching this many tab switches auto-submits the test (earlier switches only warn)
+export const MAX_TAB_SWITCHES = 3;
+
 // Drafts arriving shortly after the deadline (network lag, auto-submit) are still accepted
 const GRACE_PERIOD_MS = 30 * 1000;
 
@@ -17,7 +20,7 @@ function isPastDeadline(startedAt: Date, timeLimitMinutes: number): boolean {
 }
 
 function sessionResponse(
-  session: { id: number; startedAt: Date; finishedAt: Date | null; drafts: any[] },
+  session: { id: number; startedAt: Date; finishedAt: Date | null; drafts: any[]; _count?: { tabSwitches: number } },
   timeLimitMinutes: number
 ) {
   return {
@@ -28,6 +31,8 @@ function sessionResponse(
     remainingSeconds: session.finishedAt ? 0 : remainingSeconds(session.startedAt, timeLimitMinutes),
     isFinished: !!session.finishedAt,
     drafts: session.drafts,
+    tabSwitchCount: session._count?.tabSwitches ?? 0,
+    tabSwitchLimit: MAX_TAB_SWITCHES,
   };
 }
 
@@ -48,7 +53,7 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
 
     const session = await prisma.assessmentSession.findUnique({
       where: { assessmentId_candidateName: { assessmentId, candidateName } },
-      include: { drafts: true, assessment: { select: { timeLimitMinutes: true } } },
+      include: { drafts: true, _count: { select: { tabSwitches: true } }, assessment: { select: { timeLimitMinutes: true } } },
     });
 
     if (!session) return res.json({ exists: false });
@@ -80,7 +85,7 @@ router.post('/start', async (req: Request, res: Response) => {
 
     let session = await prisma.assessmentSession.findUnique({
       where: { assessmentId_candidateName: { assessmentId, candidateName } },
-      include: { drafts: true },
+      include: { drafts: true, _count: { select: { tabSwitches: true } } },
     });
 
     if (!session) {
@@ -90,7 +95,7 @@ router.post('/start', async (req: Request, res: Response) => {
 
       session = await prisma.assessmentSession.create({
         data: { assessmentId, candidateName },
-        include: { drafts: true },
+        include: { drafts: true, _count: { select: { tabSwitches: true } } },
       });
     }
 
@@ -110,6 +115,7 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
       where: { id: sessionId },
       include: {
         drafts: true,
+        _count: { select: { tabSwitches: true } },
         assessment: { select: { timeLimitMinutes: true } },
       },
     });
@@ -226,51 +232,89 @@ router.post('/:sessionId/save-all-drafts', async (req: Request, res: Response) =
   }
 });
 
-// POST /api/sessions/:sessionId/finish — Finalize session, grade all answers
-router.post('/:sessionId/finish', async (req: Request, res: Response) => {
+// POST /api/sessions/:sessionId/tab-switch — Record the candidate leaving and returning to the exam tab
+router.post('/:sessionId/tab-switch', async (req: Request, res: Response) => {
   try {
-    const sessionId = parseInt(req.params.sessionId);
+    const leftAt = new Date(req.body.leftAt);
+    const durationMs = Math.round(Number(req.body.durationMs));
 
-    // Atomically claim and mark session as finished to prevent duplicate concurrent finishes
-    const updateResult = await prisma.assessmentSession.updateMany({
-      where: { id: sessionId, finishedAt: null },
-      data: { finishedAt: new Date() },
-    });
-
-    if (updateResult.count === 0) {
-      const existing = await prisma.assessmentSession.findUnique({
-        where: { id: sessionId },
-        select: { finishedAt: true },
-      });
-      if (existing?.finishedAt) {
-        return res.json({ message: 'Session is already finished' });
-      }
-      return res.status(404).json({ error: 'Session not found' });
+    if (isNaN(leftAt.getTime()) || !Number.isFinite(durationMs) || durationMs < 0) {
+      return res.status(400).json({ error: 'leftAt (ISO date) and durationMs (>= 0) are required' });
     }
 
-    const session = await prisma.assessmentSession.findUnique({
+    const session = await getWritableSession(req, res);
+    if (!session) return;
+
+    await prisma.tabSwitchEvent.create({
+      data: { sessionId: session.id, leftAt, durationMs },
+    });
+    const count = await prisma.tabSwitchEvent.count({ where: { sessionId: session.id } });
+
+    // Reaching the limit ends the test — enforced here so it can't be bypassed client-side
+    if (count >= MAX_TAB_SWITCHES) {
+      await finalizeSession(session.id);
+      return res.json({ count, limit: MAX_TAB_SWITCHES, autoSubmitted: true });
+    }
+
+    res.json({ count, limit: MAX_TAB_SWITCHES, autoSubmitted: false });
+  } catch (error: any) {
+    console.error('Error recording tab switch:', error);
+    res.status(500).json({ error: 'Failed to record tab switch' });
+  }
+});
+
+type FinalizeResult =
+  | { status: 'finished'; body: Record<string, unknown> }
+  | { status: 'already-finished' }
+  | { status: 'not-found' };
+
+// Mark a session finished (once, atomically) and grade every saved draft against all test cases
+async function finalizeSession(sessionId: number): Promise<FinalizeResult> {
+  const updateResult = await prisma.assessmentSession.updateMany({
+    where: { id: sessionId, finishedAt: null },
+    data: { finishedAt: new Date() },
+  });
+
+  if (updateResult.count === 0) {
+    const existing = await prisma.assessmentSession.findUnique({
       where: { id: sessionId },
-      include: { drafts: true },
+      select: { finishedAt: true },
     });
+    return existing?.finishedAt ? { status: 'already-finished' } : { status: 'not-found' };
+  }
 
-    if (!session) {
-      return res.status(404).json({ error: 'Session not found' });
-    }
+  const session = await prisma.assessmentSession.findUnique({
+    where: { id: sessionId },
+    include: { drafts: true },
+  });
+  if (!session) return { status: 'not-found' };
 
-    // Grade each draft answer against ALL test cases (sample + hidden)
-    for (const draft of session.drafts) {
-      await gradeAnswer(session.assessmentId, session.candidateName, draft);
-    }
+  // Grade each draft answer against ALL test cases (sample + hidden)
+  for (const draft of session.drafts) {
+    await gradeAnswer(session.assessmentId, session.candidateName, draft);
+  }
 
-    const evaluation = await computeEvaluation(session.assessmentId, session.candidateName);
-    res.json({
+  const evaluation = await computeEvaluation(session.assessmentId, session.candidateName);
+  return {
+    status: 'finished',
+    body: {
       sessionId,
       assessmentId: session.assessmentId,
       candidateName: session.candidateName,
       finishedAt: session.finishedAt?.toISOString(),
       overallScore: evaluation?.percentage ?? 0,
       passed: evaluation?.passed ?? false,
-    });
+    },
+  };
+}
+
+// POST /api/sessions/:sessionId/finish — Finalize session, grade all answers
+router.post('/:sessionId/finish', async (req: Request, res: Response) => {
+  try {
+    const result = await finalizeSession(parseInt(req.params.sessionId));
+    if (result.status === 'already-finished') return res.json({ message: 'Session is already finished' });
+    if (result.status === 'not-found') return res.status(404).json({ error: 'Session not found' });
+    res.json(result.body);
   } catch (error: any) {
     console.error('Error finishing session:', error);
     res.status(500).json({ error: 'Failed to finish session' });

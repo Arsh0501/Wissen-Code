@@ -116,7 +116,7 @@ export default function AssessmentDashboard() {
       }
     >
       {error ? (
-        <div className="card text-center text-red-400">{error}</div>
+        <div className="card text-center text-red-600">{error}</div>
       ) : !data ? (
         <Spinner label="Loading dashboard..." />
       ) : (
@@ -125,24 +125,28 @@ export default function AssessmentDashboard() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
               label="Assessments"
+              tone="bg-primary-500/10 text-primary-700"
               icon={ClipboardList}
               value={data.totals.assessments}
               hint={`${data.totals.published} published · ${data.totals.drafts} draft · ${data.totals.questions} questions`}
             />
             <StatCard
               label="Candidates"
+              tone="bg-sky-500/10 text-sky-700"
               icon={Users}
               value={data.totals.candidatesStarted}
               hint={`${data.totals.candidatesCompleted} completed · ${data.totals.inProgress} in progress`}
             />
             <StatCard
               label="Average score"
+              tone="bg-amber-500/10 text-amber-700"
               icon={Target}
               value={formatPercent(data.totals.averageScore)}
               hint={data.totals.highestScore !== null ? `Highest ${formatPercent(data.totals.highestScore, 0)}` : 'No attempts yet'}
             />
             <StatCard
               label="Pass rate"
+              tone="bg-emerald-500/10 text-emerald-700"
               icon={Award}
               value={formatPercent(data.totals.passRate, 0)}
               hint="Of completed attempts"
@@ -158,7 +162,7 @@ export default function AssessmentDashboard() {
             <div className="card lg:col-span-2 p-0 overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-primary-400" /> Recent activity
+                  <Activity className="w-4 h-4 text-primary-600" /> Recent activity
                 </h2>
               </div>
               {data.recentActivity.length === 0 ? (
@@ -191,7 +195,7 @@ export default function AssessmentDashboard() {
                             </Link>
                           </>
                         ) : (
-                          <span className="badge bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/25 gap-1">
+                          <span className="badge bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 gap-1">
                             <Clock className="w-3 h-3" /> In progress
                           </span>
                         )}
@@ -207,9 +211,9 @@ export default function AssessmentDashboard() {
           <div className="card p-0 overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-primary-400" /> Assessments
+                <BarChart3 className="w-4 h-4 text-primary-600" /> Assessments
               </h2>
-              <Link to="/admin/assessments" className="text-xs text-primary-400 hover:text-primary-300">
+              <Link to="/admin/assessments" className="text-xs text-primary-600 hover:text-primary-700">
                 Manage all →
               </Link>
             </div>
@@ -238,7 +242,7 @@ export default function AssessmentDashboard() {
                     {data.assessments.map((a) => (
                       <tr key={a.id} className="hover:bg-surface-800/30">
                         <td className="px-5 py-3">
-                          <Link to={`/admin/assessments/${a.id}/edit`} className="font-medium text-surface-100 hover:text-primary-300">
+                          <Link to={`/admin/assessments/${a.id}/edit`} className="font-medium text-surface-100 hover:text-primary-700">
                             {a.name}
                           </Link>
                           <p className="text-xs text-surface-500 flex items-center gap-1 mt-0.5">

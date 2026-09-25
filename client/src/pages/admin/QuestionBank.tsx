@@ -142,7 +142,7 @@ export default function QuestionBank() {
         </div>
       }
     >
-      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300">{error}</div>}
+      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{error}</div>}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -203,7 +203,7 @@ export default function QuestionBank() {
                 {filteredQuestions.map((q) => (
                   <tr key={q.id} className="hover:bg-surface-800/30 transition-colors">
                     <td className="px-6 py-3">
-                      <button onClick={() => openPreview(q.id)} className="font-medium text-surface-100 hover:text-primary-300 text-left">
+                      <button onClick={() => openPreview(q.id)} className="font-medium text-surface-100 hover:text-primary-700 text-left">
                         {q.title}
                       </button>
                     </td>
@@ -240,7 +240,7 @@ export default function QuestionBank() {
                         </Link>
                         <button
                           onClick={() => handleDelete(q)}
-                          className="btn-ghost p-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          className="btn-ghost p-2 text-red-600 hover:text-red-700 hover:bg-red-500/10"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -291,7 +291,7 @@ export default function QuestionBank() {
               </div>
             </div>
             <div className="p-6 space-y-6">
-              <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-300 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
+              <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
                 <ReactMarkdown>{preview.statement}</ReactMarkdown>
               </div>
               <div>
@@ -302,14 +302,14 @@ export default function QuestionBank() {
                       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-800/50 text-xs">
                         <span className="text-surface-300">Test {i + 1}</span>
                         {tc.isSample ? (
-                          <span className="text-emerald-400 flex items-center gap-1"><Eye className="w-3 h-3" /> Sample</span>
+                          <span className="text-emerald-600 flex items-center gap-1"><Eye className="w-3 h-3" /> Sample</span>
                         ) : (
                           <span className="text-surface-500 flex items-center gap-1"><EyeOff className="w-3 h-3" /> Hidden</span>
                         )}
                       </div>
                       <div className="grid grid-cols-2 divide-x divide-surface-800 text-xs font-mono">
                         <pre className="p-2 text-surface-300 whitespace-pre-wrap">{tc.input}</pre>
-                        <pre className="p-2 text-emerald-300 whitespace-pre-wrap">{tc.expectedOutput}</pre>
+                        <pre className="p-2 text-emerald-700 whitespace-pre-wrap">{tc.expectedOutput}</pre>
                       </div>
                     </div>
                   ))}
