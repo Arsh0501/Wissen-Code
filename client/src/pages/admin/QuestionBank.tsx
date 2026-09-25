@@ -270,7 +270,22 @@ export default function QuestionBank() {
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <a href={getExportMdUrl(preview.id)} className="btn-ghost p-2" title="Export as Markdown"><Download className="w-4 h-4" /></a>
+                <button onClick={() => {
+                  const token = localStorage.getItem('wissen-token');
+                  fetch(getExportMdUrl(preview.id), { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+                    .then(res => res.blob())
+                    .then(blob => {
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `question-${preview.id}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }).catch(err => {
+                      console.error(err);
+                      alert('Failed to export markdown');
+                    });
+                }} className="btn-ghost p-2" title="Export as Markdown"><Download className="w-4 h-4" /></button>
                 <Link to={`/admin/questions/${preview.id}/edit`} className="btn-ghost p-2" title="Edit"><Edit className="w-4 h-4" /></Link>
                 <button onClick={() => setPreview(null)} className="btn-ghost p-2" aria-label="Close"><X className="w-5 h-5" /></button>
               </div>

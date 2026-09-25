@@ -1,7 +1,7 @@
 // Centralized mock user & role data used until a real auth backend is wired up.
 // Passwords are plain-text here only because this is demo/mock data — never do this in production.
 
-export type Role = 'admin' | 'examinee';
+export type Role = 'admin' | 'candidate';
 
 export interface MockUser {
   id: string;
@@ -24,20 +24,20 @@ export const MOCK_USERS: MockUser[] = [
     avatarColor: 'bg-primary-600',
   },
   {
-    id: 'u-examinee-1',
+    id: 'u-candidate-1',
     name: 'Rahul Singh',
     email: 'rahul@wissen.dev',
     password: 'Candidate@123',
-    role: 'examinee',
+    role: 'candidate',
     title: 'Candidate',
     avatarColor: 'bg-emerald-600',
   },
   {
-    id: 'u-examinee-2',
+    id: 'u-candidate-2',
     name: 'Maria Gomez',
     email: 'maria@wissen.dev',
     password: 'Candidate@123',
-    role: 'examinee',
+    role: 'candidate',
     title: 'Candidate',
     avatarColor: 'bg-amber-600',
   },

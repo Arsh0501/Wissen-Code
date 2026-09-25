@@ -5,7 +5,7 @@ export interface AuthUser {
   id: number;
   email: string;
   name: string;
-  role: 'admin' | 'examinee';
+  role: 'admin' | 'candidate';
 }
 
 const STORAGE_KEY = 'wissen-user';
@@ -34,7 +34,7 @@ function persistUser(user: AuthUser | null, token: string | null) {
 
 interface AuthContextType {
   user: AuthUser | null;
-  role: 'admin' | 'examinee';
+  role: 'admin' | 'candidate';
   candidateName: string;
   isLoggedIn: boolean;
   authError: string | null;
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextType>(
     () => ({
       user,
-      role: user?.role ?? 'examinee',
+      role: user?.role ?? 'candidate',
       candidateName: user?.name ?? '',
       isLoggedIn: !!user,
       authError,

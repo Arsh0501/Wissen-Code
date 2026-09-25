@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { findUserByCredentials, MOCK_USERS } from '../data/mockUsers';
 
 describe('mockUsers', () => {
-  it('contains at least one admin and one examinee', () => {
+  it('contains at least one admin and one candidate', () => {
     expect(MOCK_USERS.some((u) => u.role === 'admin')).toBe(true);
-    expect(MOCK_USERS.some((u) => u.role === 'examinee')).toBe(true);
+    expect(MOCK_USERS.some((u) => u.role === 'candidate')).toBe(true);
   });
 
   it('returns the matching user for correct credentials', () => {

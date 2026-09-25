@@ -12,9 +12,9 @@ import AssessmentManager from './pages/admin/AssessmentManager';
 import AssessmentForm from './pages/admin/AssessmentForm';
 import SubmissionsViewer from './pages/admin/SubmissionsViewer';
 import CandidateReport from './pages/admin/CandidateReport';
-import ExamDashboard from './pages/examinee/ExamDashboard';
-import AssessmentView from './pages/examinee/AssessmentView';
-import SubmissionResult from './pages/examinee/SubmissionResult';
+import ExamDashboard from './pages/candidate/ExamDashboard';
+import AssessmentView from './pages/candidate/AssessmentView';
+import SubmissionResult from './pages/candidate/SubmissionResult';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { isLoggedIn } = useAuth();
@@ -59,7 +59,7 @@ function AppRoutes() {
         <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAdmin><CandidateReport /></RequireAdmin>} />
       </Route>
 
-      {/* Examinee full-screen feature pages */}
+      {/* Candidate full-screen feature pages */}
       <Route path="/exam/:assessmentId" element={<RequireAuth><AssessmentView /></RequireAuth>} />
       <Route path="/exam/:assessmentId/result" element={<RequireAuth><SubmissionResult /></RequireAuth>} />
 

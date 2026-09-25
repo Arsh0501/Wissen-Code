@@ -98,11 +98,10 @@ export default function CandidateReport() {
     setDownloading(true);
     try {
       const url = getReportDownloadUrl(candidateName, parseInt(assessmentId));
-      // Fetch as blob with admin headers
+      const token = localStorage.getItem('wissen-token');
       const response = await fetch(url, {
         headers: {
-          'x-role': 'admin',
-          'x-candidate-name': localStorage.getItem('wissen-name') || 'Admin',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
       });
 

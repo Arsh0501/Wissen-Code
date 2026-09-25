@@ -7,7 +7,7 @@ export interface AuthUser {
   id: number;
   email: string;
   name: string;
-  role: 'admin' | 'examinee';
+  role: 'admin' | 'candidate';
 }
 
 declare global {
@@ -40,7 +40,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
 }
 
 // Restricts a route to one of the given roles (call after authenticate)
-export function requireRole(...roles: Array<'admin' | 'examinee'>) {
+export function requireRole(...roles: Array<'admin' | 'candidate'>) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Insufficient permissions' });

@@ -15,7 +15,7 @@ model User {
   name      String
   email     String   @unique
   password  String   // bcrypt hash
-  role      String   @default("examinee") // "admin" | "examinee"
+  role      String   @default("candidate") // "admin" | "candidate"
   createdAt DateTime @default(now())
 }
 

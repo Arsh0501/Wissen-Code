@@ -345,7 +345,7 @@ export function getAssessmentById(id: number): Assessment | undefined {
   const assessment = db.assessments.find((a) => a.id === id);
   if (!assessment) return undefined;
 
-  // Examinees only ever see sample test cases, mirroring the real API's behaviour.
+  // Candidates only ever see sample test cases, mirroring the real API's behaviour.
   return {
     ...assessment,
     questions: assessment.questions.map((aq) => ({

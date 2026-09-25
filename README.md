@@ -1,4 +1,4 @@
-# Wissen Code — In-House Coding Assessment Platform
+# WissenCode — In-House Coding Assessment Platform
 
 A fully working end-to-end demo of a proctored coding assessment platform with **real code compilation** via Judge0 CE.
 
@@ -88,9 +88,9 @@ Open **http://localhost:3000** in your browser.
    - **Review**: then **Save draft** or **Publish**
 5. From the list: publish/unpublish, duplicate, archive, delete, or open **Results** for per-candidate marks and pass/fail
 
-### Examinee Flow
+### Candidate Flow
 1. Go to http://localhost:3000
-2. Enter your name, select **Examinee**, click "Continue"
+2. Enter your name, select **Candidate**, click "Continue"
 3. Click **Start** on an assessment
 4. You'll see the full coding exam UI:
    - Left panel: problem statement + sample I/O
@@ -139,7 +139,7 @@ Wissen-Code/
 │   │   │   │   ├── AdminDashboard.tsx  # Question bank table
 │   │   │   │   ├── QuestionForm.tsx    # Create/edit questions
 │   │   │   │   └── AssessmentManager.tsx # Assessment CRUD
-│   │   │   └── examinee/
+│   │   │   └── candidate/
 │   │   │       ├── ExamDashboard.tsx   # Available assessments
 │   │   │       ├── AssessmentView.tsx  # THE exam page (split panel)
 │   │   │       └── SubmissionResult.tsx # Post-submission scores
@@ -159,7 +159,7 @@ Wissen-Code/
 | `/api/questions/:id` | GET, PUT, DELETE | Read/update/delete question |
 | `/api/questions/:id/testcases` | POST | Add test cases |
 | `/api/questions/:id/starter-code` | POST | Add/update starter code |
-| `/api/assessments` | GET, POST | List (admin: with stats; examinee: published + own status) / create |
+| `/api/assessments` | GET, POST | List (admin: with stats; candidate: published + own status) / create |
 | `/api/assessments/dashboard` | GET | Admin dashboard totals, score distribution, recent activity |
 | `/api/assessments/:id` | GET, PUT, DELETE | Read/update/delete assessment |
 | `/api/assessments/:id/duplicate` | POST | Copy an assessment as a draft |

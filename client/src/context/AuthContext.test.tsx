@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { AuthProvider, useAuth } from './AuthContext';
-import { adminUser, examineeUser } from '../test/test-utils';
+import { adminUser, candidateUser } from '../test/test-utils';
 
 function wrapper({ children }: { children: ReactNode }) {
   return <AuthProvider>{children}</AuthProvider>;
@@ -13,7 +13,7 @@ describe('AuthContext', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     expect(result.current.isLoggedIn).toBe(false);
     expect(result.current.user).toBeNull();
-    expect(result.current.role).toBe('examinee');
+    expect(result.current.role).toBe('candidate');
   });
 
   it('logs in successfully with valid credentials and exposes the user/role', () => {
@@ -45,12 +45,12 @@ describe('AuthContext', () => {
   it('persists the session across a fresh provider mount', () => {
     const first = renderHook(() => useAuth(), { wrapper });
     act(() => {
-      first.result.current.login(examineeUser.email, examineeUser.password);
+      first.result.current.login(candidateUser.email, candidateUser.password);
     });
 
     const second = renderHook(() => useAuth(), { wrapper });
     expect(second.result.current.isLoggedIn).toBe(true);
-    expect(second.result.current.user?.email).toBe(examineeUser.email);
+    expect(second.result.current.user?.email).toBe(candidateUser.email);
   });
 
   it('clears the session on logout', () => {
@@ -70,7 +70,7 @@ describe('AuthContext', () => {
   it('updates and persists profile fields', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     act(() => {
-      result.current.login(examineeUser.email, examineeUser.password);
+      result.current.login(candidateUser.email, candidateUser.password);
     });
     act(() => {
       result.current.updateProfile({ name: 'New Name' });

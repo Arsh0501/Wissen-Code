@@ -7,7 +7,7 @@ const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// POST /api/auth/register — Create a new account (examinee by default)
+// POST /api/auth/register — Create a new account (candidate by default)
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { name, email, password, role } = req.body;
@@ -27,8 +27,8 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
-    // Self-registration is always examinee; admin accounts are seeded/created by existing admins.
-    const finalRole = role === 'admin' ? 'admin' : 'examinee';
+    // Self-registration is always candidate; admin accounts are seeded/created by existing admins.
+    const finalRole = role === 'admin' ? 'admin' : 'candidate';
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
@@ -40,7 +40,7 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
-    const authUser = { id: user.id, email: user.email, name: user.name, role: user.role as 'admin' | 'examinee' };
+    const authUser = { id: user.id, email: user.email, name: user.name, role: user.role as 'admin' | 'candidate' };
     const token = signToken(authUser);
     res.status(201).json({ token, user: authUser });
   } catch (error) {
@@ -67,7 +67,7 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const authUser = { id: user.id, email: user.email, name: user.name, role: user.role as 'admin' | 'examinee' };
+    const authUser = { id: user.id, email: user.email, name: user.name, role: user.role as 'admin' | 'candidate' };
     const token = signToken(authUser);
     res.json({ token, user: authUser });
   } catch (error) {
