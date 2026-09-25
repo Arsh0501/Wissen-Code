@@ -6,7 +6,7 @@ import { Request, Response, NextFunction } from 'express';
  * Returns 403 Forbidden if the requester is not an admin.
  */
 export function adminOnly(req: Request, res: Response, next: NextFunction) {
-  const role = (req as any).role;
+  const role = req.user?.role;
 
   if (role !== 'admin') {
     return res.status(403).json({

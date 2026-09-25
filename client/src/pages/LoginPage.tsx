@@ -5,27 +5,22 @@ import { MOCK_USERS } from '../data/mockUsers';
 import { Code2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, isLoggedIn } = useAuth();
+  const { login, isLoggedIn, authError } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
   if (isLoggedIn) {
     return <Navigate to="/" replace />;
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    const success = login(email.trim(), password);
-    if (!success) {
-      setError('Invalid email or password.');
-    }
+    await login(email.trim(), password);
   }
 
   function fillDemoAccount(demoEmail: string, demoPassword: string) {
     setEmail(demoEmail);
     setPassword(demoPassword);
-    setError(null);
   }
 
   return (
@@ -85,9 +80,9 @@ export default function LoginPage() {
               />
             </div>
 
-            {error && (
+            {authError && (
               <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {error}
+                {authError}
               </p>
             )}
 

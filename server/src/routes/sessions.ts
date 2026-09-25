@@ -44,7 +44,7 @@ export function availabilityError(a: { status: string; startAt: Date | null; end
 router.get('/status/:assessmentId', async (req: Request, res: Response) => {
   try {
     const assessmentId = parseInt(req.params.assessmentId);
-    const candidateName = (req as any).candidateName || 'Anonymous';
+    const candidateName = req.user?.name || 'Anonymous';
 
     const session = await prisma.assessmentSession.findUnique({
       where: { assessmentId_candidateName: { assessmentId, candidateName } },
@@ -63,7 +63,7 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
 router.post('/start', async (req: Request, res: Response) => {
   try {
     const { assessmentId } = req.body;
-    const candidateName = (req as any).candidateName || 'Anonymous';
+    const candidateName = req.user?.name || 'Anonymous';
 
     if (!assessmentId) {
       return res.status(400).json({ error: 'assessmentId is required' });
@@ -147,7 +147,7 @@ async function getWritableSession(req: Request, res: Response) {
     res.status(404).json({ error: 'Session not found' });
     return null;
   }
-  if (session.candidateName !== (req as any).candidateName) {
+  if (session.candidateName !== req.user?.name) {
     res.status(403).json({ error: 'This session belongs to another candidate' });
     return null;
   }

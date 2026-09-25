@@ -37,7 +37,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       include: {
         starterCodes: true,
         // Hidden test cases are only visible to admins
-        testCases: (req as any).role === 'admin' ? true : { where: { isSample: true } },
+        testCases: req.user?.role === 'admin' ? true : { where: { isSample: true } },
       },
     });
     if (!question) {

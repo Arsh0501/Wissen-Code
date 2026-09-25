@@ -5,7 +5,7 @@ import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
 import AssessmentDashboard from './pages/admin/AssessmentDashboard';
 import QuestionBank from './pages/admin/QuestionBank';
-import DashboardPage from './pages/DashboardPage';
+
 import ProfilePage from './pages/ProfilePage';
 import QuestionForm from './pages/admin/QuestionForm';
 import AssessmentManager from './pages/admin/AssessmentManager';
@@ -26,6 +26,11 @@ function RequireAdmin({ children }: { children: ReactElement }) {
   return role === 'admin' ? children : <Navigate to="/" replace />;
 }
 
+function RootDashboard() {
+  const { role } = useAuth();
+  return role === 'admin' ? <AssessmentDashboard /> : <ExamDashboard />;
+}
+
 function AppRoutes() {
   const { isLoggedIn } = useAuth();
 
@@ -40,23 +45,21 @@ function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/" element={<RootDashboard />} />
         <Route path="/profile" element={<ProfilePage />} />
+
+        {/* Admin feature pages */}
+        <Route path="/admin/questions" element={<RequireAdmin><QuestionBank /></RequireAdmin>} />
+        <Route path="/admin/questions/new" element={<RequireAdmin><QuestionForm /></RequireAdmin>} />
+        <Route path="/admin/questions/:id/edit" element={<RequireAdmin><QuestionForm /></RequireAdmin>} />
+        <Route path="/admin/assessments" element={<RequireAdmin><AssessmentManager /></RequireAdmin>} />
+        <Route path="/admin/assessments/new" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
+        <Route path="/admin/assessments/:id/edit" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
+        <Route path="/admin/submissions/:assessmentId" element={<RequireAdmin><SubmissionsViewer /></RequireAdmin>} />
+        <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAdmin><CandidateReport /></RequireAdmin>} />
       </Route>
 
-      {/* Admin feature pages */}
-      <Route path="/admin" element={<RequireAuth><RequireAdmin><AssessmentDashboard /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/questions" element={<RequireAuth><RequireAdmin><QuestionBank /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/questions/new" element={<RequireAuth><RequireAdmin><QuestionForm /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/questions/:id/edit" element={<RequireAuth><RequireAdmin><QuestionForm /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/assessments" element={<RequireAuth><RequireAdmin><AssessmentManager /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/assessments/new" element={<RequireAuth><RequireAdmin><AssessmentForm /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/assessments/:id/edit" element={<RequireAuth><RequireAdmin><AssessmentForm /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/submissions/:assessmentId" element={<RequireAuth><RequireAdmin><SubmissionsViewer /></RequireAdmin></RequireAuth>} />
-      <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAuth><RequireAdmin><CandidateReport /></RequireAdmin></RequireAuth>} />
-
-      {/* Examinee feature pages */}
-      <Route path="/exam" element={<RequireAuth><ExamDashboard /></RequireAuth>} />
+      {/* Examinee full-screen feature pages */}
       <Route path="/exam/:assessmentId" element={<RequireAuth><AssessmentView /></RequireAuth>} />
       <Route path="/exam/:assessmentId/result" element={<RequireAuth><SubmissionResult /></RequireAuth>} />
 

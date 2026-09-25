@@ -81,31 +81,7 @@ export default function ExamDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-950">
-      <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-              <Code2 className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">WissenCode</h1>
-              <p className="text-xs text-surface-500">Assessment Portal</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link to="/" className="btn-ghost text-sm" title="Back to dashboard">
-              <Home className="w-4 h-4" />
-            </Link>
-            <span className="text-sm text-surface-400">Welcome, {candidateName}</span>
-            <button onClick={() => { logout(); navigate('/login'); }} className="btn-ghost text-sm" title="Log out">
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-6 py-8">
+    <div className="max-w-5xl mx-auto">
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-white">My Assessments</h2>
           <p className="text-surface-400 text-sm mt-1">Pick a test to start or continue. The timer starts only when you click Start on the next screen.</p>
@@ -132,7 +108,6 @@ export default function ExamDashboard() {
             )}
           </div>
         )}
-      </main>
     </div>
   );
 }

@@ -1,65 +1,94 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
-import { findUserByCredentials, type MockUser } from '../data/mockUsers';
+import React, { createContext, useContext, useState, useCallback, useMemo, type ReactNode, useEffect } from 'react';
+import api from '../services/api';
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  name: string;
+  role: 'admin' | 'examinee';
+}
 
 const STORAGE_KEY = 'wissen-user';
+const TOKEN_KEY = 'wissen-token';
 
-function loadStoredUser(): MockUser | null {
+function loadStoredUser(): AuthUser | null {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!raw || !token) return null;
   try {
-    return JSON.parse(raw) as MockUser;
+    return JSON.parse(raw) as AuthUser;
   } catch {
     return null;
   }
 }
 
-function persistUser(user: MockUser | null) {
-  if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-  else localStorage.removeItem(STORAGE_KEY);
+function persistUser(user: AuthUser | null, token: string | null) {
+  if (user && token) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 interface AuthContextType {
-  user: MockUser | null;
+  user: AuthUser | null;
   role: 'admin' | 'examinee';
   candidateName: string;
   isLoggedIn: boolean;
   authError: string | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  updateProfile: (updates: Partial<Pick<MockUser, 'name' | 'email'>>) => void;
+  updateProfile: (updates: Partial<Pick<AuthUser, 'name' | 'email'>>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<MockUser | null>(loadStoredUser);
+  const [user, setUser] = useState<AuthUser | null>(loadStoredUser);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  const login = useCallback((email: string, password: string) => {
-    const match = findUserByCredentials(email, password);
-    if (!match) {
-      setAuthError('Invalid email or password.');
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      setAuthError(null);
+      const { data } = await api.post('/auth/login', { email, password });
+      setUser(data.user);
+      persistUser(data.user, data.token);
+      return true;
+    } catch (err: any) {
+      setAuthError(err.response?.data?.error || 'Failed to login');
       return false;
     }
-    setAuthError(null);
-    setUser(match);
-    persistUser(match);
-    return true;
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
-    persistUser(null);
+    persistUser(null, null);
   }, []);
 
-  const updateProfile = useCallback((updates: Partial<Pick<MockUser, 'name' | 'email'>>) => {
+  const updateProfile = useCallback((updates: Partial<Pick<AuthUser, 'name' | 'email'>>) => {
     setUser((prev) => {
       if (!prev) return prev;
       const next = { ...prev, ...updates };
-      persistUser(next);
+      const token = localStorage.getItem(TOKEN_KEY);
+      persistUser(next, token);
       return next;
     });
   }, []);
+
+  // Validate token on mount
+  useEffect(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      api.get('/auth/me').then(({ data }) => {
+        setUser(data.user);
+        persistUser(data.user, token);
+      }).catch(() => {
+        logout();
+      });
+    }
+  }, [logout]);
 
   const value = useMemo<AuthContextType>(
     () => ({

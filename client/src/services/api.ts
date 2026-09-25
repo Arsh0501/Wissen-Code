@@ -19,12 +19,12 @@ const api = axios.create({
   },
 });
 
-// Inject role headers from localStorage
+// Inject JWT token from localStorage
 api.interceptors.request.use((config) => {
-  const role = localStorage.getItem('wissen-role') || 'examinee';
-  const name = localStorage.getItem('wissen-name') || 'Anonymous';
-  config.headers['x-role'] = role;
-  config.headers['x-candidate-name'] = name;
+  const token = localStorage.getItem('wissen-token');
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
   return config;
 });
 

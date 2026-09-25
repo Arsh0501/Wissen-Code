@@ -13,9 +13,8 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'examinee'], end: true },
-  { to: '/admin', label: 'Question Bank', icon: FileText, roles: ['admin'], end: true },
+  { to: '/admin/questions', label: 'Question Bank', icon: FileText, roles: ['admin'], end: false },
   { to: '/admin/assessments', label: 'Assessments', icon: ClipboardList, roles: ['admin'] },
-  { to: '/exam', label: 'My Assessments', icon: ClipboardList, roles: ['examinee'], end: true },
   { to: '/profile', label: 'Profile', icon: UserCircle, roles: ['admin', 'examinee'] },
 ];
 

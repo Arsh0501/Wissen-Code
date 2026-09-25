@@ -19,7 +19,7 @@ const questionSummaryInclude = {
 };
 
 function isAdmin(req: Request) {
-  return (req as any).role === 'admin';
+  return req.user?.role === 'admin';
 }
 
 function availability(a: { status: string; startAt: Date | null; endAt: Date | null }) {
@@ -229,7 +229,7 @@ router.get('/', async (req: Request, res: Response) => {
       );
     }
 
-    const candidateName = (req as any).candidateName;
+    const candidateName = req.user?.name || '';
     const sessions = await prisma.assessmentSession.findMany({
       where: { candidateName },
       select: { assessmentId: true, startedAt: true, finishedAt: true },
@@ -314,7 +314,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    const candidateName = (req as any).candidateName;
+    const candidateName = req.user?.name || '';
     const session = await prisma.assessmentSession.findUnique({
       where: { assessmentId_candidateName: { assessmentId: id, candidateName } },
       select: { id: true },

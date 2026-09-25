@@ -37,10 +37,10 @@ router.get('/:assessmentId/:candidateName', async (req: Request, res: Response) 
   try {
     const assessmentId = parseInt(req.params.assessmentId);
     const candidateName = req.params.candidateName;
-    const role = (req as any).role;
+    const role = req.user?.role;
 
     // Examinees may only view their own results
-    if (role !== 'admin' && (req as any).candidateName !== candidateName) {
+    if (role !== 'admin' && req.user?.name !== candidateName) {
       return res.status(403).json({ error: 'You can only view your own results' });
     }
 
