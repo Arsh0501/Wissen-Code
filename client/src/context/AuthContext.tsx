@@ -1,59 +1,81 @@
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
+import { findUserByCredentials, type MockUser } from '../data/mockUsers';
+
+const STORAGE_KEY = 'wissen-user';
+
+function loadStoredUser(): MockUser | null {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as MockUser;
+  } catch {
+    return null;
+  }
+}
+
+function persistUser(user: MockUser | null) {
+  if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+  else localStorage.removeItem(STORAGE_KEY);
+}
 
 interface AuthContextType {
+  user: MockUser | null;
   role: 'admin' | 'examinee';
   candidateName: string;
-  setRole: (role: 'admin' | 'examinee') => void;
-  setCandidateName: (name: string) => void;
   isLoggedIn: boolean;
-  login: (role: 'admin' | 'examinee', name: string) => void;
+  authError: string | null;
+  login: (email: string, password: string) => boolean;
   logout: () => void;
+  updateProfile: (updates: Partial<Pick<MockUser, 'name' | 'email'>>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [role, setRoleState] = useState<'admin' | 'examinee'>(
-    (localStorage.getItem('wissen-role') as 'admin' | 'examinee') || 'examinee'
-  );
-  const [candidateName, setCandidateNameState] = useState(
-    localStorage.getItem('wissen-name') || ''
-  );
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    localStorage.getItem('wissen-logged-in') === 'true'
-  );
+  const [user, setUser] = useState<MockUser | null>(loadStoredUser);
+  const [authError, setAuthError] = useState<string | null>(null);
 
-  const setRole = useCallback((r: 'admin' | 'examinee') => {
-    setRoleState(r);
-    localStorage.setItem('wissen-role', r);
+  const login = useCallback((email: string, password: string) => {
+    const match = findUserByCredentials(email, password);
+    if (!match) {
+      setAuthError('Invalid email or password.');
+      return false;
+    }
+    setAuthError(null);
+    setUser(match);
+    persistUser(match);
+    return true;
   }, []);
-
-  const setCandidateName = useCallback((name: string) => {
-    setCandidateNameState(name);
-    localStorage.setItem('wissen-name', name);
-  }, []);
-
-  const login = useCallback((r: 'admin' | 'examinee', name: string) => {
-    setRole(r);
-    setCandidateName(name);
-    setIsLoggedIn(true);
-    localStorage.setItem('wissen-logged-in', 'true');
-  }, [setRole, setCandidateName]);
 
   const logout = useCallback(() => {
-    setIsLoggedIn(false);
-    localStorage.removeItem('wissen-logged-in');
-    localStorage.removeItem('wissen-role');
-    localStorage.removeItem('wissen-name');
+    setUser(null);
+    persistUser(null);
   }, []);
 
-  return (
-    <AuthContext.Provider
-      value={{ role, candidateName, setRole, setCandidateName, isLoggedIn, login, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const updateProfile = useCallback((updates: Partial<Pick<MockUser, 'name' | 'email'>>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...updates };
+      persistUser(next);
+      return next;
+    });
+  }, []);
+
+  const value = useMemo<AuthContextType>(
+    () => ({
+      user,
+      role: user?.role ?? 'examinee',
+      candidateName: user?.name ?? '',
+      isLoggedIn: !!user,
+      authError,
+      login,
+      logout,
+      updateProfile,
+    }),
+    [user, authError, login, logout, updateProfile]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
@@ -61,3 +83,4 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+

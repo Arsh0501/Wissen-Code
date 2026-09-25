@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAssessments, apiError } from '../../services/api';
 import { formatDate, Spinner } from '../../components/ui';
 import type { Assessment } from '../../types';
 import {
-  Code2, LogOut, Clock, FileText, ChevronRight, Zap, Target, Calendar, CheckCircle, PlayCircle, Lock,
+  Code2, LogOut, Clock, FileText, ChevronRight, Zap, Target, Calendar, CheckCircle, PlayCircle, Lock, Home
 } from 'lucide-react';
 
 function actionFor(a: Assessment) {
@@ -94,8 +94,11 @@ export default function ExamDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Link to="/" className="btn-ghost text-sm" title="Back to dashboard">
+              <Home className="w-4 h-4" />
+            </Link>
             <span className="text-sm text-surface-400">Welcome, {candidateName}</span>
-            <button onClick={() => { logout(); navigate('/'); }} className="btn-ghost text-sm" title="Log out">
+            <button onClick={() => { logout(); navigate('/login'); }} className="btn-ghost text-sm" title="Log out">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
