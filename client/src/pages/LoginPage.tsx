@@ -36,7 +36,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-600/30">
-              <Code2 className="w-7 h-7 text-white" />
+              <Code2 className="w-7 h-7 text-on-accent" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white tracking-tight">WissenCode</h1>
@@ -81,7 +81,7 @@ export default function LoginPage() {
             </div>
 
             {authError && (
-              <p role="alert" className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              <p role="alert" className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                 {authError}
               </p>
             )}
@@ -109,7 +109,7 @@ export default function LoginPage() {
               >
                 <span className="text-sm text-surface-300">{u.name}</span>
                 <span className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 capitalize">
-                  {u.role}
+                  {u.role === 'examinee' ? 'candidate' : u.role}
                 </span>
               </button>
             ))}

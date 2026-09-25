@@ -211,6 +211,8 @@ export interface SessionResponse {
   timeLimitMinutes: number;
   remainingSeconds: number;
   isFinished: boolean;
+  tabSwitchCount: number;
+  tabSwitchLimit: number;
   drafts: {
     id: number;
     sessionId: number;
@@ -267,6 +269,14 @@ export async function saveAllDrafts(
   }[]
 ): Promise<void> {
   await api.post(`/sessions/${sessionId}/save-all-drafts`, { drafts });
+}
+
+export async function recordTabSwitch(
+  sessionId: number,
+  event: { leftAt: string; durationMs: number }
+): Promise<{ count: number; limit: number; autoSubmitted: boolean }> {
+  const { data } = await api.post(`/sessions/${sessionId}/tab-switch`, event);
+  return data;
 }
 
 export async function finishSession(sessionId: number): Promise<any> {

@@ -46,7 +46,7 @@ export default function AdminLayout({
           </div>
           {judgeMode === 'mock' && (
             <span
-              className="badge bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/25 gap-1"
+              className="badge bg-amber-500/10 text-amber-600 ring-1 ring-amber-500/25 gap-1"
               title="Code is not really executed. Set JUDGE_MODE=live in server/.env to use Judge0."
             >
               <FlaskConical className="w-3 h-3" /> Mock judge

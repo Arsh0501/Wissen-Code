@@ -76,7 +76,7 @@ function Toggle({ checked, onChange, label, hint, icon: Icon }: {
 }) {
   return (
     <label className="flex items-start gap-3 p-4 rounded-lg bg-surface-800/50 border border-surface-700 cursor-pointer hover:border-surface-600">
-      <Icon className="w-5 h-5 text-primary-400 mt-0.5 shrink-0" />
+      <Icon className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" />
       <div className="flex-1">
         <p className="text-sm font-medium text-surface-100">{label}</p>
         <p className="text-xs text-surface-500 mt-0.5">{hint}</p>
@@ -88,7 +88,7 @@ function Toggle({ checked, onChange, label, hint, icon: Icon }: {
         onClick={() => onChange(!checked)}
         className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${checked ? 'bg-primary-600' : 'bg-surface-600'}`}
       >
-        <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : ''}`} />
+        <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-on-accent transition-transform ${checked ? 'translate-x-4' : ''}`} />
       </button>
     </label>
   );
@@ -246,8 +246,8 @@ export default function AssessmentForm() {
       }
     >
       {candidateCount > 0 && (
-        <div className="mb-6 flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-200">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-400" />
+        <div className="mb-6 flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-800">
+          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
           <p>
             {candidateCount} candidate{candidateCount === 1 ? ' has' : 's have'} already taken this assessment. Changing
             questions or marks will change how their existing results are scored.
@@ -255,7 +255,7 @@ export default function AssessmentForm() {
         </div>
       )}
       {serverError && (
-        <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300">{serverError}</div>
+        <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{serverError}</div>
       )}
 
       {/* Stepper */}
@@ -275,7 +275,7 @@ export default function AssessmentForm() {
             >
               <span
                 className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${
-                  hasError ? 'bg-red-500 text-white' : active ? 'bg-primary-500 text-white' : 'bg-surface-700 text-surface-300'
+                  hasError ? 'bg-red-500 text-on-accent' : active ? 'bg-primary-500 text-on-accent' : 'bg-surface-700 text-surface-300'
                 }`}
               >
                 {hasError ? '!' : i + 1}
@@ -290,7 +290,7 @@ export default function AssessmentForm() {
       </div>
 
       {errors[step]?.length ? (
-        <ul className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300 list-disc list-inside">
+        <ul className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700 list-disc list-inside">
           {errors[step]!.map((e) => <li key={e}>{e}</li>)}
         </ul>
       ) : null}
@@ -340,7 +340,7 @@ export default function AssessmentForm() {
             <div className="p-4 border-b border-surface-800 space-y-3">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-white">Question bank</h2>
-                <Link to="/admin/questions/new" className="text-xs text-primary-400 hover:text-primary-300">+ New question</Link>
+                <Link to="/admin/questions/new" className="text-xs text-primary-600 hover:text-primary-700">+ New question</Link>
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
@@ -426,7 +426,7 @@ export default function AssessmentForm() {
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                    <button onClick={() => removeQuestion(sq.questionId)} className="btn-ghost p-1.5 text-red-400 hover:bg-red-500/10" title="Remove">
+                    <button onClick={() => removeQuestion(sq.questionId)} className="btn-ghost p-1.5 text-red-600 hover:bg-red-500/10" title="Remove">
                       <X className="w-4 h-4" />
                     </button>
                   </li>
@@ -519,7 +519,7 @@ export default function AssessmentForm() {
               onChange={(v) => set('showResults', v)}
             />
             <div className="p-4 rounded-lg bg-surface-800/50 border border-surface-700">
-              <p className="text-sm font-medium text-surface-100 flex items-center gap-2"><Code2 className="w-5 h-5 text-primary-400" /> Allowed languages</p>
+              <p className="text-sm font-medium text-surface-100 flex items-center gap-2"><Code2 className="w-5 h-5 text-primary-600" /> Allowed languages</p>
               <p className="text-xs text-surface-500 mt-0.5 mb-3">None selected = all languages allowed.</p>
               <div className="flex flex-wrap gap-2">
                 {LANGUAGES.map((l) => {

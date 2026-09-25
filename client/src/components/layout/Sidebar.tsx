@@ -11,7 +11,7 @@ export default function Sidebar() {
     <aside className="hidden md:flex md:flex-col w-64 shrink-0 border-r border-surface-800 bg-surface-900/60">
       <div className="flex items-center gap-3 px-6 py-5 border-b border-surface-800">
         <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-          <Code2 className="w-5 h-5 text-white" />
+          <Code2 className="w-5 h-5 text-on-accent" />
         </div>
         <div>
           <h1 className="text-base font-bold text-white leading-tight">Wissen Code</h1>
@@ -28,7 +28,7 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-primary-500/10 text-primary-300 ring-1 ring-primary-500/30'
+                  ? 'bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/30'
                   : 'text-surface-400 hover:text-white hover:bg-surface-800'
               }`
             }

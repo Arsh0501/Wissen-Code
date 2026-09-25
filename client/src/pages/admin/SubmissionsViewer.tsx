@@ -70,7 +70,7 @@ export default function SubmissionsViewer() {
         <Spinner label="Loading submissions..." />
       ) : error ? (
         <div className="card text-center py-12">
-          <p className="text-red-400 mb-4">{error}</p>
+          <p className="text-red-600 mb-4">{error}</p>
           <button onClick={loadData} className="btn-outline">Retry</button>
         </div>
       ) : !data || data.candidates.length === 0 ? (
@@ -122,7 +122,7 @@ export default function SubmissionsViewer() {
                     <tr key={c.name} className="hover:bg-surface-800/30">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary-500/15 border border-primary-500/20 flex items-center justify-center text-xs font-bold text-primary-300">
+                          <div className="w-8 h-8 rounded-lg bg-primary-500/15 border border-primary-500/20 flex items-center justify-center text-xs font-bold text-primary-700">
                             {c.name.charAt(0).toUpperCase()}
                           </div>
                           <span className="font-medium text-surface-100">{c.name}</span>
@@ -139,7 +139,7 @@ export default function SubmissionsViewer() {
                         {c.status === 'completed' ? (
                           <PassFailBadge passed={c.passed} />
                         ) : (
-                          <span className="badge bg-sky-500/15 text-sky-400 ring-1 ring-sky-500/25 gap-1"><Clock className="w-3 h-3" /> In progress</span>
+                          <span className="badge bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 gap-1"><Clock className="w-3 h-3" /> In progress</span>
                         )}
                       </td>
                       <td className="px-5 py-3 text-right">

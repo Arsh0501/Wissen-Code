@@ -23,13 +23,14 @@ interface ReportData {
   assessment: { id: number; title: string; duration_minutes: number; submitted_at: string };
   overall_score: { passed: number; total: number; percentage: number };
   questions: ReportQuestion[];
+  // Real data captured during the exam session
+  tab_switches: {
+    count: number;
+    total_duration_ms: number;
+    events: { duration_ms: number; occurred_at: string }[];
+  };
   integrity_placeholder: {
     is_placeholder: boolean;
-    tab_switches: {
-      count: number;
-      total_duration_ms: number;
-      events: { duration_ms: number; occurred_at: string }[];
-    };
     copy_paste: {
       count: number;
       events: { action: string; char_count: number; question_id: string }[];
@@ -71,7 +72,7 @@ function scoreColor(pct: number): string {
 }
 
 export function generateReportHTML(data: ReportData): string {
-  const { candidate, assessment, overall_score, questions, integrity_placeholder } = data;
+  const { candidate, assessment, overall_score, questions, tab_switches, integrity_placeholder } = data;
   const scoreClr = scoreColor(overall_score.percentage);
 
   const questionsHTML = questions
@@ -129,7 +130,9 @@ export function generateReportHTML(data: ReportData): string {
 
   // Integrity placeholder section
   const ip = integrity_placeholder;
-  const tabEventsHTML = ip.tab_switches.events.map((e) => `
+  const tabEventsHTML = tab_switches.events.length === 0
+    ? `<tr><td colspan="2" style="padding:6px 10px;color:#6b7280;font-size:12px;">No tab switches detected</td></tr>`
+    : tab_switches.events.map((e) => `
     <tr>
       <td style="padding:6px 10px;border-bottom:1px solid #2a2a40;color:#d0d0e0;font-size:12px;">${(e.duration_ms / 1000).toFixed(1)}s</td>
       <td style="padding:6px 10px;border-bottom:1px solid #2a2a40;color:#a0a0c0;font-size:12px;">${formatDate(e.occurred_at)}</td>
@@ -188,32 +191,18 @@ export function generateReportHTML(data: ReportData): string {
     ${questionsHTML}
   </div>
 
-  <!-- ═══ INTEGRITY PLACEHOLDER BANNER ═══ -->
   <div class="page-break"></div>
-  <div style="background:linear-gradient(135deg,#78350f,#92400e);border:2px solid #d97706;border-radius:10px;padding:20px;margin-bottom:20px;text-align:center;position:relative;">
-    <div style="font-size:18px;font-weight:800;color:#fef3c7;text-transform:uppercase;letter-spacing:2px;">
-      ⚠ Integrity &amp; Proctoring Signals
-    </div>
-    <div style="font-size:14px;color:#fde68a;margin-top:6px;">
-      Sample Data for Demonstration Purposes
-    </div>
-    <div style="font-size:11px;color:#fbbf24;margin-top:4px;">
-      The data below is hardcoded placeholder content. These modules are not yet connected to live capture mechanisms.
-    </div>
-  </div>
-
   <!-- Tab Switches -->
   <div style="background:#12121f;border:1px solid #2a2a40;border-radius:8px;padding:16px;margin-bottom:12px;position:relative;">
-    <div style="position:absolute;top:8px;right:12px;background:#78350f;color:#fde68a;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:1px;">Placeholder</div>
     <h3 style="color:#e0e0ff;font-size:14px;font-weight:600;margin-bottom:12px;">🔀 Tab Switch Detection</h3>
     <div style="display:flex;gap:24px;margin-bottom:12px;">
       <div>
         <div style="color:#6b7280;font-size:11px;text-transform:uppercase;">Total Switches</div>
-        <div style="color:#f59e0b;font-size:20px;font-weight:700;">${ip.tab_switches.count}</div>
+        <div style="color:#f59e0b;font-size:20px;font-weight:700;">${tab_switches.count}</div>
       </div>
       <div>
         <div style="color:#6b7280;font-size:11px;text-transform:uppercase;">Total Away Time</div>
-        <div style="color:#f59e0b;font-size:20px;font-weight:700;">${(ip.tab_switches.total_duration_ms / 1000).toFixed(1)}s</div>
+        <div style="color:#f59e0b;font-size:20px;font-weight:700;">${(tab_switches.total_duration_ms / 1000).toFixed(1)}s</div>
       </div>
     </div>
     <table style="width:100%;border-collapse:collapse;">
@@ -225,6 +214,19 @@ export function generateReportHTML(data: ReportData): string {
       </thead>
       <tbody>${tabEventsHTML}</tbody>
     </table>
+  </div>
+
+  <!-- ═══ INTEGRITY PLACEHOLDER BANNER ═══ -->
+  <div style="background:linear-gradient(135deg,#78350f,#92400e);border:2px solid #d97706;border-radius:10px;padding:20px;margin-bottom:20px;text-align:center;position:relative;">
+    <div style="font-size:18px;font-weight:800;color:#fef3c7;text-transform:uppercase;letter-spacing:2px;">
+      ⚠ Integrity &amp; Proctoring Signals
+    </div>
+    <div style="font-size:14px;color:#fde68a;margin-top:6px;">
+      Sample Data for Demonstration Purposes
+    </div>
+    <div style="font-size:11px;color:#fbbf24;margin-top:4px;">
+      The data below is hardcoded placeholder content. These modules are not yet connected to live capture mechanisms.
+    </div>
   </div>
 
   <!-- Copy Paste -->

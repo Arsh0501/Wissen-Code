@@ -41,9 +41,15 @@ interface ReportDataType {
     time_taken_seconds: number | null;
   };
   questions: ReportQuestion[];
+  tab_switches: {
+    count: number;
+    limit: number;
+    limit_exceeded: boolean;
+    total_duration_ms: number;
+    events: { duration_ms: number; occurred_at: string }[];
+  };
   integrity_placeholder: {
     is_placeholder: boolean;
-    tab_switches: any;
     copy_paste: any;
     screenshots: any;
     plagiarism: any;
@@ -130,9 +136,9 @@ export default function CandidateReport() {
   if (role !== 'admin') return null;
 
   function scoreColor(pct: number): string {
-    if (pct >= 70) return 'text-emerald-400';
-    if (pct >= 40) return 'text-amber-400';
-    return 'text-red-400';
+    if (pct >= 70) return 'text-emerald-600';
+    if (pct >= 40) return 'text-amber-600';
+    return 'text-red-600';
   }
 
   function scoreBg(pct: number): string {
@@ -165,7 +171,7 @@ export default function CandidateReport() {
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <div className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-primary-400" />
+              <Code2 className="w-5 h-5 text-primary-600" />
               <div>
                 <h1 className="text-lg font-bold text-white">
                   Candidate Report
@@ -201,8 +207,8 @@ export default function CandidateReport() {
           </div>
         ) : error ? (
           <div className="card text-center py-12">
-            <AlertTriangle className="w-12 h-12 text-red-400 mx-auto mb-4" />
-            <p className="text-red-400 mb-4">{error}</p>
+            <AlertTriangle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+            <p className="text-red-600 mb-4">{error}</p>
             <button onClick={loadReport} className="btn-outline">Retry</button>
           </div>
         ) : report ? (
@@ -211,7 +217,7 @@ export default function CandidateReport() {
             <div className="card p-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-primary-400 uppercase tracking-wider mb-2">
+                  <div className="text-xs font-semibold text-primary-600 uppercase tracking-wider mb-2">
                     Assessment Report
                   </div>
                   <h2 className="text-2xl font-bold text-white mb-1">
@@ -247,7 +253,7 @@ export default function CandidateReport() {
             {/* ═══ QUESTION RESULTS ═══ */}
             <div>
               <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
-                <BarChart3 className="w-5 h-5 text-primary-400" />
+                <BarChart3 className="w-5 h-5 text-primary-600" />
                 Question-wise Results
               </h3>
 
@@ -280,8 +286,8 @@ export default function CandidateReport() {
                             key={i}
                             className={`flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium ${
                               passed
-                                ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/25'
-                                : 'bg-red-500/15 text-red-400 ring-1 ring-red-500/25'
+                                ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25'
+                                : 'bg-red-500/15 text-red-600 ring-1 ring-red-500/25'
                             }`}
                           >
                             {passed ? (
@@ -309,7 +315,7 @@ export default function CandidateReport() {
                               <span className="text-xs text-surface-500">
                                 Test Case #{fc.testcase_id}
                               </span>
-                              <span className="text-xs font-semibold text-red-400">
+                              <span className="text-xs font-semibold text-red-600">
                                 {fc.status.replace(/_/g, ' ').toUpperCase()}
                               </span>
                             </div>
@@ -318,7 +324,7 @@ export default function CandidateReport() {
                                 <div className="text-[10px] text-surface-600 uppercase tracking-wider mb-1">
                                   Expected
                                 </div>
-                                <pre className="text-xs text-emerald-400 bg-emerald-500/5 p-2 rounded border border-emerald-500/10 whitespace-pre-wrap break-all">
+                                <pre className="text-xs text-emerald-600 bg-emerald-500/5 p-2 rounded border border-emerald-500/10 whitespace-pre-wrap break-all">
                                   {fc.expected_output || '(empty)'}
                                 </pre>
                               </div>
@@ -326,7 +332,7 @@ export default function CandidateReport() {
                                 <div className="text-[10px] text-surface-600 uppercase tracking-wider mb-1">
                                   Actual
                                 </div>
-                                <pre className="text-xs text-red-400 bg-red-500/5 p-2 rounded border border-red-500/10 whitespace-pre-wrap break-all">
+                                <pre className="text-xs text-red-600 bg-red-500/5 p-2 rounded border border-red-500/10 whitespace-pre-wrap break-all">
                                   {fc.actual_output || '(no output)'}
                                 </pre>
                               </div>
@@ -340,71 +346,83 @@ export default function CandidateReport() {
               </div>
             </div>
 
+            {/* ═══ TAB SWITCH DETECTION (live data) ═══ */}
+            <div className="mt-8">
+              {/* Tab Switches */}
+              <div className="card p-4 relative">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="w-4 h-4 text-amber-600" />
+                  <h4 className="font-medium text-white text-sm">Tab Switch Detection</h4>
+                  {report.tab_switches.limit_exceeded ? (
+                    <span className="badge bg-red-500/10 text-red-700 ring-1 ring-red-500/25 ml-auto">
+                      Limit reached · auto-submitted
+                    </span>
+                  ) : (
+                    <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700 ml-auto tabular-nums">
+                      {report.tab_switches.count}/{report.tab_switches.limit} allowed
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-6 mb-3">
+                  <div>
+                    <div className="text-[10px] text-surface-600 uppercase">Switches</div>
+                    <div className="text-xl font-bold text-amber-600">
+                      {report.tab_switches.count}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-surface-600 uppercase">Away Time</div>
+                    <div className="text-xl font-bold text-amber-600">
+                      {(report.tab_switches.total_duration_ms / 1000).toFixed(1)}s
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  {report.tab_switches.events.length === 0 && (
+                    <div className="text-xs text-surface-500">No tab switches detected</div>
+                  )}
+                  {report.tab_switches.events.map((e: any, i: number) => (
+                    <div key={i} className="flex justify-between text-xs text-surface-500 bg-surface-900 rounded px-2 py-1">
+                      <span>{(e.duration_ms / 1000).toFixed(1)}s</span>
+                      <span>{formatDate(e.occurred_at)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {/* ═══ PLACEHOLDER INTEGRITY SECTION ═══ */}
             <div className="mt-8">
               {/* Prominent banner */}
               <div className="bg-gradient-to-r from-amber-900/60 to-orange-900/60 border-2 border-amber-500/40 rounded-xl p-5 text-center mb-6">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <AlertTriangle className="w-5 h-5 text-amber-400" />
-                  <span className="text-lg font-bold text-amber-200 uppercase tracking-wider">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  <span className="text-lg font-bold text-amber-800 uppercase tracking-wider">
                     Integrity & Proctoring Signals
                   </span>
-                  <AlertTriangle className="w-5 h-5 text-amber-400" />
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
                 </div>
-                <p className="text-amber-300 text-sm">
+                <p className="text-amber-700 text-sm">
                   Sample Data for Demonstration Purposes
                 </p>
-                <p className="text-amber-400/70 text-xs mt-1">
+                <p className="text-amber-600/70 text-xs mt-1">
                   The data below is hardcoded placeholder content. These modules are not yet connected to live capture mechanisms.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Tab Switches */}
-                <div className="card p-4 relative">
-                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                    Placeholder
-                  </div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Shield className="w-4 h-4 text-amber-400" />
-                    <h4 className="font-medium text-white text-sm">Tab Switch Detection</h4>
-                  </div>
-                  <div className="flex gap-6 mb-3">
-                    <div>
-                      <div className="text-[10px] text-surface-600 uppercase">Switches</div>
-                      <div className="text-xl font-bold text-amber-400">
-                        {report.integrity_placeholder.tab_switches.count}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] text-surface-600 uppercase">Away Time</div>
-                      <div className="text-xl font-bold text-amber-400">
-                        {(report.integrity_placeholder.tab_switches.total_duration_ms / 1000).toFixed(1)}s
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    {report.integrity_placeholder.tab_switches.events.map((e: any, i: number) => (
-                      <div key={i} className="flex justify-between text-xs text-surface-500 bg-surface-900 rounded px-2 py-1">
-                        <span>{(e.duration_ms / 1000).toFixed(1)}s</span>
-                        <span>{formatDate(e.occurred_at)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Copy-Paste */}
                 <div className="card p-4 relative">
-                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                     Placeholder
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Copy className="w-4 h-4 text-amber-400" />
+                    <Copy className="w-4 h-4 text-amber-600" />
                     <h4 className="font-medium text-white text-sm">Copy-Paste Detection</h4>
                   </div>
                   <div className="mb-3">
                     <div className="text-[10px] text-surface-600 uppercase">Total Events</div>
-                    <div className="text-xl font-bold text-amber-400">
+                    <div className="text-xl font-bold text-amber-600">
                       {report.integrity_placeholder.copy_paste.count}
                     </div>
                   </div>
@@ -420,29 +438,29 @@ export default function CandidateReport() {
 
                 {/* Screenshots */}
                 <div className="card p-4 relative">
-                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                     Placeholder
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Camera className="w-4 h-4 text-emerald-400" />
+                    <Camera className="w-4 h-4 text-emerald-600" />
                     <h4 className="font-medium text-white text-sm">Screenshot Monitoring</h4>
                   </div>
                   <div className="flex gap-6">
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Snapshots</div>
-                      <div className="text-xl font-bold text-emerald-400">
+                      <div className="text-xl font-bold text-emerald-600">
                         {report.integrity_placeholder.screenshots.snapshot_count}
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Avg Confidence</div>
-                      <div className="text-xl font-bold text-emerald-400">
+                      <div className="text-xl font-bold text-emerald-600">
                         {(report.integrity_placeholder.screenshots.average_confidence_score * 100).toFixed(0)}%
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Flagged</div>
-                      <div className="text-xl font-bold text-emerald-400">
+                      <div className="text-xl font-bold text-emerald-600">
                         {report.integrity_placeholder.screenshots.flagged_snapshots.length}
                       </div>
                     </div>
@@ -451,23 +469,23 @@ export default function CandidateReport() {
 
                 {/* Plagiarism */}
                 <div className="card p-4 relative">
-                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                     Placeholder
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Search className="w-4 h-4 text-emerald-400" />
+                    <Search className="w-4 h-4 text-emerald-600" />
                     <h4 className="font-medium text-white text-sm">Plagiarism Detection</h4>
                   </div>
                   <div className="flex gap-6">
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Status</div>
-                      <div className="text-sm font-semibold text-emerald-400">
+                      <div className="text-sm font-semibold text-emerald-600">
                         {report.integrity_placeholder.plagiarism.status}
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Matches</div>
-                      <div className="text-sm font-semibold text-emerald-400">
+                      <div className="text-sm font-semibold text-emerald-600">
                         {report.integrity_placeholder.plagiarism.matches.length}
                       </div>
                     </div>
@@ -476,23 +494,23 @@ export default function CandidateReport() {
 
                 {/* AI Code Detection */}
                 <div className="card p-4 relative md:col-span-2">
-                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-300 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
+                  <div className="absolute top-2 right-3 bg-amber-900/60 text-amber-700 text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">
                     Placeholder
                   </div>
                   <div className="flex items-center gap-2 mb-3">
-                    <Bot className="w-4 h-4 text-emerald-400" />
+                    <Bot className="w-4 h-4 text-emerald-600" />
                     <h4 className="font-medium text-white text-sm">AI-Generated Code Detection</h4>
                   </div>
                   <div className="flex gap-6">
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Status</div>
-                      <div className="text-sm font-semibold text-emerald-400">
+                      <div className="text-sm font-semibold text-emerald-600">
                         {report.integrity_placeholder.ai_code_detection.status}
                       </div>
                     </div>
                     <div>
                       <div className="text-[10px] text-surface-600 uppercase">Flags Raised</div>
-                      <div className="text-sm font-semibold text-emerald-400">
+                      <div className="text-sm font-semibold text-emerald-600">
                         {report.integrity_placeholder.ai_code_detection.flags.length}
                       </div>
                     </div>
