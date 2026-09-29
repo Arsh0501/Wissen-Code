@@ -30,6 +30,16 @@ model Question {
   tags         String    @default("[]") // JSON array stored as string (SQLite compat)
   timeLimit    Float     @default(2) // CPU time limit in seconds
   memoryLimit  Int       @default(256000) // Memory limit in KB
+  type         String    @default("coding") // "coding" | "mcq"
+  options      String    @default("[]") // MCQ only: JSON [{ id, text }]
+  correctOptions String  @default("[]") // MCQ only: JSON array of correct option ids
+  explanation  String    @default("") // MCQ only: why the answer is correct (admin-facing)
+  topic        String    @default("")
+  skills       String    @default("[]") // JSON array of skills the question assesses
+  source       String    @default("manual") // "manual" | "ai"
+  status       String    @default("active") // "active" | "pending_review" | "rejected" — only active questions can be used
+  validation   String    @default("") // JSON report from the last AI validation run
+  referenceSolution String @default("") // Coding: Python solution used to verify test cases
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -75,6 +85,14 @@ model Assessment {
   shuffleQuestions Boolean   @default(false)
   allowedLanguages String    @default("[]") // JSON array of Judge0 language IDs; empty = all
   showResults      Boolean   @default(true) // Show score breakdown to the candidate after submit
+  difficulty       String    @default("mixed") // "mixed" | "easy" | "medium" | "hard" — target level
+  topics           String    @default("[]") // JSON array of topics the assessment covers
+  questionTypes    String    @default("[\"coding\"]") // JSON array: "coding" | "mcq"
+  questionCount    Int?      // Questions each candidate gets; null = all selected. Fewer = random subset per candidate
+  shuffleOptions   Boolean   @default(false) // Shuffle MCQ option order per candidate
+  maxAttempts      Int       @default(1)
+  accessMode       String    @default("anyone") // "anyone" | "restricted" (allowedEmails only) | "invite_only" (share links only)
+  allowedEmails    String    @default("[]") // JSON: exact emails and/or "@domain.com" entries, used when accessMode = restricted
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -134,6 +152,8 @@ model AssessmentSession {
   candidateName   String
   startedAt       DateTime  @default(now())
   finishedAt      DateTime? // null = in progress, set on final submit
+  attempt         Int       @default(1)
+  questionIds     String    @default("") // JSON ids of this candidate's questions when the assessment uses a random subset; "" = all
 
   assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   drafts          DraftAnswer[]
@@ -214,4 +234,64 @@ model InviteRedemption {
   user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([inviteId, userId])
+}
+
+// Score snapshot of an earlier attempt, kept when a candidate retakes an assessment
+model AttemptHistory {
+  id            Int      @id @default(autoincrement())
+  assessmentId  Int
+  candidateName String
+  attempt       Int
+  startedAt     DateTime
+  finishedAt    DateTime?
+  percentage    Float
+  passed        Boolean
+  marksObtained Float
+  totalMarks    Int
+  createdAt     DateTime @default(now())
+
+  @@index([assessmentId, candidateName])
+}
+
+// A live interview: the AI-assisted plan, what was asked, and the interviewer's evaluation
+model Interview {
+  id                  Int       @id @default(autoincrement())
+  candidateName       String
+  candidateEmail      String    @default("")
+  role                String    @default("")
+  jobRequirements     String    @default("")
+  candidateExperience String    @default("")
+  skills              String    @default("[]") // JSON array of required skills
+  durationMinutes     Int       @default(45)
+  scheduledAt         DateTime?
+  status              String    @default("planned") // "planned" | "in_progress" | "completed"
+  plan                String    @default("[]") // JSON [{ topic, minutes, goals, questions: string[] }]
+  skillRatings        String    @default("[]") // JSON [{ skill, rating (1-5), comment }]
+  recommendation      String    @default("") // "strong_hire" | "hire" | "no_hire" | "strong_no_hire" | ""
+  summary             String    @default("")
+  interviewerId       Int?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  questions           InterviewQuestion[]
+}
+
+model InterviewQuestion {
+  id              Int       @id @default(autoincrement())
+  interviewId     Int
+  orderIndex      Int       @default(0)
+  section         String    @default("") // plan topic this question belongs to
+  prompt          String
+  answer          String    @default("") // candidate's spoken/written answer, as captured by the interviewer
+  code            String    @default("")
+  languageId      Int       @default(71)
+  executionResult String    @default("") // JSON of the last run
+  notes           String    @default("") // interviewer's private notes
+  aiObservations  String    @default("") // JSON [{ skill, observation, sentiment, evidence: [...] }]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  interview       Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
 }

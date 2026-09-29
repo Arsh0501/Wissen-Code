@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { gradeAnswer, computeEvaluation } from '../services/grading';
-import { canAccessAssessment } from '../services/guest-access';
+import { canAccessAssessment } from '../services/access';
+import { pickSubset } from '../services/question-set';
 
 const router = Router();
 
@@ -21,7 +22,7 @@ function isPastDeadline(startedAt: Date, timeLimitMinutes: number): boolean {
 }
 
 function sessionResponse(
-  session: { id: number; startedAt: Date; finishedAt: Date | null; drafts: any[]; _count?: { tabSwitches: number } },
+  session: { id: number; startedAt: Date; finishedAt: Date | null; attempt?: number; drafts: any[]; _count?: { tabSwitches: number } },
   timeLimitMinutes: number
 ) {
   return {
@@ -34,6 +35,7 @@ function sessionResponse(
     drafts: session.drafts,
     tabSwitchCount: session._count?.tabSwitches ?? 0,
     tabSwitchLimit: MAX_TAB_SWITCHES,
+    attempt: session.attempt ?? 1,
   };
 }
 
@@ -77,7 +79,10 @@ router.post('/start', async (req: Request, res: Response) => {
 
     const assessment = await prisma.assessment.findUnique({
       where: { id: assessmentId },
-      select: { id: true, timeLimitMinutes: true, status: true, startAt: true, endAt: true },
+      select: {
+        id: true, timeLimitMinutes: true, status: true, startAt: true, endAt: true, questionCount: true,
+        questions: { select: { questionId: true }, orderBy: { orderIndex: 'asc' } },
+      },
     });
 
     if (!assessment) {
@@ -98,7 +103,7 @@ router.post('/start', async (req: Request, res: Response) => {
       if (blocked) return res.status(403).json({ error: blocked });
 
       session = await prisma.assessmentSession.create({
-        data: { assessmentId, candidateName },
+        data: { assessmentId, candidateName, questionIds: subsetJson(assessment, candidateName, 1) },
         include: { drafts: true, _count: { select: { tabSwitches: true } } },
       });
     }
@@ -107,6 +112,76 @@ router.post('/start', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error starting session:', error);
     res.status(500).json({ error: 'Failed to start session' });
+  }
+});
+
+// A random subset of the assessment's questions for this candidate/attempt, or "" when everyone gets all of them
+function subsetJson(a: { id: number; questionCount: number | null; questions: { questionId: number }[] }, candidateName: string, attempt: number): string {
+  const ids = a.questions.map((q) => q.questionId);
+  if (!a.questionCount || a.questionCount >= ids.length) return '';
+  return JSON.stringify(pickSubset(ids, a.questionCount, `${a.id}:${candidateName}:${attempt}`));
+}
+
+// POST /api/sessions/retake — Start another attempt; the previous attempt's score is kept in the history
+router.post('/retake', async (req: Request, res: Response) => {
+  try {
+    const assessmentId = Number(req.body.assessmentId);
+    const candidateName = req.user?.name || '';
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true, status: true, startAt: true, endAt: true, maxAttempts: true, questionCount: true, timeLimitMinutes: true,
+        questions: { select: { questionId: true }, orderBy: { orderIndex: 'asc' } },
+      },
+    });
+    if (!assessment) return res.status(404).json({ error: 'Assessment not found' });
+    if (!(await canAccessAssessment(req, assessmentId))) return res.status(403).json({ error: 'You do not have access to this assessment' });
+    const blocked = availabilityError(assessment);
+    if (blocked) return res.status(403).json({ error: blocked });
+
+    const previous = await prisma.assessmentSession.findUnique({
+      where: { assessmentId_candidateName: { assessmentId, candidateName } },
+      select: { id: true, attempt: true, startedAt: true, finishedAt: true },
+    });
+    if (!previous) return res.status(400).json({ error: 'You have not taken this assessment yet' });
+    const timedOut = Date.now() > previous.startedAt.getTime() + assessment.timeLimitMinutes * 60000 + GRACE_PERIOD_MS;
+    if (!previous.finishedAt && !timedOut) return res.status(400).json({ error: 'Finish your current attempt first' });
+    if (previous.attempt >= assessment.maxAttempts) {
+      return res.status(403).json({ error: `You have used all ${assessment.maxAttempts} attempt${assessment.maxAttempts === 1 ? '' : 's'}` });
+    }
+
+    // Grade an attempt that ran out of time without a final submit, so its score is recorded
+    if (!previous.finishedAt) await finalizeSession(previous.id);
+    const evaluation = await computeEvaluation(assessmentId, candidateName);
+    const attempt = previous.attempt + 1;
+
+    const session = await prisma.$transaction(async (tx) => {
+      await tx.attemptHistory.create({
+        data: {
+          assessmentId,
+          candidateName,
+          attempt: previous.attempt,
+          startedAt: previous.startedAt,
+          finishedAt: previous.finishedAt ?? new Date(),
+          percentage: evaluation?.percentage ?? 0,
+          passed: evaluation?.passed ?? false,
+          marksObtained: evaluation?.marksObtained ?? 0,
+          totalMarks: evaluation?.totalMarks ?? 0,
+        },
+      });
+      // Current results always reflect the latest attempt; earlier ones live in AttemptHistory
+      await tx.submission.deleteMany({ where: { assessmentId, candidateName } });
+      await tx.assessmentSession.delete({ where: { id: previous.id } });
+      return tx.assessmentSession.create({
+        data: { assessmentId, candidateName, attempt, questionIds: subsetJson(assessment, candidateName, attempt) },
+        include: { drafts: true, _count: { select: { tabSwitches: true } } },
+      });
+    });
+
+    res.json(sessionResponse(session, assessment.timeLimitMinutes));
+  } catch (error: any) {
+    console.error('Error starting retake:', error);
+    res.status(500).json({ error: 'Failed to start a new attempt' });
   }
 });
 
