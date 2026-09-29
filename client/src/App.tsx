@@ -11,7 +11,6 @@ import ProfilePage from './pages/ProfilePage';
 import QuestionForm from './pages/admin/QuestionForm';
 import AssessmentManager from './pages/admin/AssessmentManager';
 import AssessmentForm from './pages/admin/AssessmentForm';
-import AIAssessmentBuilder from './pages/admin/AIAssessmentBuilder';
 import SubmissionsViewer from './pages/admin/SubmissionsViewer';
 import CandidateReport from './pages/admin/CandidateReport';
 import ExamDashboard from './pages/candidate/ExamDashboard';
@@ -58,7 +57,6 @@ function AppRoutes() {
         <Route path="/admin/questions/:id/edit" element={<RequireAdmin><QuestionForm /></RequireAdmin>} />
         <Route path="/admin/assessments" element={<RequireAdmin><AssessmentManager /></RequireAdmin>} />
         <Route path="/admin/assessments/new" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
-        <Route path="/admin/assessments/ai" element={<RequireAdmin><AIAssessmentBuilder /></RequireAdmin>} />
         <Route path="/admin/assessments/:id/edit" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
         <Route path="/admin/submissions/:assessmentId" element={<RequireAdmin><SubmissionsViewer /></RequireAdmin>} />
         <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAdmin><CandidateReport /></RequireAdmin>} />

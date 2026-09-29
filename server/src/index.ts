@@ -8,7 +8,6 @@ import submissionRoutes from './routes/submissions';
 import sessionRoutes from './routes/sessions';
 import adminReportRoutes from './routes/admin-reports';
 import adminQuestionRoutes from './routes/admin-questions';
-import aiRoutes from './routes/ai';
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
 import { authenticate } from './middleware/auth';
@@ -48,7 +47,6 @@ app.use('/api/submissions', submissionRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/admin/reports', adminReportRoutes);
 app.use('/api/admin/questions', adminQuestionRoutes);
-app.use('/api/ai', aiRoutes);
 app.use('/api/invites', adminInviteRoutes);
 
 // Health check
