@@ -16,7 +16,10 @@ model User {
   email     String   @unique
   password  String   // bcrypt hash
   role      String   @default("candidate") // "admin" | "candidate"
+  isGuest   Boolean  @default(false) // joined through an invite link; no usable password
   createdAt DateTime @default(now())
+
+  inviteRedemptions InviteRedemption[]
 }
 
 model Question {
@@ -78,6 +81,7 @@ model Assessment {
   questions        AssessmentQuestion[]
   submissions      Submission[]
   sessions         AssessmentSession[]
+  inviteLinks      InviteLink[]
 }
 
 model AssessmentQuestion {
@@ -134,6 +138,7 @@ model AssessmentSession {
   assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   drafts          DraftAnswer[]
   tabSwitches     TabSwitchEvent[]
+  pasteEvents     PasteEvent[]
 
   @@unique([assessmentId, candidateName])
 }
@@ -165,4 +170,48 @@ model DraftAnswer {
   session         AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, questionId])
+}
+
+// One row each time the candidate pastes text into the code editor during a session
+model PasteEvent {
+  id          Int      @id @default(autoincrement())
+  sessionId   Int
+  questionId  Int
+  charCount   Int
+  lineCount   Int
+  occurredAt  DateTime @default(now())
+
+  session     AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+// Shareable link that lets anyone with it join an assessment without an account
+model InviteLink {
+  id           Int       @id @default(autoincrement())
+  token        String    @unique // random, URL-safe; the secret part of the link
+  assessmentId Int
+  label        String    @default("")
+  maxUses      Int?      // null = unlimited
+  expiresAt    DateTime? // null = never
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+
+  assessment   Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  redemptions  InviteRedemption[]
+
+  @@index([assessmentId])
+}
+
+// One row per person who joined through a link (a returning person is not counted twice)
+model InviteRedemption {
+  id        Int      @id @default(autoincrement())
+  inviteId  Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  invite    InviteLink @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteId, userId])
 }

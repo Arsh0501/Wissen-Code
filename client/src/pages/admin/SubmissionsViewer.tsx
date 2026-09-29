@@ -4,9 +4,9 @@ import AdminLayout from '../../components/AdminLayout';
 import {
   StatCard, Spinner, EmptyState, PassFailBadge, formatDate, formatDuration, formatPercent, scoreTextClass,
 } from '../../components/ui';
-import { getAssessmentSubmissions, apiError } from '../../services/api';
+import { getAssessmentSubmissions, downloadAssessmentCsv, apiError } from '../../services/api';
 import type { AssessmentSubmissionsResponse } from '../../services/api';
-import { Users, Target, Award, Search, FileText, Clock, ArrowLeft, Edit } from 'lucide-react';
+import { Users, Target, Award, Search, FileText, Clock, ArrowLeft, Edit, FileSpreadsheet } from 'lucide-react';
 
 type SortKey = 'score' | 'name' | 'submitted';
 
@@ -18,6 +18,30 @@ export default function SubmissionsViewer() {
   const [searchTerm, setSearchTerm] = useState('');
   const [result, setResult] = useState<'all' | 'passed' | 'failed' | 'in-progress'>('all');
   const [sort, setSort] = useState<SortKey>('score');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+
+  async function handleExport() {
+    if (!assessmentId) return;
+    setExporting(true);
+    setExportError('');
+    try {
+      const { blob, filename } = await downloadAssessmentCsv(parseInt(assessmentId));
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Revoking immediately can cancel the download in some browsers (e.g. Safari)
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setExportError(apiError(err, 'Failed to export results'));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     if (assessmentId) loadData();
@@ -63,9 +87,21 @@ export default function SubmissionsViewer() {
         <>
           <Link to="/admin/assessments" className="btn-ghost text-sm"><ArrowLeft className="w-4 h-4" /> Assessments</Link>
           <Link to={`/admin/assessments/${assessmentId}/edit`} className="btn-outline text-sm"><Edit className="w-4 h-4" /> Edit assessment</Link>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || !data || data.candidates.length === 0}
+            className="btn-primary text-sm"
+            title="Download every candidate's result as a spreadsheet"
+          >
+            <FileSpreadsheet className="w-4 h-4" /> {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
         </>
       }
     >
+      {exportError && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{exportError}</div>
+      )}
       {loading ? (
         <Spinner label="Loading submissions..." />
       ) : error ? (

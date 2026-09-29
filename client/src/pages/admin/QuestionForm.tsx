@@ -1,3 +1,4 @@
+import { useTheme } from '../../context/ThemeContext';
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
@@ -20,6 +21,7 @@ const LANGUAGES = [
 ];
 
 export default function QuestionForm() {
+  const { theme } = useTheme();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -471,7 +473,7 @@ export default function QuestionForm() {
                     [activeStarterLang]: value || '',
                   }));
                 }}
-                theme="light"
+                theme={theme === 'dark' ? 'vs-dark' : 'light'}
                 options={{
                   minimap: { enabled: false },
                   fontSize: 14,

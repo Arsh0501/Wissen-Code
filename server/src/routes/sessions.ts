@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
 import { gradeAnswer, computeEvaluation } from '../services/grading';
+import { canAccessAssessment } from '../services/guest-access';
 
 const router = Router();
 
@@ -81,6 +82,9 @@ router.post('/start', async (req: Request, res: Response) => {
 
     if (!assessment) {
       return res.status(404).json({ error: 'Assessment not found' });
+    }
+    if (!(await canAccessAssessment(req, assessment.id))) {
+      return res.status(403).json({ error: 'You were not invited to this assessment' });
     }
 
     let session = await prisma.assessmentSession.findUnique({
@@ -260,6 +264,31 @@ router.post('/:sessionId/tab-switch', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error recording tab switch:', error);
     res.status(500).json({ error: 'Failed to record tab switch' });
+  }
+});
+
+// POST /api/sessions/:sessionId/paste — Record text pasted into the code editor
+router.post('/:sessionId/paste', async (req: Request, res: Response) => {
+  try {
+    const questionId = Number(req.body.questionId);
+    const charCount = Math.round(Number(req.body.charCount));
+    const lineCount = Math.round(Number(req.body.lineCount));
+
+    if (!Number.isInteger(questionId) || !Number.isFinite(charCount) || charCount < 1 || !Number.isFinite(lineCount) || lineCount < 1) {
+      return res.status(400).json({ error: 'questionId, charCount (>= 1) and lineCount (>= 1) are required' });
+    }
+
+    const session = await getWritableSession(req, res);
+    if (!session) return;
+
+    await prisma.pasteEvent.create({
+      data: { sessionId: session.id, questionId, charCount, lineCount },
+    });
+
+    res.json({ recorded: true });
+  } catch (error: any) {
+    console.error('Error recording paste:', error);
+    res.status(500).json({ error: 'Failed to record paste' });
   }
 });
 

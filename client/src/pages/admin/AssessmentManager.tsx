@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
+import ShareLinksModal from '../../components/ShareLinksModal';
 import {
   AvailabilityBadge, Spinner, EmptyState, formatDate, formatPercent, scoreTextClass, parseJsonArray,
 } from '../../components/ui';
@@ -10,7 +11,7 @@ import {
 import type { Assessment, Availability, AssessmentStatus } from '../../types';
 import {
   Plus, Trash2, Clock, Users, Search, Copy, Edit, Rocket, EyeOff, Archive, CheckSquare,
-  Target, Calendar, Shuffle, Code2, MoreHorizontal,
+  Target, Calendar, Shuffle, Code2, MoreHorizontal, Sparkles, Link2,
 } from 'lucide-react';
 
 const FILTERS: { key: 'all' | Availability; label: string }[] = [
@@ -27,6 +28,7 @@ const LANGUAGE_NAMES: Record<number, string> = { 71: 'Python', 62: 'Java', 54: '
 export default function AssessmentManager() {
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [shareFor, setShareFor] = useState<Assessment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | Availability>('all');
@@ -86,9 +88,14 @@ export default function AssessmentManager() {
       title="Assessments"
       subtitle="Create, configure and publish coding assessments"
       actions={
-        <Link to="/admin/assessments/new" className="btn-primary text-sm">
-          <Plus className="w-4 h-4" /> New Assessment
-        </Link>
+        <>
+          <Link to="/admin/assessments/ai" className="btn-outline text-sm">
+            <Sparkles className="w-4 h-4 text-primary-600" /> Generate with AI
+          </Link>
+          <Link to="/admin/assessments/new" className="btn-primary text-sm">
+            <Plus className="w-4 h-4" /> New Assessment
+          </Link>
+        </>
       }
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{error}</div>}
@@ -189,6 +196,9 @@ export default function AssessmentManager() {
                       <Users className="w-4 h-4" /> Results
                       {!!a.stats?.inProgress && <span className="text-xs text-sky-600">+{a.stats.inProgress} live</span>}
                     </Link>
+                    <button onClick={() => setShareFor(a)} className="btn-outline text-sm" title="Create a link anyone can use to take this test">
+                      <Link2 className="w-4 h-4" /> Share link
+                    </button>
                     <button onClick={() => navigate(`/admin/assessments/${a.id}/edit`)} className="btn-outline text-sm">
                       <Edit className="w-4 h-4" /> Edit
                     </button>
@@ -236,6 +246,9 @@ export default function AssessmentManager() {
             );
           })}
         </div>
+      )}
+      {shareFor && (
+        <ShareLinksModal assessment={{ id: shareFor.id, name: shareFor.name, status: shareFor.status }} onClose={() => setShareFor(null)} />
       )}
     </AdminLayout>
   );

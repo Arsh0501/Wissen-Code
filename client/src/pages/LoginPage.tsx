@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Code2 } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
   const { login, isLoggedIn, authError } = useAuth();
@@ -19,6 +20,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+      <ThemeToggle className="fixed top-4 right-4 z-10" />
       {/* Background gradient */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl" />

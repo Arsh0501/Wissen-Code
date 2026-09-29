@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: 'admin' | 'candidate';
+  guest?: boolean; // joined through an invite link
 }
 
 const STORAGE_KEY = 'wissen-user';
@@ -39,6 +40,8 @@ interface AuthContextType {
   isLoggedIn: boolean;
   authError: string | null;
   login: (email: string, password: string) => Promise<boolean>;
+  // Use a token issued elsewhere (e.g. joining through an invite link)
+  signInWithToken: (user: AuthUser, token: string) => void;
   logout: () => void;
   updateProfile: (updates: Partial<Pick<AuthUser, 'name' | 'email'>>) => void;
 }
@@ -60,6 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAuthError(err.response?.data?.error || 'Failed to login');
       return false;
     }
+  }, []);
+
+  const signInWithToken = useCallback((nextUser: AuthUser, token: string) => {
+    setAuthError(null);
+    setUser(nextUser);
+    persistUser(nextUser, token);
   }, []);
 
   const logout = useCallback(() => {
@@ -98,10 +107,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoggedIn: !!user,
       authError,
       login,
+      signInWithToken,
       logout,
       updateProfile,
     }),
-    [user, authError, login, logout, updateProfile]
+    [user, authError, login, signInWithToken, logout, updateProfile]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

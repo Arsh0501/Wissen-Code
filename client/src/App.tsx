@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/LoginPage';
+import InvitePage from './pages/InvitePage';
 import AssessmentDashboard from './pages/admin/AssessmentDashboard';
 import QuestionBank from './pages/admin/QuestionBank';
 
@@ -10,6 +11,7 @@ import ProfilePage from './pages/ProfilePage';
 import QuestionForm from './pages/admin/QuestionForm';
 import AssessmentManager from './pages/admin/AssessmentManager';
 import AssessmentForm from './pages/admin/AssessmentForm';
+import AIAssessmentBuilder from './pages/admin/AIAssessmentBuilder';
 import SubmissionsViewer from './pages/admin/SubmissionsViewer';
 import CandidateReport from './pages/admin/CandidateReport';
 import ExamDashboard from './pages/candidate/ExamDashboard';
@@ -37,6 +39,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
+      {/* Public: anyone with a shared link can open it */}
+      <Route path="/invite/:token" element={<InvitePage />} />
 
       <Route
         element={
@@ -54,6 +58,7 @@ function AppRoutes() {
         <Route path="/admin/questions/:id/edit" element={<RequireAdmin><QuestionForm /></RequireAdmin>} />
         <Route path="/admin/assessments" element={<RequireAdmin><AssessmentManager /></RequireAdmin>} />
         <Route path="/admin/assessments/new" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
+        <Route path="/admin/assessments/ai" element={<RequireAdmin><AIAssessmentBuilder /></RequireAdmin>} />
         <Route path="/admin/assessments/:id/edit" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
         <Route path="/admin/submissions/:assessmentId" element={<RequireAdmin><SubmissionsViewer /></RequireAdmin>} />
         <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAdmin><CandidateReport /></RequireAdmin>} />

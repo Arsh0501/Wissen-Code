@@ -8,7 +8,7 @@ import {
 import { getDashboard, apiError } from '../../services/api';
 import type { DashboardData } from '../../types';
 import {
-  ClipboardList, Users, Target, Award, Plus, Library, Activity, ChevronRight, Clock, BarChart3,
+  ClipboardList, Users, Target, Award, Plus, Library, Activity, ChevronRight, Clock, BarChart3, Sparkles,
 } from 'lucide-react';
 
 function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribution'] }) {
@@ -108,6 +108,9 @@ export default function AssessmentDashboard() {
         <>
           <Link to="/admin/questions/new" className="btn-outline text-sm">
             <Library className="w-4 h-4" /> Add Question
+          </Link>
+          <Link to="/admin/assessments/ai" className="btn-outline text-sm">
+            <Sparkles className="w-4 h-4 text-primary-600" /> Generate with AI
           </Link>
           <Link to="/admin/assessments/new" className="btn-primary text-sm">
             <Plus className="w-4 h-4" /> Create Assessment

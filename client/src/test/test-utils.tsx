@@ -2,9 +2,10 @@ import type { ReactElement } from 'react';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
+import { ThemeProvider } from '../context/ThemeContext';
 import { MOCK_USERS } from '../data/mockUsers';
 
-// Renders a component wrapped in the app's router + auth providers.
+// Renders a component wrapped in the app's theme, router + auth providers.
 // Pass `initialEntries` to control the starting route, or `loggedInAs` to
 // pre-seed localStorage with a mock user so AuthProvider picks it up on mount.
 export function renderWithProviders(
@@ -18,9 +19,11 @@ export function renderWithProviders(
   }
 
   return render(
-    <MemoryRouter initialEntries={initialEntries}>
-      <AuthProvider>{ui}</AuthProvider>
-    </MemoryRouter>
+    <ThemeProvider>
+      <MemoryRouter initialEntries={initialEntries}>
+        <AuthProvider>{ui}</AuthProvider>
+      </MemoryRouter>
+    </ThemeProvider>
   );
 }
 

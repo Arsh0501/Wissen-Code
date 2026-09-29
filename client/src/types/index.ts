@@ -82,6 +82,17 @@ export interface Assessment {
   candidates?: CandidateSummary[];
   // Candidate listing only
   candidateStatus?: 'not-started' | 'in-progress' | 'completed';
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  remainingSeconds?: number | null; // time left on an in-progress attempt
+  // Candidate's own result; null when not finished, nothing submitted, or results are hidden by the admin
+  result?: {
+    percentage: number;
+    passed: boolean;
+    marksObtained: number;
+    totalMarks: number;
+    timeTakenSeconds: number | null;
+  } | null;
   _count?: {
     questions: number;
   };
