@@ -34,6 +34,8 @@ export async function getQuestions(filters?: {
   search?: string;
   difficulty?: string;
   tag?: string;
+  type?: 'coding' | 'mcq';
+  status?: 'active' | 'pending_review' | 'rejected' | 'all';
 }): Promise<Question[]> {
   const { data } = await api.get('/questions', { params: filters });
   return data;
@@ -52,6 +54,12 @@ export interface QuestionInput {
   tags?: string[];
   timeLimit?: number;
   memoryLimit?: number;
+  type?: 'coding' | 'mcq';
+  options?: { id: string; text: string }[];
+  correctOptions?: string[];
+  explanation?: string;
+  topic?: string;
+  skills?: string[];
 }
 
 export async function createQuestion(question: QuestionInput & {
@@ -213,6 +221,7 @@ export interface SessionResponse {
   isFinished: boolean;
   tabSwitchCount: number;
   tabSwitchLimit: number;
+  attempt?: number;
   drafts: {
     id: number;
     sessionId: number;
@@ -335,74 +344,6 @@ export async function downloadAssessmentCsv(assessmentId: number): Promise<{ blo
   return { blob: res.data, filename: match?.[1] || `results-assessment-${assessmentId}.csv` };
 }
 
-// ---- AI assessment generation ----
-
-export interface AIStatus {
-  configured: boolean;
-  canVerify: boolean;
-  minQuestions: number;
-  maxQuestions: number;
-}
-
-export interface AIGeneratedQuestion {
-  title: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  tags: string[];
-  rationale: string;
-  statement: string;
-  test_cases: { input: string; expected_output: string; is_sample: boolean }[];
-  starter_code_python: string;
-  starter_code_javascript: string;
-  starter_code_java: string;
-  starter_code_cpp: string;
-  reference_solution_python: string;
-  verification:
-    | { status: 'verified'; dropped: number }
-    | { status: 'unverified'; reason: string }
-    | { status: 'failed'; reason: string };
-}
-
-export interface AIGenerationPreview {
-  candidate: {
-    name: string;
-    experience_level: 'intern' | 'junior' | 'mid' | 'senior' | 'staff';
-    years_of_experience: number;
-    primary_languages: string[];
-    skills: string[];
-    summary: string;
-  };
-  questions: AIGeneratedQuestion[];
-  suggested_time_minutes: number;
-  model: string;
-}
-
-export async function getAIStatus(): Promise<AIStatus> {
-  const { data } = await api.get('/ai/status');
-  return data;
-}
-
-export async function generateAssessmentFromResume(input: {
-  resumePdfBase64?: string;
-  resumeText?: string;
-  questionCount: number;
-  focus?: string;
-}): Promise<AIGenerationPreview> {
-  // Generation reads the resume and writes several problems — it can take a few minutes
-  const { data } = await api.post('/ai/generate', input, { timeout: 11 * 60 * 1000 });
-  return data;
-}
-
-export async function createAIAssessment(input: {
-  name: string;
-  description?: string;
-  timeLimitMinutes: number;
-  passingScore: number;
-  questions: Omit<AIGeneratedQuestion, 'verification' | 'rationale' | 'reference_solution_python'>[];
-}): Promise<{ id: number; name: string }> {
-  const { data } = await api.post('/ai/create-assessment', input);
-  return data;
-}
-
 // ---- Invite links ----
 
 export interface InviteLink {
@@ -463,6 +404,13 @@ export async function joinInvite(token: string, input: { name: string; email: st
   assessmentId: number;
 }> {
   const { data } = await api.post(`/public/invite/${encodeURIComponent(token)}/join`, input);
+  return data;
+}
+
+// ---- Retakes ----
+
+export async function retakeAssessment(assessmentId: number): Promise<SessionResponse> {
+  const { data } = await api.post('/sessions/retake', { assessmentId });
   return data;
 }
 

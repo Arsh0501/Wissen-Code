@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getAssessments, apiError } from '../../services/api';
+import { getAssessments, retakeAssessment, apiError } from '../../services/api';
 import { formatDate, formatDuration, Spinner } from '../../components/ui';
 import type { Assessment } from '../../types';
 import {
   Clock, FileText, ChevronRight, Zap, Target, Calendar, CheckCircle, PlayCircle, Lock,
-  ShieldCheck, Sparkles, Trophy, Timer, TrendingUp, EyeOff, ClipboardPaste, Save, XCircle,
+  ShieldCheck, Sparkles, Trophy, Timer, TrendingUp, EyeOff, ClipboardPaste, Save, XCircle, RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -304,6 +304,20 @@ function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
 
 function CompletedRow({ a }: { a: Assessment }) {
   const r = a.result;
+  const navigate = useNavigate();
+  const [retaking, setRetaking] = useState(false);
+  const [retakeError, setRetakeError] = useState('');
+  async function retake() {
+    setRetaking(true);
+    setRetakeError('');
+    try {
+      await retakeAssessment(a.id);
+      navigate(`/exam/${a.id}`);
+    } catch (err) {
+      setRetakeError(apiError(err, 'Could not start another attempt'));
+      setRetaking(false);
+    }
+  }
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4">
       <div className="flex-1 min-w-0">
@@ -311,7 +325,9 @@ function CompletedRow({ a }: { a: Assessment }) {
         <p className="text-xs text-surface-500 mt-0.5">
           Submitted {formatDate(a.finishedAt || a.startedAt, false)}
           {r?.timeTakenSeconds ? ` · ${formatDuration(r.timeTakenSeconds)}` : ''}
+          {(a.maxAttempts ?? 1) > 1 && ` · attempt ${a.attempt} of ${a.maxAttempts}`}
         </p>
+        {retakeError && <p className="text-xs text-red-600 mt-1">{retakeError}</p>}
       </div>
       <div className="flex items-center gap-4 shrink-0">
         {r ? (
@@ -332,6 +348,11 @@ function CompletedRow({ a }: { a: Assessment }) {
           <span className="text-xs text-surface-500 w-[13.5rem] text-right">
             {a.showResults ? 'No answers were submitted' : 'Results not shared by the organiser'}
           </span>
+        )}
+        {a.canRetake && (
+          <button onClick={retake} disabled={retaking} className="btn-outline text-xs px-2 py-1" title="Start another attempt; the latest attempt counts">
+            <RotateCcw className="w-3.5 h-3.5" /> {retaking ? 'Starting...' : 'Retake'}
+          </button>
         )}
         <Link to={`/exam/${a.id}/result`} className="btn-ghost text-xs px-2 py-1">
           View <ChevronRight className="w-3.5 h-3.5" />

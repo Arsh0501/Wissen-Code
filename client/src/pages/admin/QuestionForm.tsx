@@ -10,8 +10,11 @@ import {
 import type { TestCase, StarterCode } from '../../types';
 import {
   ArrowLeft, Save, Plus, Trash2, Code2, FlaskConical,
-  Eye, EyeOff, Download
+  Eye, EyeOff, Download, ListChecks, CheckSquare, Square
 } from 'lucide-react';
+
+const OPTION_IDS = ['a', 'b', 'c', 'd', 'e', 'f'];
+const MAX_OPTIONS = 6;
 
 const LANGUAGES = [
   { id: 71, name: 'Python', monacoLang: 'python', defaultCode: '# Write your solution here\n\ndef solve():\n    pass\n\nsolve()' },
@@ -33,8 +36,18 @@ export default function QuestionForm() {
   const [tagsInput, setTagsInput] = useState('');
   const [timeLimit, setTimeLimit] = useState(2);
   const [memoryLimit, setMemoryLimit] = useState(256000);
-  const [activeTab, setActiveTab] = useState<'details' | 'testcases' | 'starter'>('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'testcases' | 'starter' | 'options'>('details');
   const [saving, setSaving] = useState(false);
+  const [qType, setQType] = useState<'coding' | 'mcq'>('coding');
+  const [topic, setTopic] = useState('');
+  const [skillsInput, setSkillsInput] = useState('');
+  // Multiple choice
+  const [options, setOptions] = useState<{ id: string; text: string }[]>([
+    { id: 'a', text: '' }, { id: 'b', text: '' }, { id: 'c', text: '' }, { id: 'd', text: '' },
+  ]);
+  const [correct, setCorrect] = useState<string[]>([]);
+  const [explanation, setExplanation] = useState('');
+  const isMcq = qType === 'mcq';
 
   // Test cases state
   const [testCases, setTestCases] = useState<(TestCase & { isNew?: boolean })[]>([]);
@@ -95,6 +108,14 @@ export default function QuestionForm() {
       setTimeLimit(q.timeLimit);
       setMemoryLimit(q.memoryLimit);
       setTestCases(q.testCases || []);
+      setQType(q.type === 'mcq' ? 'mcq' : 'coding');
+      setTopic(q.topic || '');
+      setSkillsInput(JSON.parse(q.skills || '[]').join(', '));
+      if (q.type === 'mcq') {
+        setOptions(JSON.parse(q.options || '[]'));
+        setCorrect(JSON.parse(q.correctOptions || '[]'));
+        setExplanation(q.explanation || '');
+      }
 
       const codes: Record<number, string> = {};
       (q.starterCodes || []).forEach((sc: StarterCode) => {
@@ -111,6 +132,27 @@ export default function QuestionForm() {
       alert('Title and problem statement are required.');
       return;
     }
+    const filledOptions = options.map((o) => ({ ...o, text: o.text.trim() })).filter((o) => o.text);
+    if (isMcq) {
+      const problem =
+        filledOptions.length < 2 ? 'Add at least 2 answer options.'
+        : new Set(filledOptions.map((o) => o.text.toLowerCase())).size !== filledOptions.length ? 'Two options have the same text.'
+        : !correct.some((c) => filledOptions.some((o) => o.id === c)) ? 'Mark at least one option as correct.'
+        : null;
+      if (problem) {
+        setActiveTab('options');
+        alert(problem);
+        return;
+      }
+    }
+    const typeFields = {
+      type: qType,
+      topic: topic.trim(),
+      skills: skillsInput.split(',').map((s) => s.trim()).filter(Boolean),
+      ...(isMcq
+        ? { options: filledOptions, correctOptions: correct.filter((c) => filledOptions.some((o) => o.id === c)), explanation }
+        : {}),
+    };
 
     setSaving(true);
     try {
@@ -129,7 +171,7 @@ export default function QuestionForm() {
 
       if (isEdit && id) {
         await updateQuestion(parseInt(id), {
-          title, statement, difficulty, tags, timeLimit, memoryLimit,
+          title, statement, difficulty, tags, timeLimit, memoryLimit, ...typeFields,
         });
 
         // Save starter codes individually
@@ -157,9 +199,9 @@ export default function QuestionForm() {
         }));
 
         await createQuestion({
-          title, statement, difficulty, tags, timeLimit, memoryLimit,
-          starterCodes: starterCodesArr,
-          testCases: newTCs,
+          title, statement, difficulty, tags, timeLimit, memoryLimit, ...typeFields,
+          starterCodes: isMcq ? [] : starterCodesArr,
+          testCases: isMcq ? [] : newTCs,
         });
       }
 
@@ -238,7 +280,7 @@ export default function QuestionForm() {
       <main className="max-w-5xl mx-auto px-6 py-8">
         {/* Tabs */}
         <div className="flex gap-1 mb-8 bg-surface-900 rounded-xl p-1 w-fit">
-          {(['details', 'testcases', 'starter'] as const).map((tab) => (
+          {(isMcq ? (['details', 'options'] as const) : (['details', 'testcases', 'starter'] as const)).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -251,6 +293,7 @@ export default function QuestionForm() {
               {tab === 'details' && 'Question Details'}
               {tab === 'testcases' && `Test Cases (${testCases.length})`}
               {tab === 'starter' && 'Starter Code'}
+              {tab === 'options' && `Answer Options (${options.filter((o) => o.text.trim()).length})`}
             </button>
           ))}
         </div>
@@ -258,6 +301,32 @@ export default function QuestionForm() {
         {/* Details Tab */}
         {activeTab === 'details' && (
           <div className="space-y-6 animate-fade-in">
+            <div>
+              <label className="label">Question type</label>
+              <div className="flex gap-2">
+                {([
+                  { key: 'coding', label: 'Coding', hint: 'Candidate writes a program; graded by test cases', icon: Code2 },
+                  { key: 'mcq', label: 'Multiple choice', hint: 'Candidate picks an answer; graded automatically', icon: ListChecks },
+                ] as const).map(({ key, label, hint, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    disabled={isEdit}
+                    onClick={() => { setQType(key); setActiveTab('details'); }}
+                    className={`flex-1 flex items-start gap-3 p-3 rounded-lg border text-left transition-colors disabled:cursor-not-allowed ${
+                      qType === key ? 'border-primary-500 bg-primary-500/10' : 'border-surface-700 hover:border-surface-500 disabled:opacity-50'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 mt-0.5 ${qType === key ? 'text-primary-600' : 'text-surface-500'}`} />
+                    <span>
+                      <span className="block text-sm font-semibold text-white">{label}</span>
+                      <span className="block text-xs text-surface-500">{hint}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {isEdit && <p className="text-xs text-surface-500 mt-1">The type can't be changed after a question is created.</p>}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="label">Title</label>
@@ -293,6 +362,17 @@ export default function QuestionForm() {
               </div>
 
               <div>
+                <label className="label">Topic</label>
+                <input className="input" placeholder="e.g. Arrays, React hooks" value={topic} onChange={(e) => setTopic(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="label">Skills assessed (comma-separated)</label>
+                <input className="input" placeholder="JavaScript, Problem Solving" value={skillsInput} onChange={(e) => setSkillsInput(e.target.value)} />
+              </div>
+
+              {!isMcq && <>
+              <div>
                 <label className="label">CPU Time Limit (seconds)</label>
                 <input
                   type="number"
@@ -315,6 +395,7 @@ export default function QuestionForm() {
                   min={1000}
                 />
               </div>
+              </>}
             </div>
 
             <div>
@@ -325,6 +406,62 @@ export default function QuestionForm() {
                 value={statement}
                 onChange={(e) => setStatement(e.target.value)}
               />
+            </div>
+          </div>
+        )}
+
+        {/* Answer Options Tab (multiple choice) */}
+        {activeTab === 'options' && isMcq && (
+          <div className="space-y-5 animate-fade-in">
+            <p className="text-sm text-surface-400">
+              Tick every correct answer. With more than one ticked, candidates are told to select all that apply, and they must pick exactly those to score.
+            </p>
+            <div className="space-y-2">
+              {options.map((o, i) => {
+                const isCorrect = correct.includes(o.id);
+                return (
+                  <div key={o.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-surface-700'}`}>
+                    <button
+                      type="button"
+                      onClick={() => setCorrect((c) => (c.includes(o.id) ? c.filter((x) => x !== o.id) : [...c, o.id]))}
+                      className="shrink-0"
+                      aria-label={isCorrect ? `Unmark option ${o.id.toUpperCase()} as correct` : `Mark option ${o.id.toUpperCase()} as correct`}
+                      title={isCorrect ? 'Correct answer' : 'Mark as correct'}
+                    >
+                      {isCorrect ? <CheckSquare className="w-5 h-5 text-emerald-600" /> : <Square className="w-5 h-5 text-surface-500" />}
+                    </button>
+                    <span className="w-6 text-sm font-semibold text-surface-500 uppercase">{o.id}</span>
+                    <input
+                      className="input flex-1"
+                      placeholder={`Option ${o.id.toUpperCase()}`}
+                      value={o.text}
+                      onChange={(e) => setOptions((opts) => opts.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+                    />
+                    <button
+                      type="button"
+                      disabled={options.length <= 2}
+                      onClick={() => { setOptions((opts) => opts.filter((_, j) => j !== i)); setCorrect((c) => c.filter((x) => x !== o.id)); }}
+                      className="btn-ghost p-2 hover:text-red-600 disabled:opacity-30"
+                      aria-label={`Remove option ${o.id.toUpperCase()}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            {options.length < MAX_OPTIONS && (
+              <button
+                type="button"
+                onClick={() => setOptions((opts) => [...opts, { id: OPTION_IDS.find((id) => !opts.some((o) => o.id === id))!, text: '' }])}
+                className="btn-outline text-sm"
+              >
+                <Plus className="w-4 h-4" /> Add option
+              </button>
+            )}
+            <div>
+              <label className="label">Explanation <span className="text-surface-500 font-normal">(shown to admins in reports)</span></label>
+              <textarea className="input min-h-[80px]" placeholder="Why the correct answer is correct" value={explanation} onChange={(e) => setExplanation(e.target.value)} />
             </div>
           </div>
         )}

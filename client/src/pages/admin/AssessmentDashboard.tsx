@@ -1,14 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
 import {
   AvailabilityBadge, PassFailBadge, StatCard, Spinner, EmptyState,
   formatDate, formatPercent, scoreTextClass,
 } from '../../components/ui';
-import { getDashboard, apiError } from '../../services/api';
-import type { DashboardData } from '../../types';
+import { getDashboard, updateAssessment, apiError } from '../../services/api';
+import type { DashboardData, Lifecycle } from '../../types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ClipboardList, Users, Target, Award, Plus, Library, Activity, ChevronRight, Clock, BarChart3, Sparkles,
+  FileEdit, PlayCircle, CheckCircle2, CalendarX, Edit, Archive,
 } from 'lucide-react';
 
 function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribution'] }) {
@@ -92,13 +94,26 @@ function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribut
   );
 }
 
-export default function AssessmentDashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState('');
+const LIFECYCLE: Record<Lifecycle, { label: string; className: string }> = {
+  draft: { label: 'Draft', className: 'bg-amber-500/10 text-amber-700 ring-amber-500/25' },
+  scheduled: { label: 'Scheduled', className: 'bg-sky-500/10 text-sky-700 ring-sky-500/25' },
+  active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25' },
+  expired: { label: 'Expired', className: 'bg-red-500/10 text-red-700 ring-red-500/25' },
+  completed: { label: 'Completed', className: 'bg-surface-800 text-surface-400 ring-surface-700' },
+};
 
-  useEffect(() => {
-    getDashboard().then(setData).catch((err) => setError(apiError(err, 'Failed to load dashboard')));
-  }, []);
+type Tab = 'all' | 'draft' | 'active' | 'completed' | 'expired';
+
+export default function AssessmentDashboard() {
+  const qc = useQueryClient();
+  const { data, error: queryError } = useQuery<DashboardData>({ queryKey: ['dashboard'], queryFn: getDashboard });
+  const error = queryError ? apiError(queryError, 'Failed to load dashboard') : '';
+  const [tab, setTab] = useState<Tab>('all');
+  // "Close" marks an assessment completed: it stops accepting candidates and moves to the Completed group
+  const close = useMutation({
+    mutationFn: (id: number) => updateAssessment(id, { status: 'archived' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard'] }),
+  });
 
   return (
     <AdminLayout
@@ -109,7 +124,7 @@ export default function AssessmentDashboard() {
           <Link to="/admin/questions/new" className="btn-outline text-sm">
             <Library className="w-4 h-4" /> Add Question
           </Link>
-          <Link to="/admin/assessments/ai" className="btn-outline text-sm">
+          <Link to="/admin/questions/ai" className="btn-outline text-sm">
             <Sparkles className="w-4 h-4 text-primary-600" /> Generate with AI
           </Link>
           <Link to="/admin/assessments/new" className="btn-primary text-sm">
@@ -124,6 +139,29 @@ export default function AssessmentDashboard() {
         <Spinner label="Loading dashboard..." />
       ) : (
         <div className="space-y-6 animate-fade-in">
+          {/* Lifecycle overview */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {([
+              ['draft', 'Draft', data.lifecycleTotals.draft, FileEdit, 'bg-amber-500/10 text-amber-700', 'Not visible to candidates'],
+              ['active', 'Active', data.lifecycleTotals.active, PlayCircle, 'bg-emerald-500/10 text-emerald-700', 'Open or scheduled'],
+              ['completed', 'Completed', data.lifecycleTotals.completed, CheckCircle2, 'bg-surface-800 text-surface-400', 'Closed by an admin'],
+              ['expired', 'Expired', data.lifecycleTotals.expired, CalendarX, 'bg-red-500/10 text-red-700', 'End date has passed'],
+            ] as const).map(([key, label, n, Icon, tone, hint]) => (
+              <button
+                key={key}
+                onClick={() => { setTab(tab === key ? 'all' : key); document.getElementById('assessment-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                className={`card p-4 text-left transition-shadow hover:shadow-md hover:shadow-surface-700/30 ${tab === key ? 'ring-2 ring-primary-500/40' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">{label}</span>
+                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${tone}`}><Icon className="w-4 h-4" /></span>
+                </div>
+                <p className="text-2xl font-bold text-white tabular-nums mt-1">{n}</p>
+                <p className="text-xs text-surface-500">{hint}</p>
+              </button>
+            ))}
+          </div>
+
           {/* KPI row */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard
@@ -211,11 +249,21 @@ export default function AssessmentDashboard() {
           </div>
 
           {/* Assessments table */}
-          <div className="card p-0 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
+          <div id="assessment-table" className="card p-0 overflow-hidden scroll-mt-20">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-surface-800">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-primary-600" /> Assessments
               </h2>
+              <div className="flex gap-1 p-1 rounded-lg bg-surface-800 text-xs font-medium">
+                {(['all', 'draft', 'active', 'completed', 'expired'] as const).map((t) => {
+                  const n = t === 'all' ? data.assessments.length : data.lifecycleTotals[t];
+                  return (
+                    <button key={t} onClick={() => setTab(t)} className={`px-2.5 py-1 rounded-md capitalize ${tab === t ? 'bg-surface-900 text-white shadow-sm' : 'text-surface-500 hover:text-surface-300'}`}>
+                      {t} <span className="tabular-nums text-surface-500">{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
               <Link to="/admin/assessments" className="text-xs text-primary-600 hover:text-primary-700">
                 Manage all →
               </Link>
@@ -236,13 +284,17 @@ export default function AssessmentDashboard() {
                       <th className="text-left font-medium px-3 py-3">Status</th>
                       <th className="text-right font-medium px-3 py-3">Questions</th>
                       <th className="text-right font-medium px-3 py-3">Candidates</th>
+                      <th className="text-right font-medium px-3 py-3">Started</th>
+                      <th className="text-right font-medium px-3 py-3">Completed</th>
                       <th className="text-right font-medium px-3 py-3">Avg score</th>
                       <th className="text-right font-medium px-3 py-3">Pass rate</th>
                       <th className="px-5 py-3" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-surface-800/60">
-                    {data.assessments.map((a) => (
+                    {data.assessments
+                      .filter((a) => tab === 'all' || (tab === 'active' ? a.lifecycle === 'active' || a.lifecycle === 'scheduled' : a.lifecycle === tab))
+                      .map((a) => (
                       <tr key={a.id} className="hover:bg-surface-800/30">
                         <td className="px-5 py-3">
                           <Link to={`/admin/assessments/${a.id}/edit`} className="font-medium text-surface-100 hover:text-primary-700">
@@ -253,20 +305,34 @@ export default function AssessmentDashboard() {
                             {a.endAt && <> · closes {formatDate(a.endAt, false)}</>}
                           </p>
                         </td>
-                        <td className="px-3 py-3"><AvailabilityBadge value={a.availability} /></td>
-                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">{a._count?.questions ?? 0}</td>
+                        <td className="px-3 py-3">
+                          {a.lifecycle ? <span className={`badge ring-1 ${LIFECYCLE[a.lifecycle].className}`}>{LIFECYCLE[a.lifecycle].label}</span> : <AvailabilityBadge value={a.availability} />}
+                        </td>
                         <td className="px-3 py-3 text-right tabular-nums text-surface-300">
-                          {a.stats?.candidatesCompleted ?? 0}
-                          {!!a.stats?.inProgress && <span className="text-surface-500"> +{a.stats.inProgress}</span>}
+                          {a.questionCount && a.questionCount < (a._count?.questions ?? 0) ? <span title="Random subset per candidate">{a.questionCount}/{a._count?.questions}</span> : a._count?.questions ?? 0}
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">{a.counts?.candidates ?? 0}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">{a.counts?.started ?? 0}</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">
+                          {a.counts?.completed ?? 0}
+                          {!!a.stats?.inProgress && <span className="text-sky-600 text-xs"> +{a.stats.inProgress} live</span>}
                         </td>
                         <td className={`px-3 py-3 text-right tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : 'text-surface-500'}`}>
                           {formatPercent(a.stats?.averageScore)}
                         </td>
                         <td className="px-3 py-3 text-right tabular-nums text-surface-300">{formatPercent(a.stats?.passRate, 0)}</td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="px-5 py-3 text-right whitespace-nowrap">
                           <Link to={`/admin/submissions/${a.id}`} className="btn-ghost text-xs px-2 py-1">
                             <Users className="w-3.5 h-3.5" /> Results
                           </Link>
+                          <Link to={`/admin/assessments/${a.id}/edit`} className="btn-ghost text-xs px-2 py-1" title="Edit">
+                            <Edit className="w-3.5 h-3.5" />
+                          </Link>
+                          {(a.lifecycle === 'active' || a.lifecycle === 'expired') && (
+                            <button onClick={() => close.mutate(a.id)} disabled={close.isPending} className="btn-ghost text-xs px-2 py-1" title="Close: stop accepting candidates and mark as completed">
+                              <Archive className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

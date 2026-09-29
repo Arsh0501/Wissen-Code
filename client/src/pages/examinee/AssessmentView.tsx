@@ -38,6 +38,59 @@ function allowedLanguagesFor(assessment: Assessment) {
   return allowed.length ? allowed : LANGUAGES;
 }
 
+// Fresh per-question state; MCQ answers are kept as a JSON list of option ids in `code`
+function initialStates(data: Assessment): Map<number, QuestionState> {
+  const states = new Map<number, QuestionState>();
+  const allowed = allowedLanguagesFor(data);
+  data.questions.forEach((aq: AssessmentQuestion) => {
+    const q = aq.question;
+    if (q.type === 'mcq') {
+      states.set(q.id, {
+        questionId: q.id, code: '[]', languageId: 0, languageName: 'MCQ', monacoLang: 'plaintext',
+        isAnswered: false, isFlagged: false, output: '', isError: false, customInput: '', runMode: 'none', testVerdicts: [],
+      });
+      return;
+    }
+    // Prefer the first allowed language (Python unless restricted) when it has a starter
+    const starterCode =
+      allowed.map((l) => q.starterCodes?.find((sc) => sc.languageId === l.id)).find(Boolean) ?? q.starterCodes?.[0];
+    const defaultLang = allowed[0];
+    states.set(q.id, {
+      questionId: q.id,
+      code: starterCode?.code || `# Write your solution here\n`,
+      languageId: starterCode?.languageId || defaultLang.id,
+      languageName: starterCode?.languageName || defaultLang.name,
+      monacoLang: LANGUAGES.find((l) => l.id === (starterCode?.languageId || defaultLang.id))?.monacoLang || 'python',
+      isAnswered: false,
+      isFlagged: false,
+      output: '',
+      isError: false,
+      customInput: '',
+      runMode: 'none',
+      testVerdicts: [],
+    });
+  });
+  return states;
+}
+
+function parseOptions(json: string | undefined): { id: string; text: string }[] {
+  try {
+    const v = JSON.parse(json || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseSelection(code: string): string[] {
+  try {
+    const v = JSON.parse(code || '[]');
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
 // ── Verdict rendering helpers ──
 
 function getVerdictColor(verdict: TestCaseVerdict) {
@@ -352,31 +405,8 @@ export default function AssessmentView() {
       setAssessment(data);
       setAssessmentQuestions(data.questions);
 
-      // Initialize question states
-      const states = new Map<number, QuestionState>();
-      data.questions.forEach((aq: AssessmentQuestion) => {
-        const q = aq.question;
-        // Prefer the first allowed language (Python unless restricted) when it has a starter
-        const allowed = allowedLanguagesFor(data);
-        const starterCode =
-          allowed.map((l) => q.starterCodes?.find((sc) => sc.languageId === l.id)).find(Boolean) ?? q.starterCodes?.[0];
-        const defaultLang = allowed[0];
-
-        states.set(q.id, {
-          questionId: q.id,
-          code: starterCode?.code || `# Write your solution here\n`,
-          languageId: starterCode?.languageId || defaultLang.id,
-          languageName: starterCode?.languageName || defaultLang.name,
-          monacoLang: LANGUAGES.find((l) => l.id === (starterCode?.languageId || defaultLang.id))?.monacoLang || 'python',
-          isAnswered: false,
-          isFlagged: false,
-          output: '',
-          isError: false,
-          customInput: '',
-          runMode: 'none',
-          testVerdicts: [],
-        });
-      });
+      // Questions arrive only once a session exists; before Start this is empty
+      const states = initialStates(data);
       setQuestionStates(states);
 
       // Resume an existing session if there is one. This never creates a session,
@@ -439,6 +469,12 @@ export default function AssessmentView() {
       setTabSwitchCount(sessionData.tabSwitchCount ?? 0);
       if (sessionData.tabSwitchLimit) setTabSwitchLimit(sessionData.tabSwitchLimit);
       setTimeLeft(sessionData.remainingSeconds);
+      // The server withholds questions until the timer starts — fetch this candidate's set now
+      const fresh = await getAssessment(parseInt(assessmentId));
+      setAssessment(fresh);
+      setAssessmentQuestions(fresh.questions);
+      setQuestionStates(initialStates(fresh));
+      setCurrentQuestionIndex(0);
       setPhase('in-progress');
     } catch (err) {
       console.error('Failed to start session:', err);
@@ -835,7 +871,7 @@ export default function AssessmentView() {
                 <FileText className="w-5 h-5 text-primary-600" />
                 <div>
                   <p className="text-xs text-surface-500 uppercase tracking-wider">Questions</p>
-                  <p className="text-sm font-semibold text-white">{assessmentQuestions.length} questions</p>
+                  <p className="text-sm font-semibold text-white">{assessment.questionTotal ?? assessmentQuestions.length} questions</p>
                 </div>
               </div>
             </div>
@@ -1142,7 +1178,7 @@ export default function AssessmentView() {
       <nav className="flex-none h-12 bg-surface-900/60 border-b border-surface-800 flex items-center px-4 gap-4 z-20">
         <div className="flex items-center gap-2 text-sm min-w-[160px]">
           <span className="text-surface-500">Section 1 of 1</span>
-          <span className="text-surface-300 font-medium">Coding</span>
+          <span className="text-surface-300 font-medium">{currentQuestion.type === 'mcq' ? 'Multiple choice' : 'Coding'}</span>
         </div>
 
         <div className="flex-1 flex items-center justify-center gap-1">
@@ -1300,8 +1336,17 @@ export default function AssessmentView() {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL: Code Editor ── */}
+        {/* ── RIGHT PANEL: Code Editor (or answer options for multiple choice) ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {currentQuestion.type === 'mcq' ? (
+            <McqAnswerPanel
+              options={parseOptions(currentQuestion.options)}
+              multiple={!!currentQuestion.multipleCorrect}
+              selected={parseSelection(currentState.code)}
+              onChange={(ids) => updateState(currentQuestion.id, { code: JSON.stringify(ids), isAnswered: ids.length > 0 })}
+              onConfirm={handleConfirm}
+            />
+          ) : (<>
           <div className="flex-none h-11 border-b border-surface-800 flex items-center justify-between px-4 bg-surface-900/50">
             <span className="text-sm font-medium text-surface-300">Code editor</span>
             <div className="flex items-center gap-3">
@@ -1418,6 +1463,7 @@ export default function AssessmentView() {
               </button>
             </div>
           </div>
+          </>)}
         </div>
 
         {/* ── QUESTION OVERVIEW PANEL ── */}
@@ -1487,6 +1533,55 @@ export default function AssessmentView() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function McqAnswerPanel({ options, multiple, selected, onChange, onConfirm }: {
+  options: { id: string; text: string }[];
+  multiple: boolean;
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  onConfirm: () => void;
+}) {
+  function toggle(id: string) {
+    if (multiple) onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+    else onChange(selected[0] === id ? [] : [id]);
+  }
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-none h-11 border-b border-surface-800 flex items-center justify-between px-4 bg-surface-900/50">
+        <span className="text-sm font-medium text-surface-300">Your answer</span>
+        <span className="text-xs text-surface-500">{multiple ? 'Select all that apply' : 'Select one answer'}</span>
+      </div>
+      <div className="flex-1 overflow-y-auto p-6">
+        <div role={multiple ? 'group' : 'radiogroup'} aria-label="Answer options" className="max-w-2xl space-y-3">
+          {options.map((o, i) => {
+            const on = selected.includes(o.id);
+            return (
+              <button
+                key={o.id}
+                type="button"
+                role={multiple ? 'checkbox' : 'radio'}
+                aria-checked={on}
+                onClick={() => toggle(o.id)}
+                className={`w-full flex items-start gap-4 p-4 rounded-xl border text-left transition-colors ${on ? 'border-primary-500 bg-primary-500/10' : 'border-surface-700 hover:border-surface-500 bg-surface-900'}`}
+              >
+                <span className={`w-7 h-7 shrink-0 flex items-center justify-center text-sm font-semibold ${multiple ? 'rounded-md' : 'rounded-full'} ${on ? 'bg-primary-600 text-on-accent' : 'bg-surface-800 text-surface-400'}`}>
+                  {on ? <Check className="w-4 h-4" /> : String.fromCharCode(65 + i)}
+                </span>
+                <span className="text-sm text-surface-100 pt-1 whitespace-pre-wrap">{o.text}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="flex-none flex items-center justify-between px-4 py-3 border-t border-surface-800 bg-surface-900/50">
+        <button onClick={() => onChange([])} disabled={!selected.length} className="btn-ghost text-sm">Clear selection</button>
+        <button onClick={onConfirm} disabled={!selected.length} className="btn-success">
+          <Check className="w-4 h-4" /> Confirm
+        </button>
+      </div>
     </div>
   );
 }

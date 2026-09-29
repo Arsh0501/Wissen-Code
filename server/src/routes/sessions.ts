@@ -262,7 +262,7 @@ router.post('/:sessionId/save-draft', async (req: Request, res: Response) => {
   try {
     const { questionId, languageId, languageName } = req.body;
 
-    if (!questionId || !languageId || !languageName) {
+    if (!questionId || languageId === undefined || !languageName) {
       return res.status(400).json({ error: 'questionId, languageId, and languageName are required' });
     }
 

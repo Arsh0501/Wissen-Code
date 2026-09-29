@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import AdminLayout from '../../components/AdminLayout';
+import ReviewQueue from '../../components/ReviewQueue';
+import { useQuery } from '@tanstack/react-query';
 import { Spinner, EmptyState, parseJsonArray } from '../../components/ui';
 import { getQuestions, getQuestion, deleteQuestion, importQuestionFromMd, getExportMdUrl, apiError } from '../../services/api';
 import type { Question } from '../../types';
 import {
-  Plus, Edit, Trash2, FileText, Search, ChevronDown, Upload, Eye, X, Download, EyeOff,
+  Plus, Edit, Trash2, FileText, Search, ChevronDown, Upload, Eye, X, Download, EyeOff, Sparkles,
 } from 'lucide-react';
 
 export default function QuestionBank() {
@@ -17,6 +19,10 @@ export default function QuestionBank() {
   const [searchTerm, setSearchTerm] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [tag, setTag] = useState('');
+  const [type, setType] = useState('');
+  const [view, setView] = useState<'bank' | 'review'>(() => (new URLSearchParams(window.location.search).get('tab') === 'review' ? 'review' : 'bank'));
+  const pendingQuery = useQuery({ queryKey: ['questions', 'pending_review'], queryFn: () => getQuestions({ status: 'pending_review' }) });
+  const pendingCount = pendingQuery.data?.length ?? 0;
   const [showNewDropdown, setShowNewDropdown] = useState(false);
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<Question | null>(null);
@@ -74,6 +80,7 @@ export default function QuestionBank() {
     (q) =>
       q.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
       (!difficulty || q.difficulty === difficulty) &&
+      (!type || q.type === type) &&
       (!tag || parseJsonArray(q.tags).includes(tag))
   );
 
@@ -127,6 +134,10 @@ export default function QuestionBank() {
                   <Link to="/admin/questions/new" className="block px-4 py-2 text-sm text-surface-200 hover:bg-surface-700">
                     Manual
                   </Link>
+                  <Link to="/admin/questions/ai" className="flex items-center justify-between px-4 py-2 text-sm text-surface-200 hover:bg-surface-700">
+                    <span>Generate with AI</span>
+                    <Sparkles className="w-3 h-3 text-primary-600" />
+                  </Link>
                   <button
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full text-left px-4 py-2 text-sm text-surface-200 hover:bg-surface-700 flex items-center justify-between"
@@ -144,6 +155,21 @@ export default function QuestionBank() {
     >
       {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{error}</div>}
 
+      {/* Bank vs AI review queue */}
+      <div className="flex gap-1 mb-6 border-b border-surface-800">
+        {([['bank', 'Question bank', questions.length], ['review', 'Pending review', pendingCount]] as const).map(([key, label, n]) => (
+          <button
+            key={key}
+            onClick={() => { setView(key); if (key === 'bank') loadQuestions(); }}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${view === key ? 'border-primary-600 text-primary-700' : 'border-transparent text-surface-500 hover:text-surface-300'}`}
+          >
+            {label}
+            <span className={`ml-2 badge ${key === 'review' && n > 0 ? 'bg-amber-500/15 text-amber-700' : 'bg-surface-800 text-surface-500'}`}>{n}</span>
+          </button>
+        ))}
+      </div>
+
+      {view === 'review' ? <ReviewQueue /> : <>
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="relative flex-1 min-w-[220px]">
@@ -162,12 +188,17 @@ export default function QuestionBank() {
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
         </select>
+        <select className="input w-auto" value={type} onChange={(e) => setType(e.target.value)} aria-label="Question type">
+          <option value="">All types</option>
+          <option value="coding">Coding</option>
+          <option value="mcq">Multiple choice</option>
+        </select>
         <select className="input w-auto" value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Topic">
           <option value="">All topics</option>
           {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-        {(searchTerm || difficulty || tag) && (
-          <button onClick={() => { setSearchTerm(''); setDifficulty(''); setTag(''); }} className="btn-ghost text-sm">
+        {(searchTerm || difficulty || tag || type) && (
+          <button onClick={() => { setSearchTerm(''); setDifficulty(''); setTag(''); setType(''); }} className="btn-ghost text-sm">
             <X className="w-4 h-4" /> Clear
           </button>
         )}
@@ -191,6 +222,7 @@ export default function QuestionBank() {
               <thead>
                 <tr className="border-b border-surface-800 text-xs font-medium text-surface-500 uppercase tracking-wider whitespace-nowrap">
                   <th className="text-left px-6 py-3">Title</th>
+                  <th className="text-left px-4 py-3">Type</th>
                   <th className="text-left px-4 py-3">Difficulty</th>
                   <th className="text-left px-4 py-3">Topics</th>
                   <th className="text-right px-4 py-3">Test cases</th>
@@ -207,6 +239,10 @@ export default function QuestionBank() {
                         {q.title}
                       </button>
                     </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700">{q.type === 'mcq' ? 'MCQ' : 'Coding'}</span>
+                      {q.source === 'ai' && <span className="badge bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/20 ml-1 gap-0.5" title="Generated by AI and approved"><Sparkles className="w-3 h-3" /> AI</span>}
+                    </td>
                     <td className="px-4 py-3"><span className={`badge-${q.difficulty}`}>{q.difficulty}</span></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 flex-wrap">
@@ -221,7 +257,7 @@ export default function QuestionBank() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q._count?.testCases ?? 0}</td>
+                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q.type === 'mcq' ? '—' : q._count?.testCases ?? 0}</td>
                     <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q._count?.starterCodes ?? 0}</td>
                     <td className="px-4 py-3 text-right text-sm tabular-nums whitespace-nowrap">
                       {q._count?.assessments ? (
@@ -254,6 +290,8 @@ export default function QuestionBank() {
           </div>
         </div>
       )}
+
+      </>}
 
       {/* Preview drawer */}
       {preview && (

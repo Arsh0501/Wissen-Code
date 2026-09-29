@@ -89,7 +89,7 @@ export default function AssessmentManager() {
       subtitle="Create, configure and publish coding assessments"
       actions={
         <>
-          <Link to="/admin/assessments/ai" className="btn-outline text-sm">
+          <Link to="/admin/questions/ai" className="btn-outline text-sm">
             <Sparkles className="w-4 h-4 text-primary-600" /> Generate with AI
           </Link>
           <Link to="/admin/assessments/new" className="btn-primary text-sm">

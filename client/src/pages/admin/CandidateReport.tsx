@@ -27,6 +27,8 @@ interface ReportQuestion {
   marks_obtained: number;
   attempted: boolean;
   code: string;
+  type?: 'coding' | 'mcq';
+  mcq?: { statement: string; options: { id: string; text: string }[]; correct: string[]; selected: string[] } | null;
   failed_cases: FailedCase[];
 }
 
@@ -45,6 +47,8 @@ interface ReportDataType {
     questions_total: number;
   };
   questions: ReportQuestion[];
+  attempt?: number;
+  previous_attempts?: { attempt: number; percentage: number; passed: boolean; finished_at: string | null }[];
   cohort: {
     rank: number | null;
     completed_count: number;
@@ -213,6 +217,16 @@ export default function CandidateReport() {
                 Ranked <span className="font-semibold text-white">{ordinal(cohort.rank)}</span> of {cohort.completed_count}
               </p>
             )}
+            {!!report.previous_attempts?.length && (
+              <div className="text-xs text-surface-400 mt-3 pt-3 border-t border-surface-700/60 w-full">
+                <p>Attempt <span className="font-semibold text-white">{report.attempt}</span> · earlier:</p>
+                <p className="mt-1 tabular-nums">
+                  {report.previous_attempts.map((p) => (
+                    <span key={p.attempt} className={`inline-block mx-1 ${p.passed ? 'text-emerald-600' : 'text-red-600'}`}>#{p.attempt} {p.percentage.toFixed(0)}%</span>
+                  ))}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -260,8 +274,8 @@ export default function CandidateReport() {
                 <tr key={q.question_id} className="hover:bg-surface-950 cursor-pointer" onClick={() => document.getElementById(`q-${q.question_id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
                   <td className="px-5 py-3 text-surface-500 tabular-nums hidden sm:table-cell">{i + 1}</td>
                   <td className="pl-5 sm:pl-3 pr-3 py-3 font-medium text-white">{q.title}</td>
-                  <td className="px-3 py-3 text-surface-400 hidden md:table-cell">{q.attempted ? q.language : '—'}</td>
-                  <td className="px-3 py-3 text-right tabular-nums text-surface-300 hidden sm:table-cell">{q.attempted ? `${q.testcases_passed}/${q.testcases_total}` : '—'}</td>
+                  <td className="px-3 py-3 text-surface-400 hidden md:table-cell">{q.type === 'mcq' ? 'Multiple choice' : q.attempted ? q.language : '—'}</td>
+                  <td className="px-3 py-3 text-right tabular-nums text-surface-300 hidden sm:table-cell">{q.attempted && q.type !== 'mcq' ? `${q.testcases_passed}/${q.testcases_total}` : '—'}</td>
                   <td className="px-3 py-3 text-right tabular-nums text-surface-300">{formatMarks(q.marks_obtained)} / {q.marks}</td>
                   <td className="px-5 py-3">
                     {q.attempted ? <ScoreBar pct={q.score} /> : <div className="text-right"><span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700">Skipped</span></div>}
@@ -397,6 +411,43 @@ function QuestionCard({ q, index }: { q: ReportQuestion; index: number }) {
         <div className="text-right shrink-0">
           <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700">Skipped</span>
           <div className="text-xs text-surface-500 mt-1 tabular-nums">0 / {q.marks} marks</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (q.type === 'mcq' && q.mcq) {
+    const right = q.score >= 100;
+    return (
+      <div id={`q-${q.question_id}`} className="card p-0 overflow-hidden scroll-mt-20">
+        <div className="flex items-start justify-between gap-4 p-5">
+          <div className="flex items-start gap-3 min-w-0">
+            <QuestionNumber n={index + 1} />
+            <div className="min-w-0">
+              <h3 className="font-semibold text-white">{q.title}</h3>
+              <p className="text-xs text-surface-500 mt-0.5">Multiple choice · {right ? 'answered correctly' : 'answered incorrectly'}</p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className={`text-2xl font-bold leading-none ${right ? 'text-emerald-600' : 'text-red-600'}`}>{right ? 'Correct' : 'Wrong'}</div>
+            <div className="text-xs text-surface-500 mt-1 tabular-nums">{formatMarks(q.marks_obtained)} / {q.marks} marks</div>
+          </div>
+        </div>
+        <div className="px-5 pb-5 space-y-2">
+          <p className="text-sm text-surface-300 whitespace-pre-wrap">{q.mcq.statement}</p>
+          {q.mcq.options.map((o, i) => {
+            const isCorrect = q.mcq!.correct.includes(o.id);
+            const picked = q.mcq!.selected.includes(o.id);
+            return (
+              <div key={o.id} className={`flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg border text-sm ${isCorrect ? 'border-emerald-500/40 bg-emerald-500/5' : picked ? 'border-red-500/40 bg-red-500/5' : 'border-surface-800'}`}>
+                <span className="text-surface-100"><b className="text-surface-500 mr-2">{String.fromCharCode(65 + i)}</b>{o.text}</span>
+                <span className="flex gap-1.5 shrink-0">
+                  {picked && <span className={`badge ring-1 ${isCorrect ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25' : 'bg-red-500/10 text-red-700 ring-red-500/25'}`}>Candidate&apos;s answer</span>}
+                  {isCorrect && <span className="badge bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25">Correct</span>}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     );

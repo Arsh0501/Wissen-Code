@@ -14,7 +14,7 @@ export function getParentPath(pathname: string): string {
     const [, section, id] = parts;
     if (section === 'reports' && parts[3]) return `/admin/submissions/${parts[3]}`;
     if (section === 'submissions') return '/admin/assessments';
-    if ((section === 'questions' || section === 'assessments') && id) return `/admin/${section}`;
+    if ((section === 'questions' || section === 'assessments' || section === 'interviews') && id) return `/admin/${section}`;
   }
   return '/';
 }

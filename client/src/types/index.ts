@@ -8,6 +8,17 @@ export interface Question {
   tags: string; // JSON string
   timeLimit: number;
   memoryLimit: number;
+  type: QuestionType;
+  options: string; // MCQ: JSON [{ id, text }]
+  correctOptions: string; // MCQ: JSON option ids (admin only; "[]" for candidates)
+  explanation: string;
+  topic: string;
+  skills: string; // JSON array
+  source: 'manual' | 'ai';
+  status: 'active' | 'pending_review' | 'rejected';
+  validation: string; // JSON ValidationReport from the last check
+  referenceSolution: string;
+  multipleCorrect?: boolean; // exam payload only: the question has more than one right answer
   createdAt: string;
   updatedAt: string;
   starterCodes?: StarterCode[];
@@ -17,6 +28,16 @@ export interface Question {
     starterCodes: number;
     assessments?: number;
   };
+}
+
+export type QuestionType = 'coding' | 'mcq';
+export type AssessmentDifficulty = 'mixed' | 'easy' | 'medium' | 'hard';
+export type AccessMode = 'anyone' | 'restricted' | 'invite_only';
+export type Lifecycle = 'draft' | 'scheduled' | 'active' | 'expired' | 'completed';
+
+export interface McqOption {
+  id: string;
+  text: string;
 }
 
 export interface StarterCode {
@@ -74,6 +95,17 @@ export interface Assessment {
   shuffleQuestions: boolean;
   allowedLanguages: string; // JSON array of language IDs; empty = all
   showResults: boolean;
+  difficulty: AssessmentDifficulty;
+  topics: string; // JSON array
+  questionTypes: string; // JSON array of QuestionType
+  questionCount: number | null; // per-candidate random subset size; null = all
+  shuffleOptions: boolean;
+  maxAttempts: number;
+  accessMode: AccessMode;
+  allowedEmails?: string; // JSON array (admin only)
+  questionTotal?: number; // exam payload: how many questions this candidate gets
+  lifecycle?: Lifecycle;
+  counts?: { candidates: number; started: number; completed: number };
   createdAt: string;
   updatedAt: string;
   questions: AssessmentQuestion[];
@@ -85,6 +117,8 @@ export interface Assessment {
   startedAt?: string | null;
   finishedAt?: string | null;
   remainingSeconds?: number | null; // time left on an in-progress attempt
+  attempt?: number;
+  canRetake?: boolean;
   // Candidate's own result; null when not finished, nothing submitted, or results are hidden by the admin
   result?: {
     percentage: number;
@@ -120,10 +154,19 @@ export interface AssessmentInput {
   shuffleQuestions: boolean;
   allowedLanguages: number[];
   showResults: boolean;
+  difficulty: AssessmentDifficulty;
+  topics: string[];
+  questionTypes: QuestionType[];
+  questionCount: number | null;
+  shuffleOptions: boolean;
+  maxAttempts: number;
+  accessMode: AccessMode;
+  allowedEmails: string[];
   questions: { questionId: number; marks: number }[];
 }
 
 export interface DashboardData {
+  lifecycleTotals: { draft: number; active: number; completed: number; expired: number };
   totals: AssessmentStats & {
     assessments: number;
     published: number;
