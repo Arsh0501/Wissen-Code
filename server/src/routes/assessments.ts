@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
+import { computeEvaluation } from '../services/grading';
+import { canAccessAssessment, guestAssessmentIds } from '../services/guest-access';
 import { adminOnly } from '../middleware/adminOnly';
 import { summarizeCandidates, aggregate } from '../services/stats';
 import { availabilityError } from './sessions';
@@ -236,21 +238,42 @@ router.get('/', async (req: Request, res: Response) => {
     });
     const sessionIds = sessions.map((s) => s.assessmentId);
 
-    // Candidates also see closed/archived tests they already took, so they can view results
+    // Candidates also see closed/archived tests they already took, so they can view results.
+    // Invite-link guests only see the tests they were invited to.
+    const guestIds = req.user?.guest ? await guestAssessmentIds(req.user.id) : null;
     const assessments = await prisma.assessment.findMany({
-      where: { OR: [{ status: 'published' }, { id: { in: sessionIds } }] },
+      where: guestIds
+        ? { id: { in: guestIds }, OR: [{ status: 'published' }, { id: { in: sessionIds } }] }
+        : { OR: [{ status: 'published' }, { id: { in: sessionIds } }] },
       include: { _count: { select: { questions: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
-    res.json(
-      assessments.map((a) => {
+    const rows = await Promise.all(
+      assessments.map(async (a) => {
         const session = sessions.find((s) => s.assessmentId === a.id);
+        const deadline = session ? session.startedAt.getTime() + a.timeLimitMinutes * 60000 : 0;
         const candidateStatus = !session
           ? 'not-started'
-          : session.finishedAt || Date.now() > session.startedAt.getTime() + a.timeLimitMinutes * 60000
+          : session.finishedAt || Date.now() > deadline
           ? 'completed'
           : 'in-progress';
+
+        // Candidate's own score for finished tests — withheld when the admin turned results off
+        let result = null;
+        if (candidateStatus === 'completed' && a.showResults) {
+          const evaluation = await computeEvaluation(a.id, candidateName);
+          if (evaluation?.hasSubmissions || session?.finishedAt) {
+            result = {
+              percentage: evaluation?.percentage ?? 0,
+              passed: evaluation?.passed ?? false,
+              marksObtained: evaluation?.marksObtained ?? 0,
+              totalMarks: evaluation?.totalMarks ?? 0,
+              timeTakenSeconds: evaluation?.timeTakenSeconds ?? null,
+            };
+          }
+        }
+
         return {
           id: a.id,
           name: a.name,
@@ -263,6 +286,10 @@ router.get('/', async (req: Request, res: Response) => {
           status: a.status,
           availability: availability(a),
           candidateStatus,
+          startedAt: session?.startedAt.toISOString() ?? null,
+          finishedAt: session?.finishedAt?.toISOString() ?? null,
+          remainingSeconds: candidateStatus === 'in-progress' ? Math.max(0, Math.floor((deadline - Date.now()) / 1000)) : null,
+          result,
           questions: [],
           _count: a._count,
           createdAt: a.createdAt,
@@ -270,6 +297,7 @@ router.get('/', async (req: Request, res: Response) => {
         };
       })
     );
+    res.json(rows);
   } catch (error) {
     console.error('Error fetching assessments:', error);
     res.status(500).json({ error: 'Failed to fetch assessments' });
@@ -312,6 +340,10 @@ router.get('/:id', async (req: Request, res: Response) => {
         stats: aggregate(stats.get(id) ?? []),
         candidates: stats.get(id) ?? [],
       });
+    }
+
+    if (!(await canAccessAssessment(req, id))) {
+      return res.status(403).json({ error: 'You were not invited to this assessment' });
     }
 
     const candidateName = req.user?.name || '';

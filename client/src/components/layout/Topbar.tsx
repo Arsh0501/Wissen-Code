@@ -4,6 +4,7 @@ import { LogOut, ChevronDown, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getNavItemsForRole } from './navItems';
 import UserAvatar from './UserAvatar';
+import ThemeToggle from '../ThemeToggle';
 
 // Back goes one level up the page hierarchy rather than through browser history,
 // so it never lands on a form the user just submitted.
@@ -66,7 +67,9 @@ export default function Topbar() {
           ))}
         </nav>
 
-        <div className="ml-auto relative">
+        <div className="ml-auto flex items-center gap-1">
+          <ThemeToggle />
+        <div className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
@@ -99,6 +102,7 @@ export default function Topbar() {
               </button>
             </div>
           )}
+        </div>
         </div>
       </div>
     </header>

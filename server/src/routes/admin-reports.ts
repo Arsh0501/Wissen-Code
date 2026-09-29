@@ -9,6 +9,9 @@ import { MAX_TAB_SWITCHES } from './sessions';
 
 const router = Router();
 
+// Pastes at least this long are highlighted in reports as likely copied code
+const LARGE_PASTE_CHARS = 100;
+
 // All routes in this file require admin role
 router.use(adminOnly);
 
@@ -72,6 +75,132 @@ router.get('/submissions/:assessmentId', async (req: Request, res: Response) => 
 });
 
 // ──────────────────────────────────────────────────────────────
+// GET /api/admin/reports/export/:assessmentId
+// Downloads every candidate's result for an assessment as CSV (opens in Excel)
+// ──────────────────────────────────────────────────────────────
+router.get('/export/:assessmentId', async (req: Request, res: Response) => {
+  try {
+    const assessmentId = parseInt(req.params.assessmentId);
+    if (isNaN(assessmentId)) {
+      return res.status(400).json({ error: 'Invalid assessmentId' });
+    }
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        name: true,
+        passingScore: true,
+        questions: {
+          orderBy: { orderIndex: 'asc' },
+          select: { questionId: true, marks: true, question: { select: { title: true } } },
+        },
+      },
+    });
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    const [submissions, sessions] = await Promise.all([
+      prisma.submission.findMany({
+        where: { assessmentId },
+        select: { candidateName: true, score: true, createdAt: true, questionId: true },
+      }),
+      prisma.assessmentSession.findMany({
+        where: { assessmentId },
+        select: {
+          candidateName: true,
+          startedAt: true,
+          finishedAt: true,
+          _count: { select: { tabSwitches: true } },
+          pasteEvents: { select: { charCount: true } },
+        },
+      }),
+    ]);
+
+    const candidates = summarizeCandidates(assessment.questions, assessment.passingScore, submissions, sessions);
+    const users = await prisma.user.findMany({
+      where: { name: { in: candidates.map((c) => c.name) } },
+      select: { name: true, email: true },
+    });
+    const emailByName = new Map(users.map((u) => [u.name, u.email]));
+    const sessionByName = new Map(sessions.map((s) => [s.candidateName, s]));
+
+    // Latest score per candidate per question, for the per-question marks columns
+    const latest = new Map<string, { score: number; createdAt: Date }>();
+    for (const s of submissions) {
+      const key = `${s.candidateName}|${s.questionId}`;
+      const prev = latest.get(key);
+      if (!prev || prev.createdAt < s.createdAt) latest.set(key, { score: s.score, createdAt: s.createdAt });
+    }
+
+    // Completed candidates ranked by score; in-progress ones listed after, unranked
+    const completed = candidates.filter((c) => c.status === 'completed').sort((a, b) => b.overallScore - a.overallScore);
+    const inProgress = candidates.filter((c) => c.status !== 'completed');
+
+    const header = [
+      'Rank', 'Candidate', 'Email', 'Status', 'Result', 'Score %', 'Marks Obtained', 'Total Marks',
+      'Questions Attempted', 'Started At', 'Submitted At', 'Time Taken (min)', 'Tab Switches', 'Pastes', 'Large Pastes',
+      ...assessment.questions.map((q, i) => `Q${i + 1} ${q.question.title} (/${q.marks})`),
+    ];
+
+    const rows = [...completed, ...inProgress].map((c) => {
+      const session = sessionByName.get(c.name);
+      const pastes = session?.pasteEvents ?? [];
+      const minutes = session?.finishedAt
+        ? ((session.finishedAt.getTime() - session.startedAt.getTime()) / 60000).toFixed(1)
+        : '';
+      const rank = c.status === 'completed' ? completed.indexOf(c) + 1 : '';
+      return [
+        rank,
+        c.name,
+        emailByName.get(c.name) ?? '',
+        c.status === 'completed' ? 'Completed' : 'In progress',
+        c.status === 'completed' ? (c.passed ? 'Pass' : 'Fail') : '',
+        c.overallScore.toFixed(1),
+        c.marksObtained,
+        c.totalMarks,
+        `${c.attemptedQuestions}/${c.totalQuestions}`,
+        c.startedAt ? csvDate(c.startedAt) : '',
+        c.submittedAt && c.status === 'completed' ? csvDate(c.submittedAt) : '',
+        minutes,
+        session?._count.tabSwitches ?? 0,
+        pastes.length,
+        pastes.filter((p) => p.charCount >= LARGE_PASTE_CHARS).length,
+        ...assessment.questions.map((q) => {
+          const sub = latest.get(`${c.name}|${q.questionId}`);
+          return sub ? Math.round((sub.score / 100) * q.marks * 100) / 100 : 0;
+        }),
+      ];
+    });
+
+    // BOM so Excel detects UTF-8 (names/titles with non-ASCII characters)
+    const csv = '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const safeName = assessment.name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="results-${safeName || assessment.id}.csv"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Error exporting assessment results:', error);
+    res.status(500).json({ error: 'Failed to export results' });
+  }
+});
+
+function csvCell(value: unknown): string {
+  let s = String(value ?? '');
+  // Neutralise spreadsheet formula injection from user-controlled text (names, titles)
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function csvDate(iso: string): string {
+  // "2026-09-25 14:05" — sorts correctly and Excel parses it as a date
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ──────────────────────────────────────────────────────────────
 // GET /api/admin/reports/:candidateName/:assessmentId/data
 // Returns detailed report data for a specific candidate's assessment
 // ──────────────────────────────────────────────────────────────
@@ -131,7 +260,13 @@ router.get('/:candidateName/:assessmentId/download', async (req: Request, res: R
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '16px', right: '16px', bottom: '16px', left: '16px' },
+        margin: { top: '28px', right: '28px', bottom: '40px', left: '28px' },
+        displayHeaderFooter: true,
+        headerTemplate: '<span></span>',
+        footerTemplate: `<div style="width:100%;font-size:8px;color:#94a3b8;padding:0 28px;display:flex;justify-content:space-between;font-family:-apple-system,sans-serif;">
+          <span>WissenCode · Confidential assessment report</span>
+          <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+        </div>`,
       });
 
       console.log(`[Admin Reports] PDF generated (${pdfBuffer.length} bytes). Sending response...`);
@@ -198,9 +333,14 @@ async function buildReportData(candidateName: string, assessmentId: number) {
       finishedAt: true,
       startedAt: true,
       tabSwitches: { orderBy: { leftAt: 'asc' }, select: { leftAt: true, durationMs: true } },
+      pasteEvents: { orderBy: { occurredAt: 'asc' }, select: { questionId: true, charCount: true, lineCount: true, occurredAt: true } },
     },
   });
   const tabSwitches = session?.tabSwitches ?? [];
+  const pasteEvents = session?.pasteEvents ?? [];
+
+  // Candidates are linked to user accounts by name; seeded demo candidates have no account
+  const user = await prisma.user.findFirst({ where: { name: candidateName }, select: { email: true } });
 
   const submittedAt =
     session?.finishedAt?.toISOString() ||
@@ -235,18 +375,21 @@ async function buildReportData(candidateName: string, assessmentId: number) {
       testcases_total: total,
       score: total > 0 ? (passed / total) * 100 : 0,
       failed_cases: failedCases,
+      code: sub.code,
     };
   });
 
   const overallPercentage = totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
   const evaluation = await computeEvaluation(assessmentId, candidateName);
+  // Titles for every question in the assessment, including ones the candidate didn't submit
+  const questionTitles = new Map<number, string>(evaluation?.questions.map((q) => [q.questionId, q.title]) ?? []);
 
 
   return {
     candidate: {
       id: candidateName,
       name: candidateName,
-      email: 'not-available@placeholder.com', // PLACEHOLDER — no email field exists yet
+      email: user?.email ?? null,
     },
     assessment: {
       id: assessment.id,
@@ -267,51 +410,91 @@ async function buildReportData(candidateName: string, assessmentId: number) {
       passing_score: evaluation?.assessment.passingScore ?? 0,
       passed: evaluation?.passed ?? false,
       time_taken_seconds: evaluation?.timeTakenSeconds ?? null,
+      questions_attempted: evaluation?.questions.filter((q) => q.attempted).length ?? questions.length,
+      questions_total: evaluation?.questions.length ?? questions.length,
     },
-    questions: questions.map((q) => ({
-      ...q,
-      marks: evaluation?.questions.find((eq) => eq.questionId === q.question_id)?.marks ?? 0,
-      marks_obtained: evaluation?.questions.find((eq) => eq.questionId === q.question_id)?.marksObtained ?? 0,
-    })),
+    // Every question in the assessment (in assessment order); unanswered ones are flagged, not dropped
+    questions: (evaluation?.questions ?? []).map((eq) => {
+      const q = questions.find((x) => x.question_id === eq.questionId);
+      return {
+        question_id: eq.questionId,
+        title: eq.title,
+        language: q?.language ?? '—',
+        testcases_passed: q?.testcases_passed ?? 0,
+        testcases_total: q?.testcases_total ?? 0,
+        score: q?.score ?? 0,
+        failed_cases: q?.failed_cases ?? [],
+        code: q?.code ?? '',
+        marks: eq.marks,
+        marks_obtained: eq.marksObtained,
+        attempted: eq.attempted,
+      };
+    }),
+    // How this candidate compares with everyone who completed the assessment
+    cohort: await buildCohort(assessmentId, candidateName),
     // REAL data — captured by the exam page while the session was in progress
     tab_switches: {
       count: tabSwitches.length,
       limit: MAX_TAB_SWITCHES,
       limit_exceeded: tabSwitches.length >= MAX_TAB_SWITCHES, // limit reached, test was auto-submitted
-
       total_duration_ms: tabSwitches.reduce((sum, e) => sum + e.durationMs, 0),
       events: tabSwitches.map((e) => ({ duration_ms: e.durationMs, occurred_at: e.leftAt.toISOString() })),
     },
-    // ═══ STATIC PLACEHOLDER DATA ═══
-    // Everything below is hardcoded sample data.
-    // These modules are NOT connected to any real capture mechanism.
-    // Replace each section as the corresponding feature is implemented.
-    integrity_placeholder: {
-      is_placeholder: true,
-      copy_paste: {
-        count: 1,
-        events: [
-          {
-            action: 'paste',
-            char_count: 340,
-            question_id: questions[0]?.question_id?.toString() || '1',
-          },
-        ],
-      },
-      screenshots: {
-        average_confidence_score: 0.91,
-        snapshot_count: 6,
-        flagged_snapshots: [],
-      },
-      plagiarism: {
-        status: 'complete',
-        matches: [],
-      },
-      ai_code_detection: {
-        status: 'complete',
-        flags: [],
-      },
+    // REAL data — every paste into the code editor during the session
+    paste_events: {
+      count: pasteEvents.length,
+      total_chars: pasteEvents.reduce((sum, e) => sum + e.charCount, 0),
+      large_count: pasteEvents.filter((e) => e.charCount >= LARGE_PASTE_CHARS).length,
+      large_threshold: LARGE_PASTE_CHARS,
+      events: pasteEvents.map((e) => ({
+        question_id: e.questionId,
+        question_title: questionTitles.get(e.questionId) ?? `Question ${e.questionId}`,
+        char_count: e.charCount,
+        line_count: e.lineCount,
+        occurred_at: e.occurredAt.toISOString(),
+      })),
     },
+  };
+}
+
+// ──────────────────────────────────────────────────────────────
+// Helper: rank / percentile / averages among completed candidates
+// ──────────────────────────────────────────────────────────────
+async function buildCohort(assessmentId: number, candidateName: string) {
+  const assessment = await prisma.assessment.findUnique({
+    where: { id: assessmentId },
+    select: { passingScore: true, questions: { select: { questionId: true, marks: true } } },
+  });
+  if (!assessment) return null;
+
+  const [submissions, sessions] = await Promise.all([
+    prisma.submission.findMany({
+      where: { assessmentId },
+      select: { candidateName: true, score: true, createdAt: true, questionId: true },
+    }),
+    prisma.assessmentSession.findMany({
+      where: { assessmentId },
+      select: { candidateName: true, startedAt: true, finishedAt: true },
+    }),
+  ]);
+
+  const candidates = summarizeCandidates(assessment.questions, assessment.passingScore, submissions, sessions);
+  const completed = candidates.filter((c) => c.status === 'completed');
+  const me = completed.find((c) => c.name === candidateName);
+  const stats = aggregate(candidates);
+
+  // Ties share a rank; percentile = share of the *other* candidates scoring strictly lower
+  const rank = me ? completed.filter((c) => c.overallScore > me.overallScore).length + 1 : null;
+  const below = me ? completed.filter((c) => c.overallScore < me.overallScore).length : 0;
+  const percentile = me && completed.length > 1 ? Math.round((below / (completed.length - 1)) * 100) : null;
+
+  return {
+    rank,
+    completed_count: completed.length,
+    percentile,
+    average_score: stats.averageScore,
+    highest_score: stats.highestScore,
+    pass_rate: stats.passRate,
   };
 }
 

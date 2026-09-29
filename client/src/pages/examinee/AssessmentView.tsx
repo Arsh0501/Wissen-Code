@@ -3,9 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
+import ThemeToggle from '../../components/ThemeToggle';
 import {
   getAssessment, runCode, runTests,
-  startSession, getSessionStatus, saveDraft, saveAllDrafts, finishSession, recordTabSwitch, apiError,
+  startSession, getSessionStatus, saveDraft, saveAllDrafts, finishSession, recordTabSwitch, recordPaste, apiError,
 } from '../../services/api';
 import { useTabSwitchDetection } from '../../hooks/useTabSwitchDetection';
 import { TabSwitchWarning, TabSwitchStatus } from '../../components/exam/TabSwitchWarning';
@@ -161,6 +163,7 @@ export default function AssessmentView() {
   const { assessmentId } = useParams();
   const navigate = useNavigate();
   const { candidateName } = useAuth();
+  const { theme } = useTheme();
 
   // ── Phase: 'pre-test' | 'in-progress' | 'review' | 'submitted' ──
   const [phase, setPhase] = useState<'loading' | 'pre-test' | 'in-progress' | 'review' | 'submitted'>('loading');
@@ -446,6 +449,9 @@ export default function AssessmentView() {
   // Current question helpers
   const currentAQ = assessmentQuestions[currentQuestionIndex];
   const currentQuestion = currentAQ?.question;
+  // Read by the editor's paste listener, which is registered once on mount
+  const currentQuestionIdRef = useRef<number | null>(null);
+  currentQuestionIdRef.current = currentQuestion?.id ?? null;
   const currentState = currentQuestion ? questionStates.get(currentQuestion.id) : undefined;
   const sampleTestCases = currentQuestion?.testCases?.filter((tc) => tc.isSample) || [];
 
@@ -861,7 +867,7 @@ export default function AssessmentView() {
                 <li>The timer starts once you click "Start Assessment" and cannot be paused.</li>
                 <li className="text-amber-700">
                   Stay on this tab. Leaving it (switching tabs, minimising, or opening another app) is recorded. You get{' '}
-                  <span className="font-semibold">{tabSwitchLimit - 1} warnings</span>. Leaving {tabSwitchLimit} times submits your test automatically.
+                  <span className="font-semibold">{tabSwitchLimit - 1} warnings</span>. Leaving {tabSwitchLimit} times submits your test automatically. Pasting code into the editor is also recorded.
                 </li>
                 <li className="text-amber-700">Final grading runs against hidden test cases, not just the samples shown.</li>
               </ul>
@@ -1093,6 +1099,7 @@ export default function AssessmentView() {
         </div>
 
         <div className="flex items-center gap-3 min-w-[280px] justify-end">
+          <ThemeToggle />
           <TabSwitchStatus count={tabSwitchCount} limit={tabSwitchLimit} />
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${
             isTimeLow ? 'bg-red-500/15 text-red-600 animate-pulse-dot' : 'bg-surface-800 text-surface-300'
@@ -1327,7 +1334,18 @@ export default function AssessmentView() {
                   updateState(currentQuestion.id, { code: value || '' });
                 }
               }}
-              theme="light"
+              theme={theme === 'dark' ? 'vs-dark' : 'light'}
+              onMount={(editor) => {
+                // Record every paste (size only, never the content) for the proctoring report
+                editor.onDidPaste(({ range }) => {
+                  const text = editor.getModel()?.getValueInRange(range) ?? '';
+                  const sid = sessionIdRef.current;
+                  const questionId = currentQuestionIdRef.current;
+                  if (!text || !sid || !questionId || hasSubmittedRef.current) return;
+                  recordPaste(sid, { questionId, charCount: text.length, lineCount: text.split('\n').length })
+                    .catch((err) => console.error('Failed to record paste:', err));
+                });
+              }}
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,

@@ -8,6 +8,8 @@ import submissionRoutes from './routes/submissions';
 import sessionRoutes from './routes/sessions';
 import adminReportRoutes from './routes/admin-reports';
 import adminQuestionRoutes from './routes/admin-questions';
+import aiRoutes from './routes/ai';
+import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
 import { authenticate } from './middleware/auth';
 import { isMockMode } from './services/judge0';
@@ -32,6 +34,9 @@ app.get('/api/health', (_req, res) => {
 // Auth routes (register/login are public; /me requires a token internally)
 app.use('/api/auth', authRoutes);
 
+// Invite links: anyone with a link can view it and join without an account
+app.use('/api/public/invite', publicInviteRoutes);
+
 // Everything below requires a valid Bearer token
 app.use('/api', authenticate);
 
@@ -43,6 +48,8 @@ app.use('/api/submissions', submissionRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/admin/reports', adminReportRoutes);
 app.use('/api/admin/questions', adminQuestionRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/invites', adminInviteRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

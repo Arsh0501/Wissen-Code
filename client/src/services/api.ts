@@ -279,6 +279,13 @@ export async function recordTabSwitch(
   return data;
 }
 
+export async function recordPaste(
+  sessionId: number,
+  event: { questionId: number; charCount: number; lineCount: number }
+): Promise<void> {
+  await api.post(`/sessions/${sessionId}/paste`, event);
+}
+
 export async function finishSession(sessionId: number): Promise<any> {
   const { data } = await api.post(`/sessions/${sessionId}/finish`);
   return data;
@@ -313,11 +320,150 @@ export async function getReportData(
   return data;
 }
 
-export function getReportDownloadUrl(
-  candidateName: string,
-  assessmentId: number
-): string {
-  return `/api/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/download`;
+// Fetches the PDF through the shared client so the admin's auth token is attached
+export async function downloadReportPdf(candidateName: string, assessmentId: number): Promise<Blob> {
+  const { data } = await api.get(`/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/download`, {
+    responseType: 'blob',
+  });
+  return data;
+}
+
+// Every candidate's result for an assessment as a CSV (opens in Excel)
+export async function downloadAssessmentCsv(assessmentId: number): Promise<{ blob: Blob; filename: string }> {
+  const res = await api.get(`/admin/reports/export/${assessmentId}`, { responseType: 'blob' });
+  const match = /filename="([^"]+)"/.exec(res.headers['content-disposition'] || '');
+  return { blob: res.data, filename: match?.[1] || `results-assessment-${assessmentId}.csv` };
+}
+
+// ---- AI assessment generation ----
+
+export interface AIStatus {
+  configured: boolean;
+  canVerify: boolean;
+  minQuestions: number;
+  maxQuestions: number;
+}
+
+export interface AIGeneratedQuestion {
+  title: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  tags: string[];
+  rationale: string;
+  statement: string;
+  test_cases: { input: string; expected_output: string; is_sample: boolean }[];
+  starter_code_python: string;
+  starter_code_javascript: string;
+  starter_code_java: string;
+  starter_code_cpp: string;
+  reference_solution_python: string;
+  verification:
+    | { status: 'verified'; dropped: number }
+    | { status: 'unverified'; reason: string }
+    | { status: 'failed'; reason: string };
+}
+
+export interface AIGenerationPreview {
+  candidate: {
+    name: string;
+    experience_level: 'intern' | 'junior' | 'mid' | 'senior' | 'staff';
+    years_of_experience: number;
+    primary_languages: string[];
+    skills: string[];
+    summary: string;
+  };
+  questions: AIGeneratedQuestion[];
+  suggested_time_minutes: number;
+  model: string;
+}
+
+export async function getAIStatus(): Promise<AIStatus> {
+  const { data } = await api.get('/ai/status');
+  return data;
+}
+
+export async function generateAssessmentFromResume(input: {
+  resumePdfBase64?: string;
+  resumeText?: string;
+  questionCount: number;
+  focus?: string;
+}): Promise<AIGenerationPreview> {
+  // Generation reads the resume and writes several problems — it can take a few minutes
+  const { data } = await api.post('/ai/generate', input, { timeout: 11 * 60 * 1000 });
+  return data;
+}
+
+export async function createAIAssessment(input: {
+  name: string;
+  description?: string;
+  timeLimitMinutes: number;
+  passingScore: number;
+  questions: Omit<AIGeneratedQuestion, 'verification' | 'rationale' | 'reference_solution_python'>[];
+}): Promise<{ id: number; name: string }> {
+  const { data } = await api.post('/ai/create-assessment', input);
+  return data;
+}
+
+// ---- Invite links ----
+
+export interface InviteLink {
+  id: number;
+  token: string;
+  assessmentId: number;
+  label: string;
+  maxUses: number | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  uses: number;
+  state: 'active' | 'revoked' | 'expired' | 'full';
+  participants: { name: string; email: string; joinedAt: string }[];
+}
+
+export interface PublicInvite {
+  assessment: {
+    name: string;
+    description: string;
+    timeLimitMinutes: number;
+    passingScore: number;
+    questionCount: number;
+    startAt: string | null;
+    endAt: string | null;
+  };
+  label: string;
+  canJoin: boolean;
+  problem: string | null;
+}
+
+export function inviteUrl(token: string): string {
+  return `${window.location.origin}/invite/${token}`;
+}
+
+export async function listInvites(assessmentId: number): Promise<InviteLink[]> {
+  const { data } = await api.get('/invites', { params: { assessmentId } });
+  return data;
+}
+
+export async function createInvite(input: { assessmentId: number; label?: string; maxUses?: number | null; expiresAt?: string | null }): Promise<InviteLink> {
+  const { data } = await api.post('/invites', input);
+  return data;
+}
+
+export async function revokeInvite(id: number): Promise<void> {
+  await api.post(`/invites/${id}/revoke`);
+}
+
+export async function getPublicInvite(token: string): Promise<PublicInvite> {
+  const { data } = await api.get(`/public/invite/${encodeURIComponent(token)}`);
+  return data;
+}
+
+export async function joinInvite(token: string, input: { name: string; email: string }): Promise<{
+  token: string;
+  user: { id: number; email: string; name: string; role: 'examinee'; guest: true };
+  assessmentId: number;
+}> {
+  const { data } = await api.post(`/public/invite/${encodeURIComponent(token)}/join`, input);
+  return data;
 }
 
 export default api;

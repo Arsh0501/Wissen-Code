@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   name: string;
   role: 'admin' | 'examinee';
+  guest?: boolean; // joined through an invite link — limited to invited assessments
 }
 
 declare global {
