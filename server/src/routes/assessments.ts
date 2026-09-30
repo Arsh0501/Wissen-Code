@@ -353,7 +353,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
     const blocked = availabilityError(assessment);
     if (blocked && !session) {
-      return res.status(403).json({ error: blocked, availability: availability(assessment) });
+      return res.status(403).json({ error: blocked, availability: availability(assessment), endAt: assessment.endAt?.toISOString() ?? null });
     }
 
     // Apply configuration: allowed languages + question shuffling

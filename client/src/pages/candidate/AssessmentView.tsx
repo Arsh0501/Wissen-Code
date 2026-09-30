@@ -165,8 +165,8 @@ export default function AssessmentView() {
   const { candidateName } = useAuth();
   const { theme } = useTheme();
 
-  // ── Phase: 'pre-test' | 'in-progress' | 'review' | 'submitted' ──
-  const [phase, setPhase] = useState<'loading' | 'pre-test' | 'in-progress' | 'review' | 'submitted'>('loading');
+  // ── Phase: 'pre-test' | 'in-progress' | 'review' | 'submitted' | 'expired' ──
+  const [phase, setPhase] = useState<'loading' | 'pre-test' | 'in-progress' | 'review' | 'submitted' | 'expired'>('loading');
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [assessmentQuestions, setAssessmentQuestions] = useState<AssessmentQuestion[]>([]);
@@ -181,6 +181,7 @@ export default function AssessmentView() {
   const [loadError, setLoadError] = useState('');
   const [startError, setStartError] = useState('');
   const [timeWarning, setTimeWarning] = useState('');
+  const [assessmentEndAt, setAssessmentEndAt] = useState<string | null>(null);
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [tabSwitchLimit, setTabSwitchLimit] = useState(3);
   const [autoSubmitReason, setAutoSubmitReason] = useState<'tab-switch' | null>(null);
@@ -422,8 +423,16 @@ export default function AssessmentView() {
       if (status.tabSwitchLimit) setTabSwitchLimit(status.tabSwitchLimit);
       setTimeLeft(status.remainingSeconds);
       setPhase('in-progress');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load assessment:', err);
+      // Detect "assessment closed, never started" — show dedicated expired screen
+      const respAvailability = err?.response?.data?.availability;
+      if (respAvailability === 'closed') {
+        const endAtRaw = err?.response?.data?.endAt ?? null;
+        setAssessmentEndAt(endAtRaw);
+        setPhase('expired');
+        return;
+      }
       setLoadError(apiError(err, 'Failed to load assessment'));
       setPhase('pre-test');
     }
@@ -440,8 +449,15 @@ export default function AssessmentView() {
       if (sessionData.tabSwitchLimit) setTabSwitchLimit(sessionData.tabSwitchLimit);
       setTimeLeft(sessionData.remainingSeconds);
       setPhase('in-progress');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to start session:', err);
+      // If the window closed between loading and clicking start
+      const respAvailability = err?.response?.data?.availability;
+      if (respAvailability === 'closed') {
+        setAssessmentEndAt(err?.response?.data?.endAt ?? null);
+        setPhase('expired');
+        return;
+      }
       setStartError(apiError(err, 'Failed to start assessment. Please try again.'));
     }
   }
@@ -768,7 +784,7 @@ export default function AssessmentView() {
     );
   }
 
-  if (loadError || !assessment) {
+  if (loadError || (!assessment && phase !== 'expired')) {
     return (
       <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
         <div className="card max-w-md w-full text-center">
@@ -778,6 +794,45 @@ export default function AssessmentView() {
           <button onClick={() => navigate('/exam')} className="btn-outline">
             <ArrowLeft className="w-4 h-4" /> Back to my assessments
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // ── RENDER: EXPIRED SCREEN ──
+  // ═══════════════════════════════════════════
+  if (phase === 'expired') {
+    const endDate = assessmentEndAt ? new Date(assessmentEndAt) : null;
+    return (
+      <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-1/3 right-1/3 w-96 h-96 bg-red-600/5 rounded-full blur-3xl" />
+        </div>
+
+        <div className="relative w-full max-w-md animate-fade-in">
+          <div className="card text-center">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-800 flex items-center justify-center">
+              <Clock className="w-11 h-11 text-surface-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-3">This Assessment Has Expired</h2>
+            <p className="text-surface-400 mb-2">
+              The assessment window has closed and it was not started in time.
+            </p>
+            {endDate && (
+              <p className="text-sm text-surface-500 mb-6">
+                Closed on{' '}
+                <span className="text-surface-300 font-medium">
+                  {endDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}{' '}
+                  at {endDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </p>
+            )}
+            {!endDate && <div className="mb-6" />}
+            <button onClick={() => navigate('/exam')} className="btn-outline w-full">
+              <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
