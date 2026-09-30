@@ -11,7 +11,7 @@ import adminQuestionRoutes from './routes/admin-questions';
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
 import { authenticate } from './middleware/auth';
-import { isMockMode } from './services/judge0';
+import { isMockMode, getActiveLanguages } from './services/judge0';
 
 dotenv.config();
 
@@ -61,6 +61,13 @@ app.listen(PORT, () => {
       : `📊 Judge0 API: ${process.env.JUDGE0_API_URL || 'https://ce.judge0.com'}`
   );
   console.log(`💾 Database: ${process.env.DATABASE_URL}\n`);
+
+  // Eagerly prefetch active languages into cache
+  getActiveLanguages().then((langs) => {
+    console.log(`🌐 Judge0 loaded ${langs.length} active languages.`);
+  }).catch((err) => {
+    console.warn(`⚠️ Could not prefetch Judge0 languages on startup: ${err.message}`);
+  });
 });
 
 export default app;

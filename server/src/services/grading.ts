@@ -167,6 +167,7 @@ export async function computeEvaluation(assessmentId: number, candidateName: str
       timeLimitMinutes: assessment.timeLimitMinutes,
       passingScore: assessment.passingScore,
       showResults: assessment.showResults,
+      isPractice: assessment.isPractice,
     },
     candidateName,
     startedAt: session?.startedAt.toISOString() || null,

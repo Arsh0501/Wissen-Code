@@ -10,6 +10,22 @@ export const LANGUAGE_MAP: Record<string, { id: number; name: string; monacoLang
   javascript: { id: 63, name: 'JavaScript (Node.js 12.14.0)', monacoLang: 'javascript' },
 };
 
+export interface Judge0Language {
+  id: number;
+  name: string;
+}
+
+export const MAIN_LANGUAGES: Judge0Language[] = [
+  { id: 54, name: 'C++' },
+  { id: 71, name: 'Python' },
+  { id: 62, name: 'Java' },
+  { id: 63, name: 'JavaScript' },
+];
+
+export async function getActiveLanguages(): Promise<Judge0Language[]> {
+  return MAIN_LANGUAGES;
+}
+
 export function getLanguageById(langId: number) {
   return Object.values(LANGUAGE_MAP).find((l) => l.id === langId);
 }
