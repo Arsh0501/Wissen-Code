@@ -222,6 +222,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     if (isAdmin(req)) {
       const assessments = await prisma.assessment.findMany({
+        where: { isPractice: false },
         include: questionSummaryInclude,
         orderBy: { createdAt: 'desc' },
       });
@@ -243,8 +244,8 @@ router.get('/', async (req: Request, res: Response) => {
     const guestIds = req.user?.guest ? await guestAssessmentIds(req.user.id) : null;
     const assessments = await prisma.assessment.findMany({
       where: guestIds
-        ? { id: { in: guestIds }, OR: [{ status: 'published' }, { id: { in: sessionIds } }] }
-        : { OR: [{ status: 'published' }, { id: { in: sessionIds } }] },
+        ? { id: { in: guestIds }, OR: [{ status: 'published', isPractice: false }, { id: { in: sessionIds } }] }
+        : { OR: [{ status: 'published', isPractice: false }, { id: { in: sessionIds } }] },
       include: { _count: { select: { questions: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -284,6 +285,7 @@ router.get('/', async (req: Request, res: Response) => {
           endAt: a.endAt,
           showResults: a.showResults,
           status: a.status,
+          isPractice: a.isPractice,
           availability: availability(a),
           candidateStatus,
           startedAt: session?.startedAt.toISOString() ?? null,
@@ -301,6 +303,66 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching assessments:', error);
     res.status(500).json({ error: 'Failed to fetch assessments' });
+  }
+});
+
+// POST /api/assessments/practice — Start a new practice test with 4 random questions & 90 min timer
+router.post('/practice', async (req: Request, res: Response) => {
+  try {
+    const candidateName = req.user?.name || 'Anonymous';
+
+    // Fetch all questions in the question bank
+    const allQuestions = await prisma.question.findMany({
+      select: { id: true, title: true },
+    });
+
+    if (allQuestions.length === 0) {
+      return res.status(400).json({ error: 'No questions available in the question bank' });
+    }
+
+    // Pick 4 random distinct questions (or all if < 4)
+    const shuffled = [...allQuestions].sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, Math.min(4, shuffled.length));
+
+    // Create a dedicated practice assessment instance
+    const assessment = await prisma.assessment.create({
+      data: {
+        name: 'Practice Test',
+        description: '90-minute timed practice session with 4 randomly selected questions from the question bank. Can be taken unlimited times.',
+        instructions: `### Practice Test Instructions\n\n- You have **90 minutes** to solve **${selected.length} randomly chosen problems** from the question bank.\n- You can practice as many times as you like. Every practice test selects a fresh set of questions.\n- Your results will be marked with a **Practice Test** tag.\n- Use **Run code** to test against sample test cases and **Submit Test** when you are done.`,
+        timeLimitMinutes: 90,
+        passingScore: 60,
+        status: 'published',
+        isPractice: true,
+        showResults: true,
+        questions: {
+          create: selected.map((q, idx) => ({
+            questionId: q.id,
+            orderIndex: idx,
+            marks: 25,
+          })),
+        },
+      },
+    });
+
+    // Auto-create candidate session for this practice assessment
+    await prisma.assessmentSession.create({
+      data: {
+        assessmentId: assessment.id,
+        candidateName,
+      },
+    });
+
+    res.status(201).json({
+      assessmentId: assessment.id,
+      name: assessment.name,
+      timeLimitMinutes: assessment.timeLimitMinutes,
+      isPractice: true,
+      questionCount: selected.length,
+    });
+  } catch (error) {
+    console.error('Error generating practice test:', error);
+    res.status(500).json({ error: 'Failed to generate practice test' });
   }
 });
 
@@ -376,7 +438,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       questions = seededShuffle(questions, `${id}:${candidateName}`);
     }
 
-    res.json({ ...assessment, availability: availability(assessment), questions });
+    res.json({ ...assessment, availability: availability(assessment), questions, isPractice: assessment.isPractice });
   } catch (error) {
     console.error('Error fetching assessment:', error);
     res.status(500).json({ error: 'Failed to fetch assessment' });

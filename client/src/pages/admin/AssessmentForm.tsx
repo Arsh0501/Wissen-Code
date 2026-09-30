@@ -9,12 +9,8 @@ import {
   Save, Rocket, AlertTriangle, Clock, Target, Calendar, Shuffle, Code2, BarChart3, Check,
 } from 'lucide-react';
 
-const LANGUAGES = [
-  { id: 71, name: 'Python' },
-  { id: 62, name: 'Java' },
-  { id: 54, name: 'C++' },
-  { id: 63, name: 'JavaScript' },
-];
+import { useLanguages } from '../../hooks/useLanguages';
+import LanguageLogo from '../../components/LanguageLogo';
 
 const DEFAULT_MARKS: Record<string, number> = { easy: 10, medium: 20, hard: 30 };
 
@@ -109,6 +105,8 @@ export default function AssessmentForm() {
   const [attempted, setAttempted] = useState<AssessmentStatus | null>(null);
   const [candidateCount, setCandidateCount] = useState(0);
   const [originalStatus, setOriginalStatus] = useState<AssessmentStatus>('draft');
+
+  const { languages: allJudgeLanguages } = useLanguages();
 
   // Question picker filters
   const [search, setSearch] = useState('');
@@ -518,22 +516,48 @@ export default function AssessmentForm() {
               checked={form.showResults}
               onChange={(v) => set('showResults', v)}
             />
-            <div className="p-4 rounded-lg bg-surface-800/50 border border-surface-700">
-              <p className="text-sm font-medium text-surface-100 flex items-center gap-2"><Code2 className="w-5 h-5 text-primary-600" /> Allowed languages</p>
-              <p className="text-xs text-surface-500 mt-0.5 mb-3">None selected = all languages allowed.</p>
-              <div className="flex flex-wrap gap-2">
-                {LANGUAGES.map((l) => {
+            <div className="p-4 rounded-lg bg-surface-800/50 border border-surface-700 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-surface-100 flex items-center gap-2">
+                    <Code2 className="w-5 h-5 text-primary-600" /> Allowed languages
+                  </p>
+                  <p className="text-xs text-surface-500 mt-0.5">
+                    {form.allowedLanguages.length === 0
+                      ? 'None selected = all 4 languages allowed.'
+                      : `${form.allowedLanguages.length} of ${allJudgeLanguages.length} languages permitted.`}
+                  </p>
+                </div>
+                {form.allowedLanguages.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => set('allowedLanguages', [])}
+                    className="text-xs text-primary-500 hover:text-primary-400 font-medium"
+                  >
+                    Clear (Allow All)
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {allJudgeLanguages.map((l) => {
                   const on = form.allowedLanguages.includes(l.id);
                   return (
                     <button
                       key={l.id}
                       type="button"
                       onClick={() => toggleLanguage(l.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
-                        on ? 'border-primary-500 bg-primary-600/15 text-white' : 'border-surface-700 text-surface-400 hover:text-white'
+                      className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm border transition-all ${
+                        on
+                          ? 'border-primary-500 bg-primary-600/15 text-white font-medium ring-1 ring-primary-500/30'
+                          : 'border-surface-700 bg-surface-900/60 text-surface-300 hover:border-surface-600 hover:text-white'
                       }`}
                     >
-                      {on && <Check className="w-3.5 h-3.5" />} {l.name}
+                      <div className="flex items-center gap-2">
+                        <LanguageLogo languageId={l.id} name={l.name} className="w-4 h-4 shrink-0" />
+                        <span>{l.name}</span>
+                      </div>
+                      {on && <Check className="w-3.5 h-3.5 text-primary-400 shrink-0" />}
                     </button>
                   );
                 })}
@@ -589,7 +613,7 @@ export default function AssessmentForm() {
               ['Opens', form.startAt ? formatDate(form.startAt) : 'Immediately'],
               ['Closes', form.endAt ? formatDate(form.endAt) : 'No deadline'],
               ['Question order', form.shuffleQuestions ? 'Shuffled per candidate' : 'Fixed'],
-              ['Languages', form.allowedLanguages.length ? LANGUAGES.filter((l) => form.allowedLanguages.includes(l.id)).map((l) => l.name).join(', ') : 'All'],
+              ['Languages', form.allowedLanguages.length ? allJudgeLanguages.filter((l) => form.allowedLanguages.includes(l.id)).map((l) => l.name).join(', ') : 'All supported languages'],
               ['Results to candidate', form.showResults ? 'Shown' : 'Hidden'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4">

@@ -16,26 +16,27 @@ import {
   Code2, Clock, ChevronLeft, ChevronRight, Flag,
   AlertTriangle, Maximize2, Minimize2, Play, Check,
   Menu, X, CheckCircle, XCircle, AlertOctagon, Timer,
-  BookOpen, Zap, FileText, Shield, ChevronDown, Target, Award, Lock, ArrowLeft,
+  BookOpen, Zap, FileText, Shield, ChevronDown, Target, Award, Lock, ArrowLeft, Sparkles,
 } from 'lucide-react';
-
-const LANGUAGES = [
-  { id: 71, name: 'Python', monacoLang: 'python' },
-  { id: 62, name: 'Java', monacoLang: 'java' },
-  { id: 54, name: 'C++', monacoLang: 'cpp' },
-  { id: 63, name: 'JavaScript', monacoLang: 'javascript' },
-];
+import {
+  fetchJudgeLanguages,
+  getMonacoLanguage,
+  getDefaultComment,
+  FALLBACK_LANGUAGES,
+  type AppLanguage,
+} from '../../services/languages';
+import LanguageLogo from '../../components/LanguageLogo';
 
 // Languages the assessment allows (all when not restricted)
-function allowedLanguagesFor(assessment: Assessment) {
+function allowedLanguagesFor(assessment: Assessment, allLangs: AppLanguage[]) {
   let ids: number[] = [];
   try {
     ids = JSON.parse(assessment.allowedLanguages || '[]');
   } catch {
     ids = [];
   }
-  const allowed = LANGUAGES.filter((l) => ids.includes(l.id));
-  return allowed.length ? allowed : LANGUAGES;
+  const allowed = allLangs.filter((l) => ids.includes(l.id));
+  return allowed.length ? allowed : allLangs;
 }
 
 // ── Verdict rendering helpers ──
@@ -168,6 +169,7 @@ export default function AssessmentView() {
   // ── Phase: 'pre-test' | 'in-progress' | 'review' | 'submitted' | 'expired' ──
   const [phase, setPhase] = useState<'loading' | 'pre-test' | 'in-progress' | 'review' | 'submitted' | 'expired'>('loading');
 
+  const [judgeLanguages, setJudgeLanguages] = useState<AppLanguage[]>(FALLBACK_LANGUAGES);
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [assessmentQuestions, setAssessmentQuestions] = useState<AssessmentQuestion[]>([]);
   const [questionStates, setQuestionStates] = useState<Map<number, QuestionState>>(new Map());
@@ -187,9 +189,134 @@ export default function AssessmentView() {
   const [autoSubmitReason, setAutoSubmitReason] = useState<'tab-switch' | null>(null);
   const [tabWarning, setTabWarning] = useState<{ count: number; awayMs: number } | null>(null);
 
-  // Session state
   const [sessionId, setSessionId] = useState<number | null>(null);
   const sessionIdRef = useRef<number | null>(null);
+
+  const [showPracticeExitModal, setShowPracticeExitModal] = useState(false);
+  const [isExitingPractice, setIsExitingPractice] = useState(false);
+
+  const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const langMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Split pane resizing state (question vs editor)
+  const [leftPanelPercent, setLeftPanelPercent] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('wissen_assessment_panel_percent');
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed >= 20 && parsed <= 80) return parsed;
+      }
+    } catch {}
+    return 42;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+  const splitPaneRef = useRef<HTMLDivElement | null>(null);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e: MouseEvent) => {
+      if (!isResizing || !splitPaneRef.current) return;
+      const rect = splitPaneRef.current.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const mouseX = e.clientX - rect.left;
+      const minPx = 280;
+      const maxPx = rect.width - 320;
+      const clampedPx = Math.max(minPx, Math.min(mouseX, maxPx));
+      const newPercent = (clampedPx / rect.width) * 100;
+      setLeftPanelPercent(newPercent);
+      try {
+        localStorage.setItem('wissen_assessment_panel_percent', String(Math.round(newPercent)));
+      } catch {}
+    },
+    [isResizing]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, resize, stopResizing]);
+
+  // Vertical resizer state (Editor vs Output window)
+  const [outputHeight, setOutputHeight] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('wissen_assessment_output_height');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 80 && parsed <= 700) return parsed;
+      }
+    } catch {}
+    return 200;
+  });
+  const [isResizingV, setIsResizingV] = useState(false);
+  const rightPanelRef = useRef<HTMLDivElement | null>(null);
+  const dragStartYRef = useRef<number>(0);
+  const startHeightRef = useRef<number>(200);
+
+  const startResizingV = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragStartYRef.current = e.clientY;
+    startHeightRef.current = outputHeight;
+    setIsResizingV(true);
+  }, [outputHeight]);
+
+  const stopResizingV = useCallback(() => {
+    setIsResizingV(false);
+  }, []);
+
+  const resizeV = useCallback(
+    (e: MouseEvent) => {
+      if (!isResizingV || !rightPanelRef.current) return;
+      const deltaY = dragStartYRef.current - e.clientY; // Dragging UP increases output height
+      const panelHeight = rightPanelRef.current.getBoundingClientRect().height;
+      const maxHeight = Math.max(120, panelHeight - 220);
+      const minHeight = 80;
+      const newHeight = Math.max(minHeight, Math.min(maxHeight, startHeightRef.current + deltaY));
+      setOutputHeight(newHeight);
+      try {
+        localStorage.setItem('wissen_assessment_output_height', String(Math.round(newHeight)));
+      } catch {}
+    },
+    [isResizingV]
+  );
+
+  useEffect(() => {
+    if (isResizingV) {
+      window.addEventListener('mousemove', resizeV);
+      window.addEventListener('mouseup', stopResizingV);
+      document.body.style.cursor = 'row-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      window.removeEventListener('mousemove', resizeV);
+      window.removeEventListener('mouseup', stopResizingV);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizingV, resizeV, stopResizingV]);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -197,6 +324,19 @@ export default function AssessmentView() {
   const isSubmittingRef = useRef(false);
   const questionStatesRef = useRef(questionStates);
   const prevQuestionIndexRef = useRef(0);
+
+  // Close language menu on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) {
+        setIsLangMenuOpen(false);
+      }
+    }
+    if (isLangMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isLangMenuOpen]);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -349,26 +489,32 @@ export default function AssessmentView() {
 
   async function loadAssessment(id: number) {
     try {
-      const data = await getAssessment(id);
+      const [data, langs] = await Promise.all([
+        getAssessment(id),
+        fetchJudgeLanguages(),
+      ]);
       setAssessment(data);
       setAssessmentQuestions(data.questions);
+      setJudgeLanguages(langs);
 
       // Initialize question states
       const states = new Map<number, QuestionState>();
       data.questions.forEach((aq: AssessmentQuestion) => {
         const q = aq.question;
-        // Prefer the first allowed language (Python unless restricted) when it has a starter
-        const allowed = allowedLanguagesFor(data);
+        // Prefer the first allowed language when it has a starter
+        const allowed = allowedLanguagesFor(data, langs);
         const starterCode =
           allowed.map((l) => q.starterCodes?.find((sc) => sc.languageId === l.id)).find(Boolean) ?? q.starterCodes?.[0];
-        const defaultLang = allowed[0];
+        const defaultLang = allowed.find((l) => l.id === starterCode?.languageId) || allowed[0] || langs[0];
+        const monacoLang = defaultLang.monacoLang || getMonacoLanguage(defaultLang.name);
+        const initialCode = starterCode?.code || getDefaultComment(monacoLang);
 
         states.set(q.id, {
           questionId: q.id,
-          code: starterCode?.code || `# Write your solution here\n`,
+          code: initialCode,
           languageId: starterCode?.languageId || defaultLang.id,
           languageName: starterCode?.languageName || defaultLang.name,
-          monacoLang: LANGUAGES.find((l) => l.id === (starterCode?.languageId || defaultLang.id))?.monacoLang || 'python',
+          monacoLang,
           isAnswered: false,
           isFlagged: false,
           output: '',
@@ -407,12 +553,14 @@ export default function AssessmentView() {
       for (const draft of status.drafts) {
         const existing = updatedStates.get(draft.questionId);
         if (existing) {
+          const matchedLang = langs.find((l) => l.id === draft.languageId);
+          const monacoLang = matchedLang?.monacoLang || getMonacoLanguage(draft.languageName || '') || existing.monacoLang;
           updatedStates.set(draft.questionId, {
             ...existing,
             code: draft.code,
             languageId: draft.languageId,
             languageName: draft.languageName,
-            monacoLang: LANGUAGES.find(l => l.id === draft.languageId)?.monacoLang || existing.monacoLang,
+            monacoLang,
             isFlagged: draft.isFlagged,
             isAnswered: draft.isAnswered,
           });
@@ -496,18 +644,38 @@ export default function AssessmentView() {
 
   function handleLanguageChange(langId: number) {
     if (!currentQuestion) return;
-    const lang = LANGUAGES.find((l) => l.id === langId);
+    const lang = availableLangs.find((l) => l.id === langId) || judgeLanguages.find((l) => l.id === langId);
     if (!lang) return;
 
+    const monacoLang = lang.monacoLang || getMonacoLanguage(lang.name);
     const starterCode = currentQuestion.starterCodes?.find((sc) => sc.languageId === langId);
     const currentCode = currentState?.code || '';
-    const isDefault = currentQuestion.starterCodes?.some((sc) => sc.code === currentCode);
+
+    // Check if the current editor code is untouched template or default comment
+    const isUntouched =
+      !currentCode.trim() ||
+      currentQuestion.starterCodes?.some((sc) => sc.code.trim() === currentCode.trim()) ||
+      currentCode.trim().startsWith('// Write your') ||
+      currentCode.trim().startsWith('# Write your') ||
+      currentCode.trim().startsWith('-- Write your') ||
+      currentCode.trim().startsWith('; Write your') ||
+      currentCode.trim().startsWith('(* Write your') ||
+      currentCode.trim().startsWith('! Write your');
+
+    let newCode = currentCode;
+    if (isUntouched) {
+      if (starterCode) {
+        newCode = starterCode.code;
+      } else {
+        newCode = getDefaultComment(monacoLang);
+      }
+    }
 
     updateState(currentQuestion.id, {
       languageId: langId,
       languageName: lang.name,
-      monacoLang: lang.monacoLang,
-      code: isDefault && starterCode ? starterCode.code : currentCode,
+      monacoLang,
+      code: newCode,
     });
   }
 
@@ -669,6 +837,33 @@ export default function AssessmentView() {
     }
   }
 
+  // Gracefully exit practice test to dashboard with all drafts saved
+  async function handleExitPracticeToDashboard() {
+    try {
+      setIsExitingPractice(true);
+      if (sessionIdRef.current) {
+        const allDrafts = assessmentQuestions.map((aq) => {
+          const state = questionStatesRef.current.get(aq.question.id);
+          return {
+            questionId: aq.question.id,
+            languageId: state?.languageId || 71,
+            languageName: state?.languageName || 'Python',
+            code: state?.code || '',
+            isFlagged: state?.isFlagged || false,
+            isAnswered: state?.isAnswered || false,
+          };
+        });
+        await saveAllDrafts(sessionIdRef.current, allDrafts);
+      }
+    } catch (err) {
+      console.error('Failed to save drafts on exit:', err);
+    } finally {
+      setIsExitingPractice(false);
+      setShowPracticeExitModal(false);
+      navigate('/exam');
+    }
+  }
+
   // ── Render output panel ──
   const isConsolidatedCompileError =
     currentState?.runMode === 'testcases' &&
@@ -768,7 +963,7 @@ export default function AssessmentView() {
     return null;
   }
 
-  const availableLangs = assessment ? allowedLanguagesFor(assessment) : LANGUAGES;
+  const availableLangs = assessment ? allowedLanguagesFor(assessment, judgeLanguages) : judgeLanguages;
 
   // ═══════════════════════════════════════════
   // ── RENDER: LOADING ──
@@ -857,7 +1052,14 @@ export default function AssessmentView() {
                 <Code2 className="w-6 h-6 text-on-accent" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">{assessment.name}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-bold text-white">{assessment.name}</h1>
+                  {assessment.isPractice && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30">
+                      <Sparkles className="w-3.5 h-3.5" /> Practice Test
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-surface-400">Coding Assessment</p>
               </div>
             </div>
@@ -897,11 +1099,17 @@ export default function AssessmentView() {
 
             {/* Languages */}
             <div className="mb-6">
-              <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">Allowed Languages</p>
+              <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider mb-2">
+                Allowed Languages ({availableLangs.length})
+              </p>
               <div className="flex flex-wrap gap-2">
-                {availableLangs.map(lang => (
-                  <span key={lang.id} className="badge bg-primary-500/15 text-primary-700 ring-1 ring-primary-500/25">
-                    {lang.name}
+                {availableLangs.map((lang) => (
+                  <span
+                    key={lang.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-800/80 border border-surface-700/80 text-surface-200"
+                  >
+                    <LanguageLogo languageId={lang.id} name={lang.name} className="w-4 h-4 shrink-0" />
+                    <span>{lang.name}</span>
                   </span>
                 ))}
               </div>
@@ -933,13 +1141,24 @@ export default function AssessmentView() {
             )}
 
             {/* Start button */}
-            <button
-              onClick={handleStartAssessment}
-              className="btn-primary w-full py-3.5 text-base font-semibold shadow-lg shadow-primary-600/30"
-            >
-              <Zap className="w-5 h-5" />
-              Start Assessment
-            </button>
+            <div className="flex items-center gap-3">
+              {assessment.isPractice && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/exam')}
+                  className="btn-outline py-3.5 px-4 text-sm font-medium flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Dashboard
+                </button>
+              )}
+              <button
+                onClick={handleStartAssessment}
+                className="btn-primary flex-1 py-3.5 text-base font-semibold shadow-lg shadow-primary-600/30"
+              >
+                <Zap className="w-5 h-5" />
+                Start Assessment
+              </button>
+            </div>
 
             <p className="text-center text-surface-600 text-xs mt-4">
               Welcome, <span className="text-surface-400">{candidateName}</span>
@@ -967,7 +1186,14 @@ export default function AssessmentView() {
                 <Shield className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">Review & Submit</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-bold text-white">Review & Submit</h2>
+                  {assessment.isPractice && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30">
+                      <Sparkles className="w-3 h-3" /> Practice
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-surface-400">{assessment.name}</p>
               </div>
             </div>
@@ -1142,15 +1368,33 @@ export default function AssessmentView() {
     <div className="h-screen flex flex-col bg-surface-950 overflow-hidden">
       {/* ─── TOP HEADER BAR ─── */}
       <header className="flex-none h-14 bg-surface-900 border-b border-surface-800 flex items-center px-4 z-30">
-        <div className="flex items-center gap-2.5 min-w-[180px]">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-            <Code2 className="w-4 h-4 text-on-accent" />
+        <div className="flex items-center gap-3 min-w-[220px]">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
+              <Code2 className="w-4 h-4 text-on-accent" />
+            </div>
+            <span className="text-sm font-bold text-white tracking-tight">WissenCode</span>
           </div>
-          <span className="text-sm font-bold text-white tracking-tight">WissenCode</span>
+
+          {assessment.isPractice && (
+            <button
+              type="button"
+              onClick={() => setShowPracticeExitModal(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-surface-300 hover:text-white bg-surface-800 hover:bg-surface-700 border border-surface-700 transition-colors cursor-pointer"
+              title="Return to candidate dashboard"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+            </button>
+          )}
         </div>
 
-        <div className="flex-1 text-center">
+        <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-sm font-semibold text-surface-200">{assessment.name}</span>
+          {assessment.isPractice && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30">
+              <Sparkles className="w-3 h-3" /> Practice
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3 min-w-[280px] justify-end">
@@ -1281,11 +1525,14 @@ export default function AssessmentView() {
       </nav>
 
       {/* ─── MAIN CONTENT (SPLIT PANEL) ─── */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div ref={splitPaneRef} className="flex-1 flex overflow-hidden relative">
         {/* ── LEFT PANEL: Question ── */}
-        <div className={`flex flex-col border-r border-surface-800 overflow-hidden transition-all duration-300 ${
-          isFullscreen ? 'w-0 min-w-0' : 'w-[42%] min-w-[350px]'
-        }`}>
+        <div
+          style={{ width: isFullscreen ? '0px' : `${leftPanelPercent}%` }}
+          className={`flex flex-col overflow-hidden ${
+            isResizing ? '' : 'transition-[width] duration-200 ease-out'
+          } ${isFullscreen ? 'w-0 min-w-0 hidden' : 'min-w-[280px]'}`}
+        >
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -1355,31 +1602,105 @@ export default function AssessmentView() {
           </div>
         </div>
 
-        {/* ── RIGHT PANEL: Code Editor ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-none h-11 border-b border-surface-800 flex items-center justify-between px-4 bg-surface-900/50">
-            <span className="text-sm font-medium text-surface-300">Code editor</span>
-            <div className="flex items-center gap-3">
-              <select
-                value={currentState.languageId}
-                onChange={(e) => handleLanguageChange(parseInt(e.target.value))}
-                className="bg-surface-800 border border-surface-700 rounded-md px-2.5 py-1 text-sm text-surface-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        {/* ── RESIZER / SPLITTER ── */}
+        {!isFullscreen && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize question and editor panels"
+            title="Drag to resize question description and code editor"
+            onMouseDown={startResizing}
+            className={`relative flex-none w-1.5 cursor-col-resize select-none bg-surface-800 hover:bg-primary-500/60 transition-colors flex items-center justify-center z-20 group ${
+              isResizing ? 'bg-primary-500' : ''
+            }`}
+          >
+            {/* Extended invisible touch/drag hit zone */}
+            <div className="absolute -inset-x-2 inset-y-0 cursor-col-resize" />
+            {/* Visual grip handle notch */}
+            <div
+              className={`w-0.5 h-8 rounded-full transition-colors ${
+                isResizing ? 'bg-white' : 'bg-surface-600 group-hover:bg-primary-300'
+              }`}
+            />
+          </div>
+        )}
+
+        {/* ── RIGHT PANEL: Code Editor (CoderPad visual treatment) ── */}
+        <div ref={rightPanelRef} className="flex-1 flex flex-col overflow-hidden bg-surface-950 min-w-[320px]">
+          {/* Top Bar: Minimal, distraction-free IDE chrome (relative z-30 ensures dropdown sits in front of Monaco) */}
+          <div className="flex-none h-11 border-b border-surface-800/80 flex items-center justify-between px-3.5 bg-surface-900/90 backdrop-blur-sm select-none relative z-30">
+            {/* Left: IDE-style language selector with Logo */}
+            <div className="flex items-center gap-2">
+              <div className="relative" ref={langMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
+                  aria-expanded={isLangMenuOpen}
+                  aria-haspopup="listbox"
+                  className="flex items-center gap-2 bg-surface-800 hover:bg-surface-750 text-surface-100 border border-surface-700/80 hover:border-surface-600 rounded-md px-2.5 py-1 text-xs font-medium shadow-sm transition-all focus:outline-none focus:ring-1 focus:ring-primary-500/60 cursor-pointer"
+                >
+                  <LanguageLogo languageId={currentState.languageId} name={currentState.languageName} className="w-4 h-4 shrink-0" />
+                  <span className="font-mono text-xs">{currentState.languageName}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-surface-400 transition-transform duration-150 ${isLangMenuOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isLangMenuOpen && (
+                  <div className="absolute left-0 top-full mt-1.5 w-48 bg-surface-900 border border-surface-700 rounded-lg shadow-2xl py-1 z-50 animate-fade-in ring-1 ring-white/10">
+                    <div className="px-2.5 py-1 text-[10px] uppercase font-semibold text-surface-400 tracking-wider border-b border-surface-800 mb-1">
+                      Select Language
+                    </div>
+                    {availableLangs.map((lang) => {
+                      const isSelected = lang.id === currentState.languageId;
+                      return (
+                        <button
+                          key={lang.id}
+                          type="button"
+                          onClick={() => {
+                            handleLanguageChange(lang.id);
+                            setIsLangMenuOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-left transition-colors ${
+                            isSelected
+                              ? 'bg-primary-600/15 text-primary-300 font-semibold'
+                              : 'text-surface-200 hover:bg-surface-800 hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <LanguageLogo languageId={lang.id} name={lang.name} className="w-4 h-4 shrink-0" />
+                            <span>{lang.name}</span>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-primary-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Quick actions (Run Code + Fullscreen) */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRunCode}
+                disabled={running}
+                title="Run code against sample test cases or custom input"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium bg-primary-600/20 text-primary-400 hover:bg-primary-600/30 border border-primary-500/30 hover:border-primary-500/50 transition-colors disabled:opacity-50"
               >
-                {availableLangs.map((lang) => (
-                  <option key={lang.id} value={lang.id}>{lang.name}</option>
-                ))}
-              </select>
+                <Play className="w-3 h-3 fill-current" />
+                <span>{running ? 'Running...' : 'Run'}</span>
+              </button>
+              <div className="h-4 w-px bg-surface-800 mx-0.5" />
               <button
                 onClick={() => setIsFullscreen(!isFullscreen)}
-                className="btn-ghost p-1.5"
+                className="p-1.5 rounded-md text-surface-400 hover:text-white hover:bg-surface-800/80 transition-colors"
                 title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
             </div>
           </div>
 
-          <div className="flex-1 min-h-0">
+          <div className="flex-1 min-h-[120px] bg-surface-950 relative z-0">
             <Editor
               height="100%"
               language={currentState.monacoLang}
@@ -1404,6 +1725,7 @@ export default function AssessmentView() {
               options={{
                 minimap: { enabled: false },
                 fontSize: 14,
+                lineHeight: 22,
                 lineNumbers: 'on',
                 scrollBeyondLastLine: false,
                 wordWrap: 'on',
@@ -1412,13 +1734,38 @@ export default function AssessmentView() {
                 renderLineHighlight: 'gutter',
                 folding: true,
                 tabSize: 4,
+                fontFamily: "JetBrains Mono, Fira Code, Menlo, Monaco, Consolas, monospace",
+                fontLigatures: true,
+                smoothScrolling: true,
+                cursorBlinking: 'smooth',
               }}
             />
           </div>
 
-          {/* Output tabs */}
-          <div className="flex-none border-t border-surface-800">
-            <div className="flex items-center gap-0 px-4 bg-surface-900/50">
+          {/* ── RESIZER / SPLITTER (Row resize between Editor & Output) ── */}
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize editor and output window"
+            title="Drag to resize editor and output window"
+            onMouseDown={startResizingV}
+            className={`relative flex-none h-1.5 cursor-row-resize select-none bg-surface-800 hover:bg-primary-500/60 transition-colors flex items-center justify-center z-20 group ${
+              isResizingV ? 'bg-primary-500' : ''
+            }`}
+          >
+            {/* Extended invisible touch/drag hit zone */}
+            <div className="absolute -inset-y-2 inset-x-0 cursor-row-resize" />
+            {/* Visual grip handle notch */}
+            <div
+              className={`h-0.5 w-8 rounded-full transition-colors ${
+                isResizingV ? 'bg-white' : 'bg-surface-600 group-hover:bg-primary-300'
+              }`}
+            />
+          </div>
+
+          {/* Output tabs & panel */}
+          <div className="flex-none flex flex-col border-t border-surface-800/80">
+            <div className="flex items-center gap-0 px-4 bg-surface-900/50 border-b border-surface-800/60">
               <button
                 onClick={() => setActiveOutputTab('input')}
                 className={`px-4 py-2.5 text-sm font-medium transition-colors ${
@@ -1437,7 +1784,10 @@ export default function AssessmentView() {
               </button>
             </div>
 
-            <div className="h-[200px] overflow-auto">
+            <div
+              style={{ height: `${outputHeight}px` }}
+              className="overflow-auto bg-surface-950 transition-none"
+            >
               {activeOutputTab === 'input' ? (
                 <textarea
                   className="w-full h-full bg-surface-950 p-3 font-mono text-sm text-surface-200 resize-none focus:outline-none border-none"
@@ -1541,6 +1891,65 @@ export default function AssessmentView() {
             </p>
           </div>
         </div>
+      )}
+
+      {/* Practice Test Exit Confirmation Modal */}
+      {showPracticeExitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fade-in">
+          <div className="relative w-full max-w-md rounded-2xl bg-surface-900 border border-surface-700 shadow-2xl p-6 text-center animate-scale-up">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-lg shadow-purple-500/10">
+              <Sparkles className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-2">Leave Practice Test?</h3>
+
+            <div className="p-4 rounded-xl bg-purple-950/30 border border-purple-500/20 mb-5 text-left">
+              <p className="text-sm font-semibold text-purple-300 flex items-center gap-1.5 mb-1.5">
+                <Clock className="w-4 h-4 shrink-0 text-purple-400" />
+                You can continue your test at any time
+              </p>
+              <p className="text-xs text-surface-400 leading-relaxed">
+                Your code drafts and current progress are automatically saved. You can resume this practice test from your dashboard whenever you're ready.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowPracticeExitModal(false)}
+                disabled={isExitingPractice}
+                className="btn-outline flex-1 py-2.5 text-sm font-medium"
+              >
+                Stay in Test
+              </button>
+              <button
+                type="button"
+                onClick={handleExitPracticeToDashboard}
+                disabled={isExitingPractice}
+                className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-lg shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isExitingPractice ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen overlay during panel resizing so Monaco doesn't swallow mouse events */}
+      {isResizing && (
+        <div className="fixed inset-0 z-50 cursor-col-resize select-none" style={{ pointerEvents: 'auto' }} />
+      )}
+      {isResizingV && (
+        <div className="fixed inset-0 z-50 cursor-row-resize select-none" style={{ pointerEvents: 'auto' }} />
       )}
     </div>
   );

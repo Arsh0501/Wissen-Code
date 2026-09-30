@@ -41,6 +41,24 @@ export const MOCK_USERS: MockUser[] = [
     title: 'Candidate',
     avatarColor: 'bg-amber-600',
   },
+  {
+    id: 'u-candidate-3',
+    name: 'Alex Chen',
+    email: 'alex@wissen.dev',
+    password: 'Candidate@123',
+    role: 'candidate',
+    title: 'Candidate',
+    avatarColor: 'bg-blue-600',
+  },
+  {
+    id: 'u-candidate-4',
+    name: 'Priya Sharma',
+    email: 'priya@wissen.dev',
+    password: 'Candidate@123',
+    role: 'candidate',
+    title: 'Candidate',
+    avatarColor: 'bg-purple-600',
+  },
 ];
 
 export function findUserByCredentials(email: string, password: string): MockUser | undefined {

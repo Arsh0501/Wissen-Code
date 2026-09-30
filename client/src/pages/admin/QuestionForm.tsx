@@ -12,6 +12,7 @@ import {
   ArrowLeft, Save, Plus, Trash2, Code2, FlaskConical,
   Eye, EyeOff, Download
 } from 'lucide-react';
+import LanguageLogo from '../../components/LanguageLogo';
 
 const LANGUAGES = [
   { id: 71, name: 'Python', monacoLang: 'python', defaultCode: '# Write your solution here\n\ndef solve():\n    pass\n\nsolve()' },
@@ -446,13 +447,14 @@ export default function QuestionForm() {
                 <button
                   key={lang.id}
                   onClick={() => setActiveStarterLang(lang.id)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
                     activeStarterLang === lang.id
                       ? 'bg-surface-700 text-white'
                       : 'text-surface-400 hover:text-white'
                   }`}
                 >
-                  {lang.name}
+                  <LanguageLogo languageId={lang.id} name={lang.name} className="w-4 h-4 shrink-0" />
+                  <span>{lang.name}</span>
                 </button>
               ))}
             </div>

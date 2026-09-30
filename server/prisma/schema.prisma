@@ -70,6 +70,7 @@ model Assessment {
   timeLimitMinutes Int       @default(60)
   passingScore     Int       @default(60) // Percentage of total marks needed to pass
   status           String    @default("published") // "draft" | "published" | "archived"
+  isPractice       Boolean   @default(false) // practice mode test: repeatable, random questions, tagged results
   startAt          DateTime? // Candidates can start only after this (null = anytime)
   endAt            DateTime? // Candidates can start only before this (null = no deadline)
   shuffleQuestions Boolean   @default(false)

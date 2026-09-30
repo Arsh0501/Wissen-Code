@@ -13,6 +13,11 @@ export async function guestAssessmentIds(userId: number): Promise<number[]> {
 
 export async function canAccessAssessment(req: Request, assessmentId: number): Promise<boolean> {
   if (!req.user?.guest) return true;
+  const assessment = await prisma.assessment.findUnique({
+    where: { id: assessmentId },
+    select: { isPractice: true },
+  });
+  if (assessment?.isPractice) return true;
   const ids = await guestAssessmentIds(req.user.id);
   return ids.includes(assessmentId);
 }
