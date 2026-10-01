@@ -293,7 +293,7 @@ router.get('/dashboard', adminOnly, async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/assessments — Admin: all assessments with stats. Examinee: published ones with their own status.
+// GET /api/assessments — Admin: all assessments with stats. Candidate: published ones with their own status.
 router.get('/', async (req: Request, res: Response) => {
   try {
     if (isAdmin(req)) {
@@ -384,7 +384,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/assessments/:id — Admin: full config. Examinee: exam payload (sample tests only, config applied).
+// GET /api/assessments/:id — Admin: full config. Candidate: exam payload (sample tests only, config applied).
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);

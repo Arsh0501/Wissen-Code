@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextType>(
     () => ({
       user,
-      role: user?.role ?? 'examinee',
+      role: user?.role ?? 'candidate',
       candidateName: user?.name ?? '',
       isLoggedIn: !!user,
       authError,

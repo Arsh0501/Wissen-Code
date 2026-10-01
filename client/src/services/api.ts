@@ -313,7 +313,7 @@ export async function getPublicInvite(token: string): Promise<PublicInvite> {
 
 export async function joinInvite(token: string, input: { name: string; email: string }): Promise<{
   token: string;
-  user: { id: number; email: string; name: string; role: 'examinee'; guest: true };
+  user: { id: number; email: string; name: string; role: 'candidate'; guest: true };
   assessmentId: number;
 }> {
   const { data } = await api.post(`/public/invite/${encodeURIComponent(token)}/join`, input);
@@ -327,5 +327,8 @@ export async function retakeAssessment(assessmentId: number): Promise<SessionRes
   return data;
 }
 
-export default api;
+export function getReportDownloadUrl(candidateName: string, assessmentId: number): string {
+  return `/api/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/pdf`;
+}
 
+export default api;

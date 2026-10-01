@@ -252,14 +252,29 @@ export default function QuestionForm() {
           </div>
           <div className={styles.saveBox}>
             {isEdit && id && (
-              <a 
-                href={getExportMdUrl(parseInt(id))}
+              <button 
+                type="button"
+                onClick={() => {
+                  const token = localStorage.getItem('wissen-token');
+                  fetch(getExportMdUrl(parseInt(id)), { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
+                    .then(res => res.blob())
+                    .then(blob => {
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `question-${id}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }).catch(err => {
+                      console.error(err);
+                      alert('Failed to export markdown');
+                    });
+                }}
                 className="btn-outline"
-                download
               >
                 <Download className={styles.downloadIcon} />
                 Export as MD
-              </a>
+              </button>
             )}
             <button onClick={handleSave} disabled={saving} className="btn-primary">
               <Save className={styles.downloadIcon} />

@@ -5,8 +5,8 @@ const prisma = new PrismaClient();
 
 const MOCK_USERS = [
   { name: 'Ava Patel', email: 'admin@wissen.dev', password: 'Admin@123', role: 'admin' },
-  { name: 'Rahul Singh', email: 'rahul@wissen.dev', password: 'Candidate@123', role: 'examinee' },
-  { name: 'Maria Gomez', email: 'maria@wissen.dev', password: 'Candidate@123', role: 'examinee' },
+  { name: 'Rahul Singh', email: 'rahul@wissen.dev', password: 'Candidate@123', role: 'candidate' },
+  { name: 'Maria Gomez', email: 'maria@wissen.dev', password: 'Candidate@123', role: 'candidate' },
 ];
 
 async function main() {

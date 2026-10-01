@@ -17,9 +17,9 @@ import InterviewPlanner from './pages/interviews/InterviewPlanner';
 import InterviewWorkspace from './pages/interviews/InterviewWorkspace';
 import SubmissionsViewer from './pages/admin/SubmissionsViewer';
 import CandidateReport from './pages/admin/CandidateReport';
-import ExamDashboard from './pages/examinee/ExamDashboard';
-import AssessmentView from './pages/examinee/AssessmentView';
-import SubmissionResult from './pages/examinee/SubmissionResult';
+import ExamDashboard from './pages/candidate/ExamDashboard';
+import AssessmentView from './pages/candidate/AssessmentView';
+import SubmissionResult from './pages/candidate/SubmissionResult';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { isLoggedIn } = useAuth();
@@ -70,7 +70,7 @@ function AppRoutes() {
         <Route path="/admin/interviews/:id" element={<RequireAdmin><InterviewWorkspace /></RequireAdmin>} />
       </Route>
 
-      {/* Examinee full-screen feature pages */}
+      {/* Candidate full-screen feature pages */}
       <Route path="/exam/:assessmentId" element={<RequireAuth><AssessmentView /></RequireAuth>} />
       <Route path="/exam/:assessmentId/result" element={<RequireAuth><SubmissionResult /></RequireAuth>} />
 

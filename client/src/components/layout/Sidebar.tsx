@@ -15,7 +15,7 @@ export default function Sidebar() {
           <Code2 className={styles.codeIcon} />
         </div>
         <div>
-          <h1 className={styles.wissenCodeTitle}>Wissen Code</h1>
+          <h1 className={styles.wissenCodeTitle}>WissenCode</h1>
           <p className={styles.assessmentPlatformText}>Assessment Platform</p>
         </div>
       </div>

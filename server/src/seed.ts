@@ -265,7 +265,7 @@ async function main() {
   }
 
   console.log(`\n✅ Created ${sessionCount} candidate sessions with graded submissions`);
-  console.log('\nSeed complete! Log in as Admin to see the dashboard, or as an Examinee (e.g. a new name) to take a test.');
+  console.log('\nSeed complete! Log in as Admin to see the dashboard, or as an Candidate (e.g. a new name) to take a test.');
 }
 
 main()

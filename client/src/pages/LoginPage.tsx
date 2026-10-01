@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MOCK_USERS } from '../data/mockUsers';
 import { Code2 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
 import styles from './LoginPage.module.css';
@@ -19,11 +18,6 @@ export default function LoginPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     await login(email.trim(), password);
-  }
-
-  function fillDemoAccount(demoEmail: string, demoPassword: string) {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
   }
 
   return (
@@ -98,26 +92,6 @@ export default function LoginPage() {
               Sign In
             </button>
           </form>
-        </div>
-
-        {/* Demo accounts for the mock auth layer */}
-        <div className={styles.demoAccountsBox}>
-          <p className={styles.demoAccountsText}>Demo Accounts</p>
-          <div className={styles.loginCardBox}>
-            {MOCK_USERS.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => fillDemoAccount(u.email, u.password)}
-                className={styles.nameButton}
-              >
-                <span className={styles.nameLabel}>{u.name}</span>
-                <span className={styles.loginCardLabel}>
-                  {u.role === 'examinee' ? 'candidate' : u.role}
-                </span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>

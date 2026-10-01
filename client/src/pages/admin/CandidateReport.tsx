@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getReportData, downloadReportPdf } from '../../services/api';
+import { getReportData, getReportDownloadUrl } from '../../services/api';
 import { PassFailBadge, formatDuration } from '../../components/ui';
 import {
   Code2, Download, CheckCircle, XCircle,
@@ -58,7 +58,19 @@ export default function CandidateReport() {
     if (!candidateName || !assessmentId) return;
     setDownloading(true);
     try {
-      const blob = await downloadReportPdf(candidateName, parseInt(assessmentId));
+      const url = getReportDownloadUrl(candidateName, parseInt(assessmentId));
+      const token = localStorage.getItem('wissen-token');
+      const response = await fetch(url, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+
+      const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;

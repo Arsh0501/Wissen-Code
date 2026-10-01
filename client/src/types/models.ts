@@ -112,7 +112,7 @@ export interface Assessment {
   availability?: Availability;
   stats?: AssessmentStats;
   candidates?: CandidateSummary[];
-  // Examinee listing only
+  // Candidate listing only
   candidateStatus?: 'not-started' | 'in-progress' | 'completed';
   startedAt?: string | null;
   finishedAt?: string | null;

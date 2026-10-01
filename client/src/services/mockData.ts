@@ -92,13 +92,23 @@ function buildSeedDb(): MockDb {
     assessmentId: 1,
     questionId: q.id,
     orderIndex: idx,
+    marks: 10,
     question: q,
   }));
 
   const assessment: Assessment = {
     id: 1,
     name: 'Sample Coding Assessment',
+    description: 'This is a sample assessment.',
+    instructions: 'Read carefully.',
     timeLimitMinutes: 30,
+    passingScore: 50,
+    status: 'published',
+    startAt: null,
+    endAt: null,
+    shuffleQuestions: false,
+    allowedLanguages: '[]',
+    showResults: true,
     createdAt: timestamp,
     updatedAt: timestamp,
     questions: assessmentQuestions,
@@ -345,7 +355,7 @@ export function getAssessmentById(id: number): Assessment | undefined {
   const assessment = db.assessments.find((a) => a.id === id);
   if (!assessment) return undefined;
 
-  // Examinees only ever see sample test cases, mirroring the real API's behaviour.
+  // Candidates only ever see sample test cases, mirroring the real API's behaviour.
   return {
     ...assessment,
     questions: assessment.questions.map((aq) => ({
@@ -375,6 +385,7 @@ export function createAssessmentRecord(input: {
         assessmentId: id,
         questionId: qId,
         orderIndex: idx,
+        marks: 10,
         question,
       };
     })
@@ -384,6 +395,15 @@ export function createAssessmentRecord(input: {
     id,
     name: input.name,
     timeLimitMinutes: input.timeLimitMinutes,
+    description: '',
+    instructions: '',
+    passingScore: 50,
+    status: 'draft',
+    startAt: null,
+    endAt: null,
+    shuffleQuestions: false,
+    allowedLanguages: '[]',
+    showResults: true,
     createdAt: timestamp,
     updatedAt: timestamp,
     questions,

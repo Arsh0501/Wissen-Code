@@ -4,13 +4,13 @@ export interface AuthUser {
   id: number;
   email: string;
   name: string;
-  role: 'admin' | 'examinee';
+  role: 'admin' | 'candidate';
   guest?: boolean; // joined through an invite link
 }
 
 export interface AuthContextType {
   user: AuthUser | null;
-  role: 'admin' | 'examinee';
+  role: 'admin' | 'candidate';
   candidateName: string;
   isLoggedIn: boolean;
   authError: string | null;
@@ -21,7 +21,7 @@ export interface AuthContextType {
   updateProfile: (updates: Partial<Pick<AuthUser, 'name' | 'email'>>) => void;
 }
 
-export type Role = 'admin' | 'examinee';
+export type Role = 'admin' | 'candidate';
 
 export interface MockUser {
   id: string;

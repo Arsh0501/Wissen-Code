@@ -223,7 +223,7 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
           email,
           // Guests never sign in with a password; this random hash just satisfies the column
           password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
-          role: 'examinee',
+          role: 'candidate',
           isGuest: true,
         },
       });
@@ -233,7 +233,7 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
       await prisma.inviteRedemption.create({ data: { inviteId: invite.id, userId: user.id } });
     }
 
-    const authUser = { id: user.id, email: user.email, name: user.name, role: 'examinee' as const, guest: true };
+    const authUser = { id: user.id, email: user.email, name: user.name, role: 'candidate' as const, guest: true };
     res.json({ token: signToken(authUser), user: authUser, assessmentId: invite.assessment.id });
   } catch (error) {
     console.error('Error joining via invite:', error);

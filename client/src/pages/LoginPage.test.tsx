@@ -18,7 +18,7 @@ function renderLoginPage() {
 describe('LoginPage', () => {
   it('renders the sign-in form and demo accounts', () => {
     renderLoginPage();
-    expect(screen.getByRole('heading', { name: /wissen code/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /wissencode/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeDisabled();

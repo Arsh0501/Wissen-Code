@@ -66,28 +66,3 @@
   @apply w-full py-3 text-base;
 }
 
-.demoAccountsBox {
-  composes: card from global;
-  @apply mt-4;
-}
-
-.demoAccountsText {
-  @apply text-xs font-medium text-surface-500 uppercase tracking-wider mb-3;
-}
-
-.loginCardBox {
-  @apply space-y-2;
-}
-
-.nameButton {
-  @apply w-full flex items-center justify-between px-3 py-2 rounded-lg border border-surface-800 hover:border-surface-600 text-left transition-colors cursor-pointer;
-}
-
-.nameLabel {
-  @apply text-sm text-surface-300;
-}
-
-.loginCardLabel {
-  composes: badge from global;
-  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700 capitalize;
-}

@@ -9,14 +9,14 @@ describe('getNavItemsForRole', () => {
     expect(labels).not.toContain('My Assessments');
   });
 
-  it('includes examinee-only items for examinees', () => {
-    const labels = getNavItemsForRole('examinee').map((i) => i.label);
+  it('includes candidate-only items for candidates', () => {
+    const labels = getNavItemsForRole('candidate').map((i) => i.label);
     expect(labels).toContain('My Assessments');
     expect(labels).not.toContain('Question Bank');
   });
 
   it('includes shared items for every role', () => {
-    for (const role of ['admin', 'examinee'] as const) {
+    for (const role of ['admin', 'candidate'] as const) {
       const labels = getNavItemsForRole(role).map((i) => i.label);
       expect(labels).toContain('Dashboard');
       expect(labels).toContain('Profile');

@@ -61,6 +61,7 @@ export const REVIEW_QUEUE_MESSAGES = {
 };
 
 export const QUESTION_BANK_MESSAGES = {
+  failedExportMarkdown: 'Failed to export markdown',
   failedLoadQuestions: 'Failed to load questions',
   deleteUsedQuestionConfirm: (title: string, used: number) => `"${title}" is used in ${used} assessment${used === 1 ? '' : 's'}. Deleting it removes it from those assessments and deletes candidates' answers to it. Continue?`,
   deleteQuestionConfirm: (title: string) => `Delete "${title}"? This cannot be undone.`,

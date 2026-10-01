@@ -28,4 +28,4 @@ export function renderWithProviders(
 }
 
 export const adminUser = MOCK_USERS.find((u) => u.role === 'admin')!;
-export const examineeUser = MOCK_USERS.find((u) => u.role === 'examinee')!;
+export const candidateUser = MOCK_USERS.find((u) => u.role === 'candidate')!;

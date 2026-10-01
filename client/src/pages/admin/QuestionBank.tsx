@@ -11,7 +11,7 @@ import {
   Plus, Edit, Trash2, FileText, Search, ChevronDown, Upload, Eye, X, Download, EyeOff, Sparkles,
 } from 'lucide-react';
 import styles from './QuestionBank.module.css';
-import { QUESTION_BANK_MESSAGES as MSG } from '../../constants';
+import { STORAGE_KEYS, QUESTION_BANK_MESSAGES as MSG } from '../../constants';
 
 export default function QuestionBank() {
   const navigate = useNavigate();
@@ -42,6 +42,23 @@ export default function QuestionBank() {
       setError(apiError(err, MSG.failedLoadQuestions));
     } finally {
       setLoading(false);
+    }
+  }
+
+  // The export endpoint needs the auth header, so fetch it and save the file instead of linking to it
+  async function exportMarkdown(id: number) {
+    const token = localStorage.getItem(STORAGE_KEYS.token);
+    try {
+      const res = await fetch(getExportMdUrl(id), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `question-${id}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+      alert(MSG.failedExportMarkdown);
     }
   }
 
@@ -310,7 +327,7 @@ export default function QuestionBank() {
                 </div>
               </div>
               <div className={styles.exportAsMarkdownBox3}>
-                <a href={getExportMdUrl(preview.id)} className={styles.previewButton} title="Export as Markdown"><Download className={styles.plusIcon} /></a>
+                <button onClick={() => exportMarkdown(preview.id)} className={styles.previewButton} title="Export as Markdown"><Download className={styles.plusIcon} /></button>
                 <Link to={`/admin/questions/${preview.id}/edit`} className={styles.previewButton} title="Edit"><Edit className={styles.plusIcon} /></Link>
                 <button onClick={() => setPreview(null)} className={styles.previewButton} aria-label="Close"><X className={styles.xIcon} /></button>
               </div>

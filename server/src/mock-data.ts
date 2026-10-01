@@ -145,7 +145,7 @@ for i in range(1, n + 1):
       { input: 'Hannah', expectedOutput: 'hannaH', isSample: true },
       { input: 'a', expectedOutput: 'a', isSample: false },
       { input: 'racecar', expectedOutput: 'racecar', isSample: false },
-      { input: 'Wissen Code', expectedOutput: 'edoC nessiW', isSample: false },
+      { input: 'WissenCode', expectedOutput: 'edoC nessiW', isSample: false },
     ],
     solution: `print(input()[::-1])
 `,
