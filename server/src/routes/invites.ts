@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../prisma';
 import { adminOnly } from '../middleware/adminOnly';
 import { signToken } from '../middleware/auth';
-import { availabilityError } from './sessions';
+import { availabilityError } from './attempts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

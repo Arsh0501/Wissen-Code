@@ -52,8 +52,13 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
     const assessmentId = parseInt(req.params.assessmentId);
     const candidateName = req.user?.name || 'Anonymous';
 
-    const session = await prisma.assessmentSession.findUnique({
-      where: { assessmentId_candidateName: { assessmentId, candidateName } },
+    const session = await prisma.assessmentSession.findFirst({
+      where: {
+        assessmentId,
+        candidateName,
+        ...(req.user?.role === 'admin' ? { finishedAt: null } : {}),
+      },
+      orderBy: { startedAt: 'desc' },
       include: { drafts: true, _count: { select: { tabSwitches: true } }, assessment: { select: { timeLimitMinutes: true } } },
     });
 
@@ -65,55 +70,13 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/sessions/start — Start or resume an assessment session (starts the timer)
-router.post('/start', async (req: Request, res: Response) => {
+// Removed: POST /sessions/start is now POST /assessments/:id/start in assessments router
+
+
+// GET /api/attempts/:id — Get session with drafts + remaining time
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const { assessmentId } = req.body;
-    const candidateName = req.user?.name || 'Anonymous';
-
-    if (!assessmentId) {
-      return res.status(400).json({ error: 'assessmentId is required' });
-    }
-
-    const assessment = await prisma.assessment.findUnique({
-      where: { id: assessmentId },
-      select: { id: true, timeLimitMinutes: true, status: true, startAt: true, endAt: true },
-    });
-
-    if (!assessment) {
-      return res.status(404).json({ error: 'Assessment not found' });
-    }
-    if (!(await canAccessAssessment(req, assessment.id))) {
-      return res.status(403).json({ error: 'You were not invited to this assessment' });
-    }
-
-    let session = await prisma.assessmentSession.findUnique({
-      where: { assessmentId_candidateName: { assessmentId, candidateName } },
-      include: { drafts: true, _count: { select: { tabSwitches: true } } },
-    });
-
-    if (!session) {
-      // Only new sessions are gated — a candidate mid-test can always resume
-      const blocked = availabilityError(assessment);
-      if (blocked) return res.status(403).json({ error: blocked });
-
-      session = await prisma.assessmentSession.create({
-        data: { assessmentId, candidateName },
-        include: { drafts: true, _count: { select: { tabSwitches: true } } },
-      });
-    }
-
-    res.json(sessionResponse(session, assessment.timeLimitMinutes));
-  } catch (error: any) {
-    console.error('Error starting session:', error);
-    res.status(500).json({ error: 'Failed to start session' });
-  }
-});
-
-// GET /api/sessions/:sessionId — Get session with drafts + remaining time
-router.get('/:sessionId', async (req: Request, res: Response) => {
-  try {
-    const sessionId = parseInt(req.params.sessionId);
+    const sessionId = parseInt(req.params.id);
 
     const session = await prisma.assessmentSession.findUnique({
       where: { id: sessionId },
@@ -141,7 +104,7 @@ router.get('/:sessionId', async (req: Request, res: Response) => {
 
 // Loads a session that is still accepting answers, or sends the error response
 async function getWritableSession(req: Request, res: Response) {
-  const sessionId = parseInt(req.params.sessionId);
+  const sessionId = parseInt(req.params.id);
   const session = await prisma.assessmentSession.findUnique({
     where: { id: sessionId },
     select: {
@@ -182,8 +145,8 @@ function draftData(d: any) {
   };
 }
 
-// POST /api/sessions/:sessionId/save-draft — Upsert a draft answer for a question
-router.post('/:sessionId/save-draft', async (req: Request, res: Response) => {
+// PUT /api/attempts/:id/answer — Upsert a draft answer for a question
+router.put('/:id/answer', async (req: Request, res: Response) => {
   try {
     const { questionId, languageId, languageName } = req.body;
 
@@ -207,8 +170,8 @@ router.post('/:sessionId/save-draft', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/sessions/:sessionId/save-all-drafts — Batch save all drafts at once
-router.post('/:sessionId/save-all-drafts', async (req: Request, res: Response) => {
+// POST /api/attempts/:id/save-all-drafts — Batch save all drafts at once
+router.post('/:id/save-all-drafts', async (req: Request, res: Response) => {
   try {
     const { drafts } = req.body;
 
@@ -236,8 +199,8 @@ router.post('/:sessionId/save-all-drafts', async (req: Request, res: Response) =
   }
 });
 
-// POST /api/sessions/:sessionId/tab-switch — Record the candidate leaving and returning to the exam tab
-router.post('/:sessionId/tab-switch', async (req: Request, res: Response) => {
+// POST /api/attempts/:id/tab-switch — Record the candidate leaving and returning to the exam tab
+router.post('/:id/tab-switch', async (req: Request, res: Response) => {
   try {
     const leftAt = new Date(req.body.leftAt);
     const durationMs = Math.round(Number(req.body.durationMs));
@@ -267,8 +230,8 @@ router.post('/:sessionId/tab-switch', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/sessions/:sessionId/paste — Record text pasted into the code editor
-router.post('/:sessionId/paste', async (req: Request, res: Response) => {
+// POST /api/attempts/:id/paste — Record text pasted into the code editor
+router.post('/:id/paste', async (req: Request, res: Response) => {
   try {
     const questionId = Number(req.body.questionId);
     const charCount = Math.round(Number(req.body.charCount));
@@ -337,10 +300,10 @@ async function finalizeSession(sessionId: number): Promise<FinalizeResult> {
   };
 }
 
-// POST /api/sessions/:sessionId/finish — Finalize session, grade all answers
-router.post('/:sessionId/finish', async (req: Request, res: Response) => {
+// POST /api/attempts/:id/submit — Finalize session, grade all answers
+router.post('/:id/submit', async (req: Request, res: Response) => {
   try {
-    const result = await finalizeSession(parseInt(req.params.sessionId));
+    const result = await finalizeSession(parseInt(req.params.id));
     if (result.status === 'already-finished') return res.json({ message: 'Session is already finished' });
     if (result.status === 'not-found') return res.status(404).json({ error: 'Session not found' });
     res.json(result.body);

@@ -5,7 +5,7 @@ import { adminOnly } from '../middleware/adminOnly';
 import { generateReportHTML } from '../templates/report-html';
 import { summarizeCandidates, aggregate } from '../services/stats';
 import { computeEvaluation } from '../services/grading';
-import { MAX_TAB_SWITCHES } from './sessions';
+import { MAX_TAB_SWITCHES } from './attempts';
 
 const router = Router();
 
@@ -290,7 +290,7 @@ router.get('/:candidateName/:assessmentId/download', async (req: Request, res: R
 // ──────────────────────────────────────────────────────────────
 // Helper: Build report data from real DB + static placeholders
 // ──────────────────────────────────────────────────────────────
-async function buildReportData(candidateName: string, assessmentId: number) {
+export async function buildReportData(candidateName: string, assessmentId: number) {
   // Fetch assessment
   const assessment = await prisma.assessment.findUnique({
     where: { id: assessmentId },
