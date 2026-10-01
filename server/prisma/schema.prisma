@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -20,6 +20,17 @@ model User {
   createdAt DateTime @default(now())
 
   inviteRedemptions InviteRedemption[]
+  sessions          UserSession[]
+}
+
+model UserSession {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Question {
@@ -140,7 +151,7 @@ model AssessmentSession {
   tabSwitches     TabSwitchEvent[]
   pasteEvents     PasteEvent[]
 
-  @@unique([assessmentId, candidateName])
+  @@index([assessmentId, candidateName])
 }
 
 // One row each time the candidate leaves the exam tab/window during a session

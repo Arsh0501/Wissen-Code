@@ -4,7 +4,7 @@ import { computeEvaluation } from '../services/grading';
 import { canAccessAssessment, guestAssessmentIds } from '../services/guest-access';
 import { adminOnly } from '../middleware/adminOnly';
 import { summarizeCandidates, aggregate } from '../services/stats';
-import { availabilityError } from './sessions';
+import { availabilityError } from './attempts';
 
 const router = Router();
 
@@ -347,8 +347,9 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     const candidateName = req.user?.name || '';
-    const session = await prisma.assessmentSession.findUnique({
-      where: { assessmentId_candidateName: { assessmentId: id, candidateName } },
+    const session = await prisma.assessmentSession.findFirst({
+      where: { assessmentId: id, candidateName },
+      orderBy: { startedAt: 'desc' },
       select: { id: true },
     });
     const blocked = availabilityError(assessment);
@@ -380,6 +381,130 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching assessment:', error);
     res.status(500).json({ error: 'Failed to fetch assessment' });
+  }
+});
+
+// POST /api/assessments/:id/start — Start or resume an assessment session (starts the timer)
+router.post('/:id/start', async (req: Request, res: Response) => {
+  try {
+    const assessmentId = parseInt(req.params.id);
+    const candidateName = req.user?.name || 'Anonymous';
+
+    if (isNaN(assessmentId)) {
+      return res.status(400).json({ error: 'assessmentId is required' });
+    }
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: { id: true, timeLimitMinutes: true, status: true, startAt: true, endAt: true },
+    });
+
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+    if (!(await canAccessAssessment(req, assessment.id))) {
+      return res.status(403).json({ error: 'You were not invited to this assessment' });
+    }
+
+    let session = await prisma.assessmentSession.findFirst({
+      where: {
+        assessmentId,
+        candidateName,
+        ...(req.user?.role === 'admin' ? { finishedAt: null } : {}),
+      },
+      orderBy: { startedAt: 'desc' },
+      include: { drafts: true, _count: { select: { tabSwitches: true } } },
+    });
+
+    if (!session) {
+      // Only new sessions are gated — a candidate mid-test can always resume
+      const blocked = availabilityError(assessment);
+      if (blocked) return res.status(403).json({ error: blocked });
+
+      session = await prisma.assessmentSession.create({
+        data: { assessmentId, candidateName },
+        include: { drafts: true, _count: { select: { tabSwitches: true } } },
+      });
+    }
+
+    // We can just construct a sessionResponse manually without moving it
+    const remainingSeconds = (startedAt: Date, timeLimitMinutes: number) => {
+      const remainingMs = timeLimitMinutes * 60 * 1000 - (Date.now() - startedAt.getTime());
+      return Math.max(0, Math.floor(remainingMs / 1000));
+    };
+
+    const sessionData = {
+      sessionId: session.id,
+      startedAt: session.startedAt.toISOString(),
+      finishedAt: session.finishedAt?.toISOString() || null,
+      timeLimitMinutes: assessment.timeLimitMinutes,
+      remainingSeconds: session.finishedAt ? 0 : remainingSeconds(session.startedAt, assessment.timeLimitMinutes),
+      isFinished: !!session.finishedAt,
+      drafts: session.drafts,
+      tabSwitchCount: session._count?.tabSwitches ?? 0,
+      tabSwitchLimit: 3, // MAX_TAB_SWITCHES
+    };
+
+    res.json(sessionData);
+  } catch (error: any) {
+    console.error('Error starting session:', error);
+    res.status(500).json({ error: 'Failed to start session' });
+  }
+});
+
+// GET /api/assessments/:id/candidates
+router.get('/:id/candidates', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const assessmentId = parseInt(req.params.id);
+    if (isNaN(assessmentId)) {
+      return res.status(400).json({ error: 'Invalid assessmentId' });
+    }
+
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        name: true,
+        timeLimitMinutes: true,
+        passingScore: true,
+        questions: { select: { questionId: true, marks: true } },
+      },
+    });
+
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    const [submissions, sessions] = await Promise.all([
+      prisma.submission.findMany({
+        where: { assessmentId },
+        select: { candidateName: true, score: true, createdAt: true, questionId: true },
+      }),
+      prisma.assessmentSession.findMany({
+        where: { assessmentId },
+        select: { candidateName: true, finishedAt: true, startedAt: true },
+      }),
+    ]);
+
+    const candidates = summarizeCandidates(assessment.questions, assessment.passingScore, submissions, sessions)
+      .map((c) => {
+        const s = sessions.find((x) => x.candidateName === c.name);
+        return {
+          ...c,
+          session: s ? { startedAt: s.startedAt.toISOString(), finishedAt: s.finishedAt?.toISOString() || null } : null,
+        };
+      })
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
+
+    const { questions: _q, ...assessmentInfo } = assessment;
+    res.json({
+      assessment: assessmentInfo,
+      candidates,
+      stats: aggregate(candidates),
+    });
+  } catch (error) {
+    console.error('Error fetching assessment submissions:', error);
+    res.status(500).json({ error: 'Failed to fetch submissions' });
   }
 });
 

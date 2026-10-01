@@ -229,17 +229,17 @@ export interface SessionResponse {
 export async function getSessionStatus(
   assessmentId: number
 ): Promise<({ exists: true } & SessionResponse) | { exists: false }> {
-  const { data } = await api.get(`/sessions/status/${assessmentId}`);
+  const { data } = await api.get(`/attempts/status/${assessmentId}`);
   return data;
 }
 
 export async function startSession(assessmentId: number): Promise<SessionResponse> {
-  const { data } = await api.post('/sessions/start', { assessmentId });
+  const { data } = await api.post(`/assessments/${assessmentId}/start`);
   return data;
 }
 
 export async function getSession(sessionId: number): Promise<SessionResponse> {
-  const { data } = await api.get(`/sessions/${sessionId}`);
+  const { data } = await api.get(`/attempts/${sessionId}`);
   return data;
 }
 
@@ -254,7 +254,7 @@ export async function saveDraft(
     isAnswered?: boolean;
   }
 ): Promise<void> {
-  await api.post(`/sessions/${sessionId}/save-draft`, draft);
+  await api.put(`/attempts/${sessionId}/answer`, draft);
 }
 
 export async function saveAllDrafts(
@@ -268,14 +268,14 @@ export async function saveAllDrafts(
     isAnswered?: boolean;
   }[]
 ): Promise<void> {
-  await api.post(`/sessions/${sessionId}/save-all-drafts`, { drafts });
+  await api.post(`/attempts/${sessionId}/save-all-drafts`, { drafts });
 }
 
 export async function recordTabSwitch(
   sessionId: number,
   event: { leftAt: string; durationMs: number }
 ): Promise<{ count: number; limit: number; autoSubmitted: boolean }> {
-  const { data } = await api.post(`/sessions/${sessionId}/tab-switch`, event);
+  const { data } = await api.post(`/attempts/${sessionId}/tab-switch`, event);
   return data;
 }
 
@@ -283,11 +283,11 @@ export async function recordPaste(
   sessionId: number,
   event: { questionId: number; charCount: number; lineCount: number }
 ): Promise<void> {
-  await api.post(`/sessions/${sessionId}/paste`, event);
+  await api.post(`/attempts/${sessionId}/paste`, event);
 }
 
 export async function finishSession(sessionId: number): Promise<any> {
-  const { data } = await api.post(`/sessions/${sessionId}/finish`);
+  const { data } = await api.post(`/attempts/${sessionId}/submit`);
   return data;
 }
 
@@ -306,7 +306,7 @@ export interface AssessmentSubmissionsResponse {
 export async function getAssessmentSubmissions(
   assessmentId: number
 ): Promise<AssessmentSubmissionsResponse> {
-  const { data } = await api.get(`/admin/reports/submissions/${assessmentId}`);
+  const { data } = await api.get(`/assessments/${assessmentId}/candidates`);
   return data;
 }
 
@@ -315,7 +315,7 @@ export async function getReportData(
   assessmentId: number
 ): Promise<any> {
   const { data } = await api.get(
-    `/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/data`
+    `/candidates/${encodeURIComponent(candidateName)}/report`, { params: { assessmentId } }
   );
   return data;
 }

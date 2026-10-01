@@ -5,11 +5,13 @@ import questionRoutes from './routes/questions';
 import assessmentRoutes from './routes/assessments';
 import judgeRoutes from './routes/judge';
 import submissionRoutes from './routes/submissions';
-import sessionRoutes from './routes/sessions';
+import attemptRoutes from './routes/attempts';
+import candidateRoutes from './routes/candidates';
 import adminReportRoutes from './routes/admin-reports';
 import adminQuestionRoutes from './routes/admin-questions';
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
+import agentsRoutes from './routes/agents';
 import { authenticate } from './middleware/auth';
 import { isMockMode } from './services/judge0';
 
@@ -44,10 +46,12 @@ app.use('/api/questions', questionRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use('/api/judge', judgeRoutes);
 app.use('/api/submissions', submissionRoutes);
-app.use('/api/sessions', sessionRoutes);
+app.use('/api/attempts', attemptRoutes);
+app.use('/api/candidates', candidateRoutes);
 app.use('/api/admin/reports', adminReportRoutes);
 app.use('/api/admin/questions', adminQuestionRoutes);
 app.use('/api/invites', adminInviteRoutes);
+app.use('/api/agents', agentsRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

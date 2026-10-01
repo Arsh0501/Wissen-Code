@@ -130,8 +130,9 @@ export async function computeEvaluation(assessmentId: number, candidateName: str
     if (!latestByQuestion.has(sub.questionId)) latestByQuestion.set(sub.questionId, sub);
   }
 
-  const session = await prisma.assessmentSession.findUnique({
-    where: { assessmentId_candidateName: { assessmentId, candidateName } },
+  const session = await prisma.assessmentSession.findFirst({
+    where: { assessmentId, candidateName },
+    orderBy: { startedAt: 'desc' },
     select: { startedAt: true, finishedAt: true },
   });
 
