@@ -1,5 +1,6 @@
 import { Moon, Sun } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import styles from './ThemeToggle.module.css';
 
 // Sun/moon button that switches between light and dark mode
 export default function ThemeToggle({ className = '' }: { className?: string }) {
@@ -9,11 +10,11 @@ export default function ThemeToggle({ className = '' }: { className?: string }) 
     <button
       type="button"
       onClick={toggle}
-      className={`btn-ghost p-2 ${className}`}
+      className={`${styles.switchToButton} ${className}`}
       title={`Switch to ${next} mode`}
       aria-label={`Switch to ${next} mode`}
     >
-      {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      {theme === 'dark' ? <Sun className={styles.sunIcon} /> : <Moon className={styles.sunIcon} />}
     </button>
   );
 }

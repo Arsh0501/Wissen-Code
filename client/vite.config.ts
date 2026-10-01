@@ -17,6 +17,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: false,
-    css: true,
+    // Behaviour tests: don't apply component CSS (e.g. responsive `hidden md:flex` would hide elements in jsdom)
+    css: false,
   },
 });

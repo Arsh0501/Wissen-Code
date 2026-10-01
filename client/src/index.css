@@ -19,6 +19,25 @@
     --surface-800: 232 237 243; /* borders, inputs, hover fills */
     --surface-900: 255 255 255; /* cards, panels */
     --surface-950: 244 246 250; /* page background */
+    /* Accent text shades (light) */
+    --text-emerald-600: 5 150 105;
+    --text-emerald-700: 4 120 87;
+    --text-emerald-800: 6 95 70;
+    --text-red-600: 220 38 38;
+    --text-red-700: 185 28 28;
+    --text-red-800: 153 27 27;
+    --text-amber-600: 217 119 6;
+    --text-amber-700: 180 83 9;
+    --text-amber-800: 146 64 14;
+    --text-sky-600: 2 132 199;
+    --text-sky-700: 3 105 161;
+    --text-sky-800: 7 89 133;
+    --text-orange-600: 234 88 12;
+    --text-orange-700: 194 65 12;
+    --text-orange-800: 154 52 18;
+    --text-primary-600: 109 40 217;
+    --text-primary-700: 91 33 182;
+    --text-primary-800: 76 29 149;
   }
 
   /* Dark theme — same tokens, dark values (restores the original dark palette) */
@@ -36,45 +55,26 @@
     --surface-800: 30 41 59;
     --surface-900: 15 23 42;
     --surface-950: 2 6 23;
+    /* Accent text shades, lightened for dark backgrounds */
+    --text-emerald-600: 52 211 153;
+    --text-emerald-700: 110 231 183;
+    --text-emerald-800: 167 243 208;
+    --text-red-600: 248 113 113;
+    --text-red-700: 252 165 165;
+    --text-red-800: 254 202 202;
+    --text-amber-600: 251 191 36;
+    --text-amber-700: 252 211 77;
+    --text-amber-800: 253 230 138;
+    --text-sky-600: 56 189 248;
+    --text-sky-700: 125 211 252;
+    --text-sky-800: 186 230 253;
+    --text-orange-600: 251 146 60;
+    --text-orange-700: 253 186 116;
+    --text-orange-800: 254 215 170;
+    --text-primary-600: 167 139 250;
+    --text-primary-700: 196 181 253;
+    --text-primary-800: 224 224 255;
   }
-
-  /* Accent text shades chosen for white backgrounds are too dark on dark ones — lighten them */
-  :root[data-theme='dark'] .text-emerald-600,
-  :root[data-theme='dark'] .hover\:text-emerald-600:hover { color: #34d399; }
-  :root[data-theme='dark'] .text-emerald-700,
-  :root[data-theme='dark'] .hover\:text-emerald-700:hover { color: #6ee7b7; }
-  :root[data-theme='dark'] .text-emerald-800,
-  :root[data-theme='dark'] .hover\:text-emerald-800:hover { color: #a7f3d0; }
-  :root[data-theme='dark'] .text-red-600,
-  :root[data-theme='dark'] .hover\:text-red-600:hover { color: #f87171; }
-  :root[data-theme='dark'] .text-red-700,
-  :root[data-theme='dark'] .hover\:text-red-700:hover { color: #fca5a5; }
-  :root[data-theme='dark'] .text-red-800,
-  :root[data-theme='dark'] .hover\:text-red-800:hover { color: #fecaca; }
-  :root[data-theme='dark'] .text-amber-600,
-  :root[data-theme='dark'] .hover\:text-amber-600:hover { color: #fbbf24; }
-  :root[data-theme='dark'] .text-amber-700,
-  :root[data-theme='dark'] .hover\:text-amber-700:hover { color: #fcd34d; }
-  :root[data-theme='dark'] .text-amber-800,
-  :root[data-theme='dark'] .hover\:text-amber-800:hover { color: #fde68a; }
-  :root[data-theme='dark'] .text-sky-600,
-  :root[data-theme='dark'] .hover\:text-sky-600:hover { color: #38bdf8; }
-  :root[data-theme='dark'] .text-sky-700,
-  :root[data-theme='dark'] .hover\:text-sky-700:hover { color: #7dd3fc; }
-  :root[data-theme='dark'] .text-sky-800,
-  :root[data-theme='dark'] .hover\:text-sky-800:hover { color: #bae6fd; }
-  :root[data-theme='dark'] .text-orange-600,
-  :root[data-theme='dark'] .hover\:text-orange-600:hover { color: #fb923c; }
-  :root[data-theme='dark'] .text-orange-700,
-  :root[data-theme='dark'] .hover\:text-orange-700:hover { color: #fdba74; }
-  :root[data-theme='dark'] .text-orange-800,
-  :root[data-theme='dark'] .hover\:text-orange-800:hover { color: #fed7aa; }
-  :root[data-theme='dark'] .text-primary-600,
-  :root[data-theme='dark'] .hover\:text-primary-600:hover { color: #a78bfa; }
-  :root[data-theme='dark'] .text-primary-700,
-  :root[data-theme='dark'] .hover\:text-primary-700:hover { color: #c4b5fd; }
-  :root[data-theme='dark'] .text-primary-800,
-  :root[data-theme='dark'] .hover\:text-primary-800:hover { color: #e0e0ff; }
 
   /* Light-only gradient stops (candidate hero) */
   :root[data-theme='dark'] .from-primary-50 { --tw-gradient-from: rgb(124 58 237 / 0.14) var(--tw-gradient-from-position); --tw-gradient-to: rgb(124 58 237 / 0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }

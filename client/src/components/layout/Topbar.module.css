@@ -1,0 +1,70 @@
+/* Styles for Topbar.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.primaryMobileHeader {
+  @apply sticky top-0 z-40 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800;
+}
+
+.primaryMobileBox {
+  @apply flex items-center justify-between px-4 md:px-8 py-3 gap-4;
+}
+
+.goBackButton {
+  @apply flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm text-surface-400 hover:bg-surface-800 hover:text-white transition-colors cursor-pointer shrink-0;
+}
+
+.arrowLeftIcon {
+  @apply w-4 h-4;
+}
+
+.backLabel {
+  @apply hidden sm:inline;
+}
+
+.primaryMobileNav {
+  @apply flex md:hidden gap-1 overflow-x-auto;
+}
+
+.label {
+  @apply px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors;
+}
+
+.labelActive {
+  @apply bg-primary-500/10 text-primary-700;
+}
+
+.labelInactive {
+  @apply text-surface-400;
+}
+
+.chevronDownBox {
+  @apply ml-auto flex items-center gap-1;
+}
+
+.chevronDownBox2 {
+  @apply relative;
+}
+
+.chevronDownButton {
+  @apply flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-800 transition-colors cursor-pointer;
+}
+
+.nameLabel {
+  @apply hidden sm:block text-sm text-surface-200;
+}
+
+.chevronDownIcon {
+  @apply w-4 h-4 text-surface-500;
+}
+
+.menuBox {
+  composes: card from global;
+  @apply absolute right-0 mt-2 w-48 p-1.5 shadow-xl;
+}
+
+.viewProfile {
+  @apply block px-3 py-2 rounded-lg text-sm text-surface-300 hover:bg-surface-800 hover:text-white;
+}
+
+.logoutButton {
+  @apply w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-500/10 cursor-pointer;
+}

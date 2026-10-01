@@ -1,0 +1,48 @@
+/* Styles for ProfilePage.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.profileBox {
+  composes: animate-fade-in from global;
+  @apply max-w-2xl;
+}
+
+.profileBox2 {
+  @apply mb-8;
+}
+
+.profileTitle {
+  @apply text-2xl font-bold text-white;
+}
+
+.manageYourAccountText {
+  @apply text-surface-400 text-sm mt-1;
+}
+
+.nameBox {
+  @apply flex items-center gap-4 mb-6;
+}
+
+.nameText {
+  @apply text-lg font-semibold text-white;
+}
+
+.roleLabel {
+  composes: badge from global;
+  @apply bg-primary-500/15 text-primary-600 ring-1 ring-primary-500/25 capitalize;
+}
+
+.profileNameForm {
+  @apply space-y-4;
+}
+
+.profileRoleInput {
+  composes: input from global;
+  @apply opacity-60 cursor-not-allowed;
+}
+
+.formErrorText {
+  @apply text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2;
+}
+
+.checkIcon {
+  @apply w-4 h-4;
+}

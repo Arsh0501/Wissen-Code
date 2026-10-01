@@ -15,6 +15,8 @@ interface ReportQuestion {
   marks_obtained: number;
   attempted: boolean;
   code: string;
+  type?: 'coding' | 'mcq';
+  mcq?: { statement: string; options: { id: string; text: string }[]; correct: string[]; selected: string[] } | null;
   failed_cases: {
     testcase_id: number;
     expected_output: string;
@@ -190,7 +192,14 @@ export function generateReportHTML(data: ReportData): string {
 
   // ── Question summary table ──
   const summaryRows = questions
-    .map((q, i) => q.attempted ? `
+    .map((q, i) => q.attempted && q.type === 'mcq' ? `
+      <tr>
+        <td class="num">${i + 1}</td>
+        <td><div class="strong">${escapeHtml(q.title)}</div><div class="muted small">Multiple choice</div></td>
+        <td class="right muted">—</td>
+        <td class="right">${q.marks_obtained.toFixed(q.marks_obtained % 1 ? 1 : 0)} / ${q.marks}</td>
+        <td class="right">${q.score >= 100 ? pill('Correct', C.green, C.greenSoft) : pill('Wrong', C.red, C.redSoft)}</td>
+      </tr>` : q.attempted ? `
       <tr>
         <td class="num">${i + 1}</td>
         <td><div class="strong">${escapeHtml(q.title)}</div><div class="muted small">${escapeHtml(q.language)}</div></td>
@@ -210,6 +219,37 @@ export function generateReportHTML(data: ReportData): string {
   // ── Per-question detail ──
   const questionDetails = questions
     .map((q, i) => {
+      if (q.attempted && q.type === 'mcq' && q.mcq) {
+        const right = q.score >= 100;
+        const opts = q.mcq.options
+          .map((o) => {
+            const isCorrect = q.mcq!.correct.includes(o.id);
+            const picked = q.mcq!.selected.includes(o.id);
+            const color = isCorrect ? C.green : picked ? C.red : C.text;
+            const bg = isCorrect ? C.greenSoft : picked ? C.redSoft : '#fff';
+            const tag = [picked ? 'Candidate\u2019s answer' : '', isCorrect ? 'Correct' : ''].filter(Boolean).join(' · ');
+            return `<div class="case" style="background:${bg};border-color:${color}40;display:flex;justify-content:space-between;gap:10px;">
+              <span style="color:${C.ink};">${escapeHtml(o.text)}</span>
+              ${tag ? `<span class="small strong" style="color:${color};white-space:nowrap;">${tag}</span>` : ''}
+            </div>`;
+          })
+          .join('');
+        return `
+        <div class="card avoid-break">
+          <div class="q-head">
+            <div>
+              <div class="q-title">Q${i + 1}. ${escapeHtml(q.title)}</div>
+              <div class="muted small">Multiple choice · ${right ? 'answered correctly' : 'answered incorrectly'}</div>
+            </div>
+            <div class="right">
+              <div class="q-score" style="color:${right ? C.green : C.red};">${right ? '✓' : '✗'}</div>
+              <div class="muted small">${q.marks_obtained.toFixed(q.marks_obtained % 1 ? 1 : 0)} / ${q.marks} marks</div>
+            </div>
+          </div>
+          <div class="muted small" style="margin-top:8px;">${escapeHtml(q.mcq.statement.slice(0, 400))}</div>
+          ${opts}
+        </div>`;
+      }
       if (!q.attempted) {
         return `
         <div class="card avoid-break" style="background:${C.soft};">

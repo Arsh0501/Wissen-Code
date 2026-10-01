@@ -1,20 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, type ReactNode, useEffect } from 'react';
 import api from '../services/api';
-
-export interface AuthUser {
-  id: number;
-  email: string;
-  name: string;
-  role: 'admin' | 'candidate';
-  guest?: boolean; // joined through an invite link
-}
-
-const STORAGE_KEY = 'wissen-user';
-const TOKEN_KEY = 'wissen-token';
+import type { AuthUser, AuthContextType } from '../types';
+import { STORAGE_KEYS, AUTH_CONTEXT_MESSAGES as MSG } from '../constants';
 
 function loadStoredUser(): AuthUser | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  const token = localStorage.getItem(TOKEN_KEY);
+  const raw = localStorage.getItem(STORAGE_KEYS.user);
+  const token = localStorage.getItem(STORAGE_KEYS.token);
   if (!raw || !token) return null;
   try {
     return JSON.parse(raw) as AuthUser;
@@ -25,25 +16,12 @@ function loadStoredUser(): AuthUser | null {
 
 function persistUser(user: AuthUser | null, token: string | null) {
   if (user && token) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
+    localStorage.setItem(STORAGE_KEYS.token, token);
   } else {
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(STORAGE_KEYS.user);
+    localStorage.removeItem(STORAGE_KEYS.token);
   }
-}
-
-interface AuthContextType {
-  user: AuthUser | null;
-  role: 'admin' | 'candidate';
-  candidateName: string;
-  isLoggedIn: boolean;
-  authError: string | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  // Use a token issued elsewhere (e.g. joining through an invite link)
-  signInWithToken: (user: AuthUser, token: string) => void;
-  logout: () => void;
-  updateProfile: (updates: Partial<Pick<AuthUser, 'name' | 'email'>>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -80,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser((prev) => {
       if (!prev) return prev;
       const next = { ...prev, ...updates };
-      const token = localStorage.getItem(TOKEN_KEY);
+      const token = localStorage.getItem(STORAGE_KEYS.token);
       persistUser(next, token);
       return next;
     });
@@ -88,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Validate token on mount
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = localStorage.getItem(STORAGE_KEYS.token);
     if (token) {
       api.get('/auth/me').then(({ data }) => {
         setUser(data.user);
@@ -119,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error(MSG.useAuthOutsideProvider);
   return ctx;
 }
 

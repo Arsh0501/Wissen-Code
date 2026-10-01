@@ -1,15 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/AdminLayout';
 import {
   AvailabilityBadge, PassFailBadge, StatCard, Spinner, EmptyState,
   formatDate, formatPercent, scoreTextClass,
 } from '../../components/ui';
-import { getDashboard, apiError } from '../../services/api';
-import type { DashboardData } from '../../types';
+import { getDashboard, updateAssessment, apiError } from '../../services/api';
+import type { DashboardData, Lifecycle, DashboardTab } from '../../types';
+import { LIFECYCLE_LABELS, ASSESSMENT_DASHBOARD_MESSAGES as MSG } from '../../constants';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ClipboardList, Users, Target, Award, Plus, Library, Activity, ChevronRight, Clock, BarChart3, Sparkles,
+  FileEdit, PlayCircle, CheckCircle2, CalendarX, Edit, Archive,
 } from 'lucide-react';
+import styles from './AssessmentDashboard.module.css';
 
 function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribution'] }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -23,44 +27,44 @@ function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribut
 
   return (
     <div className="card">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-white">Score distribution</h2>
-        <span className="text-xs text-surface-500">{total} completed attempts</span>
+      <div className={styles.scoreDistributionBox}>
+        <h2 className={styles.scoreDistributionTitle}>Score distribution</h2>
+        <span className={styles.totalLabel}>{total} completed attempts</span>
       </div>
-      <p className="text-xs text-surface-500 mb-6">Candidates by overall score, all assessments</p>
+      <p className={styles.candidatesByOverallText}>{MSG.candidatesOverallScoreAll}</p>
 
-      <div className="relative h-44 flex">
+      <div className={styles.box}>
         {/* Y axis */}
-        <div className="relative w-6 shrink-0 text-[10px] text-surface-500 tabular-nums">
+        <div className={styles.yAxisBox}>
           {ticks.map((t) => (
-            <span key={t} className="absolute right-1 translate-y-1/2 leading-none" style={{ bottom: `${(t / axisMax) * 100}%` }}>
+            <span key={t} className={styles.tLabel} style={{ bottom: `${(t / axisMax) * 100}%` }}>
               {t}
             </span>
           ))}
         </div>
-        <div className="relative flex-1">
+        <div className={styles.yAxisBox2}>
           {ticks.map((t) => (
             <div
               key={t}
-              className={`absolute inset-x-0 border-t ${t === 0 ? 'border-surface-600' : 'border-surface-800'}`}
+              className={`${styles.yAxisBox3} ${t === 0 ? styles.yAxisBoxSelected : styles.yAxisBoxDefault}`}
               style={{ bottom: `${(t / axisMax) * 100}%` }}
             />
           ))}
-          <div className="absolute inset-0 flex items-end gap-[2px] px-1">
+          <div className={styles.yAxisBox4}>
             {buckets.map((b, i) => (
               <div
                 key={b.range}
-                className="relative flex-1 h-full flex items-end justify-center cursor-default"
+                className={styles.yAxisBox5}
                 onMouseEnter={() => setHover(i)}
                 onMouseLeave={() => setHover(null)}
               >
                 <div
-                  className={`w-full max-w-[44px] rounded-t transition-opacity ${hover !== null && hover !== i ? 'opacity-50' : ''}`}
+                  className={`${styles.yAxisBox6} ${hover !== null && hover !== i ? styles.yAxisBoxI : ''}`}
                   style={{ height: `${(b.count / axisMax) * 100}%`, minHeight: b.count ? 2 : 0, background: '#8b5cf6' }}
                 />
                 {i === peak && hover === null && b.count > 0 && (
                   <span
-                    className="absolute text-xs font-semibold text-surface-200 tabular-nums"
+                    className={styles.countLabel}
                     style={{ bottom: `calc(${(b.count / axisMax) * 100}% + 4px)` }}
                   >
                     {b.count}
@@ -68,13 +72,13 @@ function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribut
                 )}
                 {hover === i && (
                   <div
-                    className="absolute z-10 px-2.5 py-1.5 rounded-lg bg-surface-800 border border-surface-700 shadow-xl text-xs whitespace-nowrap pointer-events-none"
+                    className={styles.scoreBox}
                     style={{ bottom: `calc(${(b.count / axisMax) * 100}% + 6px)` }}
                   >
-                    <div className="text-surface-400">Score {b.range}</div>
-                    <div className="text-white font-semibold tabular-nums">
+                    <div className={styles.scoreBox2}>Score {b.range}</div>
+                    <div className={styles.countBox}>
                       {b.count} candidate{b.count === 1 ? '' : 's'}
-                      {total > 0 && <span className="text-surface-400 font-normal"> · {Math.round((b.count / total) * 100)}%</span>}
+                      {total > 0 && <span className={styles.yAxisLabel}> · {Math.round((b.count / total) * 100)}%</span>}
                     </div>
                   </div>
                 )}
@@ -83,120 +87,157 @@ function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribut
           </div>
         </div>
       </div>
-      <div className="flex gap-[2px] pl-7 pr-1 mt-2">
+      <div className={styles.yAxisBox7}>
         {buckets.map((b) => (
-          <span key={b.range} className="flex-1 text-center text-[10px] text-surface-500">{b.range}</span>
+          <span key={b.range} className={styles.rangeLabel}>{b.range}</span>
         ))}
       </div>
     </div>
   );
 }
 
-export default function AssessmentDashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState('');
+const LIFECYCLE: Record<Lifecycle, { label: string; className: string }> = {
+  draft: { label: LIFECYCLE_LABELS.draft, className: styles.draftClassName },
+  scheduled: { label: LIFECYCLE_LABELS.scheduled, className: styles.scheduledClassName },
+  active: { label: LIFECYCLE_LABELS.active, className: styles.activeClassName },
+  expired: { label: LIFECYCLE_LABELS.expired, className: styles.expiredClassName },
+  completed: { label: LIFECYCLE_LABELS.completed, className: styles.completedClassName },
+};
 
-  useEffect(() => {
-    getDashboard().then(setData).catch((err) => setError(apiError(err, 'Failed to load dashboard')));
-  }, []);
+export default function AssessmentDashboard() {
+  const qc = useQueryClient();
+  const { data, error: queryError } = useQuery<DashboardData>({ queryKey: ['dashboard'], queryFn: getDashboard });
+  const error = queryError ? apiError(queryError, MSG.failedLoadDashboard) : '';
+  const [tab, setTab] = useState<DashboardTab>('all');
+  // "Close" marks an assessment completed: it stops accepting candidates and moves to the Completed group
+  const close = useMutation({
+    mutationFn: (id: number) => updateAssessment(id, { status: 'archived' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dashboard'] }),
+  });
 
   return (
     <AdminLayout
       title="Assessment Dashboard"
-      subtitle="Overview of your assessments and candidate performance"
+      subtitle={MSG.overviewAssessmentsCandidatePerformance}
       actions={
         <>
-          <Link to="/admin/questions/new" className="btn-outline text-sm">
-            <Library className="w-4 h-4" /> Add Question
+          <Link to="/admin/questions/new" className={styles.addQuestionLink}>
+            <Library className={styles.libraryIcon} /> Add Question
           </Link>
-          <Link to="/admin/assessments/new" className="btn-primary text-sm">
-            <Plus className="w-4 h-4" /> Create Assessment
+          <Link to="/admin/questions/ai" className={styles.addQuestionLink}>
+            <Sparkles className={styles.sparklesIcon} /> Generate with AI
+          </Link>
+          <Link to="/admin/assessments/new" className={styles.createAssessmentLink}>
+            <Plus className={styles.libraryIcon} /> Create Assessment
           </Link>
         </>
       }
     >
       {error ? (
-        <div className="card text-center text-red-600">{error}</div>
+        <div className={styles.errorBox}>{error}</div>
       ) : !data ? (
         <Spinner label="Loading dashboard..." />
       ) : (
-        <div className="space-y-6 animate-fade-in">
+        <div className={styles.assessmentTableBox}>
+          {/* Lifecycle overview */}
+          <div className={styles.lifecycleOverviewBox}>
+            {([
+              ['draft', 'Draft', data.lifecycleTotals.draft, FileEdit, styles.assessmentAmber, MSG.notVisibleCandidates],
+              ['active', 'Active', data.lifecycleTotals.active, PlayCircle, styles.assessmentEmerald, 'Open or scheduled'],
+              ['completed', 'Completed', data.lifecycleTotals.completed, CheckCircle2, styles.assessmentSurface, MSG.closedAdmin],
+              ['expired', 'Expired', data.lifecycleTotals.expired, CalendarX, styles.assessmentRed, MSG.endDateHasPassed],
+            ] as const).map(([key, label, n, Icon, tone, hint]) => (
+              <button
+                key={key}
+                onClick={() => { setTab(tab === key ? 'all' : key); document.getElementById('assessment-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                className={`${styles.nButton} ${tab === key ? styles.nButtonSelected : ''}`}
+              >
+                <div className={styles.labelBox}>
+                  <span className={styles.label}>{label}</span>
+                  <span className={`${styles.lifecycleOverviewLabel} ${tone}`}><Icon className={styles.libraryIcon} /></span>
+                </div>
+                <p className={styles.nText}>{n}</p>
+                <p className={styles.totalLabel}>{hint}</p>
+              </button>
+            ))}
+          </div>
+
           {/* KPI row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className={styles.lifecycleOverviewBox}>
             <StatCard
               label="Assessments"
-              tone="bg-primary-500/10 text-primary-700"
+              tone={styles.statCardTone}
               icon={ClipboardList}
               value={data.totals.assessments}
               hint={`${data.totals.published} published · ${data.totals.drafts} draft · ${data.totals.questions} questions`}
             />
             <StatCard
               label="Candidates"
-              tone="bg-sky-500/10 text-sky-700"
+              tone={styles.statCardTone2}
               icon={Users}
               value={data.totals.candidatesStarted}
               hint={`${data.totals.candidatesCompleted} completed · ${data.totals.inProgress} in progress`}
             />
             <StatCard
               label="Average score"
-              tone="bg-amber-500/10 text-amber-700"
+              tone={styles.assessmentAmber}
               icon={Target}
               value={formatPercent(data.totals.averageScore)}
               hint={data.totals.highestScore !== null ? `Highest ${formatPercent(data.totals.highestScore, 0)}` : 'No attempts yet'}
             />
             <StatCard
               label="Pass rate"
-              tone="bg-emerald-500/10 text-emerald-700"
+              tone={styles.assessmentEmerald}
               icon={Award}
               value={formatPercent(data.totals.passRate, 0)}
               hint="Of completed attempts"
             />
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
+          <div className={styles.activityBox}>
+            <div className={styles.kpiRowBox}>
               <ScoreDistribution buckets={data.scoreDistribution} />
             </div>
 
             {/* Recent activity */}
-            <div className="card lg:col-span-2 p-0 overflow-hidden">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-primary-600" /> Recent activity
+            <div className={styles.activityBox2}>
+              <div className={styles.activityBox3}>
+                <h2 className={styles.recentActivityTitle}>
+                  <Activity className={styles.sparklesIcon} /> Recent activity
                 </h2>
               </div>
               {data.recentActivity.length === 0 ? (
-                <p className="text-sm text-surface-500 text-center py-10">No candidate activity yet.</p>
+                <p className={styles.noCandidateActivityText}>{MSG.noCandidateActivityYet}</p>
               ) : (
-                <ul className="divide-y divide-surface-800/60 max-h-[260px] overflow-y-auto">
+                <ul className={styles.recentActivityList}>
                   {data.recentActivity.map((r) => (
-                    <li key={`${r.assessmentId}-${r.candidateName}`} className="flex items-center justify-between gap-3 px-5 py-3">
-                      <div className="min-w-0">
-                        <p className="text-sm text-surface-100 truncate">
-                          <span className="font-medium">{r.candidateName}</span>
-                          <span className="text-surface-500"> {r.status === 'completed' ? 'completed' : 'is taking'} </span>
+                    <li key={`${r.assessmentId}-${r.candidateName}`} className={styles.assessmentNameItem}>
+                      <div className={styles.assessmentNameBox}>
+                        <p className={styles.assessmentNameText}>
+                          <span className={styles.candidateNameLabel}>{r.candidateName}</span>
+                          <span className={styles.recentActivityLabel}> {r.status === 'completed' ? 'completed' : 'is taking'} </span>
                           {r.assessmentName}
                         </p>
-                        <p className="text-xs text-surface-500">{formatDate(r.finishedAt || r.startedAt)}</p>
+                        <p className={styles.totalLabel}>{formatDate(r.finishedAt || r.startedAt)}</p>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className={styles.recentActivityBox}>
                         {r.status === 'completed' && r.overallScore !== null ? (
                           <>
-                            <span className={`text-sm font-semibold tabular-nums ${scoreTextClass(r.overallScore)}`}>
+                            <span className={`${styles.recentActivityLabel2} ${scoreTextClass(r.overallScore)}`}>
                               {r.overallScore.toFixed(0)}%
                             </span>
                             <PassFailBadge passed={!!r.passed} />
                             <Link
                               to={`/admin/reports/${encodeURIComponent(r.candidateName)}/${r.assessmentId}`}
-                              className="btn-ghost p-1.5"
+                              className={styles.viewEvaluationLink}
                               title="View evaluation"
                             >
-                              <ChevronRight className="w-4 h-4" />
+                              <ChevronRight className={styles.libraryIcon} />
                             </Link>
                           </>
                         ) : (
-                          <span className="badge bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 gap-1">
-                            <Clock className="w-3 h-3" /> In progress
+                          <span className={styles.inProgressLabel}>
+                            <Clock className={styles.clockIcon} /> In progress
                           </span>
                         )}
                       </div>
@@ -208,12 +249,22 @@ export default function AssessmentDashboard() {
           </div>
 
           {/* Assessments table */}
-          <div className="card p-0 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
-              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-primary-600" /> Assessments
+          <div id="assessment-table" className={styles.assessmentTableBox2}>
+            <div className={styles.barChartBox}>
+              <h2 className={styles.recentActivityTitle}>
+                <BarChart3 className={styles.sparklesIcon} /> Assessments
               </h2>
-              <Link to="/admin/assessments" className="text-xs text-primary-600 hover:text-primary-700">
+              <div className={styles.assessmentsTableBox}>
+                {(['all', 'draft', 'active', 'completed', 'expired'] as const).map((t) => {
+                  const n = t === 'all' ? data.assessments.length : data.lifecycleTotals[t];
+                  return (
+                    <button key={t} onClick={() => setTab(t)} className={`${styles.tButton} ${tab === t ? styles.tButtonSelected : styles.tButtonDefault}`}>
+                      {t} <span className={styles.nLabel}>{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <Link to="/admin/assessments" className={styles.manageAllLink}>
                 Manage all →
               </Link>
             </div>
@@ -221,49 +272,67 @@ export default function AssessmentDashboard() {
               <EmptyState
                 icon={ClipboardList}
                 title="No assessments yet"
-                body="Create an assessment to start inviting candidates."
-                action={<Link to="/admin/assessments/new" className="btn-primary"><Plus className="w-4 h-4" /> Create Assessment</Link>}
+                body={MSG.createAssessmentStartInviting}
+                action={<Link to="/admin/assessments/new" className="btn-primary"><Plus className={styles.libraryIcon} /> Create Assessment</Link>}
               />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className={styles.assessmentBox}>
+                <table className={styles.assessmentTable}>
                   <thead>
-                    <tr className="border-b border-surface-800 text-xs text-surface-500 uppercase tracking-wider">
-                      <th className="text-left font-medium px-5 py-3">Assessment</th>
-                      <th className="text-left font-medium px-3 py-3">Status</th>
-                      <th className="text-right font-medium px-3 py-3">Questions</th>
-                      <th className="text-right font-medium px-3 py-3">Candidates</th>
-                      <th className="text-right font-medium px-3 py-3">Avg score</th>
-                      <th className="text-right font-medium px-3 py-3">Pass rate</th>
-                      <th className="px-5 py-3" />
+                    <tr className={styles.assessmentRow}>
+                      <th className={styles.assessmentTh}>Assessment</th>
+                      <th className={styles.statusTh}>Status</th>
+                      <th className={styles.questionsTh}>Questions</th>
+                      <th className={styles.questionsTh}>Candidates</th>
+                      <th className={styles.questionsTh}>Started</th>
+                      <th className={styles.questionsTh}>Completed</th>
+                      <th className={styles.questionsTh}>Avg score</th>
+                      <th className={styles.questionsTh}>Pass rate</th>
+                      <th className={styles.assessmentsTableTh} />
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-800/60">
-                    {data.assessments.map((a) => (
-                      <tr key={a.id} className="hover:bg-surface-800/30">
-                        <td className="px-5 py-3">
-                          <Link to={`/admin/assessments/${a.id}/edit`} className="font-medium text-surface-100 hover:text-primary-700">
+                  <tbody className={styles.assessmentsTableBody}>
+                    {data.assessments
+                      .filter((a) => tab === 'all' || (tab === 'active' ? a.lifecycle === 'active' || a.lifecycle === 'scheduled' : a.lifecycle === tab))
+                      .map((a) => (
+                      <tr key={a.id} className={styles.editRow}>
+                        <td className={styles.assessmentsTableTh}>
+                          <Link to={`/admin/assessments/${a.id}/edit`} className={styles.nameLink}>
                             {a.name}
                           </Link>
-                          <p className="text-xs text-surface-500 flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3" /> {a.timeLimitMinutes} min · pass at {a.passingScore}%
+                          <p className={styles.timeLimitMinutesText}>
+                            <Clock className={styles.clockIcon} /> {a.timeLimitMinutes} min · pass at {a.passingScore}%
                             {a.endAt && <> · closes {formatDate(a.endAt, false)}</>}
                           </p>
                         </td>
-                        <td className="px-3 py-3"><AvailabilityBadge value={a.availability} /></td>
-                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">{a._count?.questions ?? 0}</td>
-                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">
-                          {a.stats?.candidatesCompleted ?? 0}
-                          {!!a.stats?.inProgress && <span className="text-surface-500"> +{a.stats.inProgress}</span>}
+                        <td className={styles.assessmentsTableCell}>
+                          {a.lifecycle ? <span className={`${styles.label2} ${LIFECYCLE[a.lifecycle].className}`}>{LIFECYCLE[a.lifecycle].label}</span> : <AvailabilityBadge value={a.availability} />}
                         </td>
-                        <td className={`px-3 py-3 text-right tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : 'text-surface-500'}`}>
+                        <td className={styles.assessmentsTableCell2}>
+                          {a.questionCount && a.questionCount < (a._count?.questions ?? 0) ? <span title={MSG.randomSubsetPerCandidate}>{a.questionCount}/{a._count?.questions}</span> : a._count?.questions ?? 0}
+                        </td>
+                        <td className={styles.assessmentsTableCell2}>{a.counts?.candidates ?? 0}</td>
+                        <td className={styles.assessmentsTableCell2}>{a.counts?.started ?? 0}</td>
+                        <td className={styles.assessmentsTableCell2}>
+                          {a.counts?.completed ?? 0}
+                          {!!a.stats?.inProgress && <span className={styles.assessmentsTableLabel}> +{a.stats.inProgress} live</span>}
+                        </td>
+                        <td className={`${styles.assessmentsTableCell3} ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : styles.recentActivityLabel}`}>
                           {formatPercent(a.stats?.averageScore)}
                         </td>
-                        <td className="px-3 py-3 text-right tabular-nums text-surface-300">{formatPercent(a.stats?.passRate, 0)}</td>
-                        <td className="px-5 py-3 text-right">
-                          <Link to={`/admin/submissions/${a.id}`} className="btn-ghost text-xs px-2 py-1">
-                            <Users className="w-3.5 h-3.5" /> Results
+                        <td className={styles.assessmentsTableCell2}>{formatPercent(a.stats?.passRate, 0)}</td>
+                        <td className={styles.editCell}>
+                          <Link to={`/admin/submissions/${a.id}`} className={styles.resultsLink}>
+                            <Users className={styles.usersIcon} /> Results
                           </Link>
+                          <Link to={`/admin/assessments/${a.id}/edit`} className={styles.resultsLink} title="Edit">
+                            <Edit className={styles.usersIcon} />
+                          </Link>
+                          {(a.lifecycle === 'active' || a.lifecycle === 'expired') && (
+                            <button onClick={() => close.mutate(a.id)} disabled={close.isPending} className={styles.resultsLink} title={MSG.closeStopAcceptingCandidates}>
+                              <Archive className={styles.usersIcon} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
