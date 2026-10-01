@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getNavItemsForRole } from './navItems';
 import UserAvatar from './UserAvatar';
 import ThemeToggle from '../ThemeToggle';
+import styles from './Topbar.module.css';
 
 // Back goes one level up the page hierarchy rather than through browser history,
 // so it never lands on a form the user just submitted.
@@ -37,29 +38,27 @@ export default function Topbar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
-      <div className="flex items-center justify-between px-4 md:px-8 py-3 gap-4">
+    <header className={styles.primaryMobileHeader}>
+      <div className={styles.primaryMobileBox}>
         {location.pathname !== '/' && (
           <button
             type="button"
             onClick={handleBack}
-            className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm text-surface-400 hover:bg-surface-800 hover:text-white transition-colors cursor-pointer shrink-0"
+            className={styles.goBackButton}
             aria-label="Go back"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back</span>
+            <ArrowLeft className={styles.arrowLeftIcon} />
+            <span className={styles.backLabel}>Back</span>
           </button>
         )}
-        <nav aria-label="Primary mobile" className="flex md:hidden gap-1 overflow-x-auto">
+        <nav aria-label="Primary mobile" className={styles.primaryMobileNav}>
           {items.map(({ to, label, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
-                  isActive ? 'bg-primary-500/10 text-primary-700' : 'text-surface-400'
-                }`
+                `${styles.label} ${isActive ? styles.labelActive : styles.labelInactive}`
               }
             >
               {label}
@@ -67,26 +66,26 @@ export default function Topbar() {
           ))}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1">
+        <div className={styles.chevronDownBox}>
           <ThemeToggle />
-        <div className="relative">
+        <div className={styles.chevronDownBox2}>
           <button
             type="button"
             onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-800 transition-colors cursor-pointer"
+            className={styles.chevronDownButton}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
             <UserAvatar user={user} />
-            <span className="hidden sm:block text-sm text-surface-200">{user?.name}</span>
-            <ChevronDown className="w-4 h-4 text-surface-500" />
+            <span className={styles.nameLabel}>{user?.name}</span>
+            <ChevronDown className={styles.chevronDownIcon} />
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 mt-2 w-48 card p-1.5 shadow-xl" role="menu">
+            <div className={styles.menuBox} role="menu">
               <NavLink
                 to="/profile"
-                className="block px-3 py-2 rounded-lg text-sm text-surface-300 hover:bg-surface-800 hover:text-white"
+                className={styles.viewProfile}
                 onClick={() => setMenuOpen(false)}
                 role="menuitem"
               >
@@ -95,10 +94,10 @@ export default function Topbar() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-500/10 cursor-pointer"
+                className={styles.logoutButton}
                 role="menuitem"
               >
-                <LogOut className="w-4 h-4" /> Sign out
+                <LogOut className={styles.arrowLeftIcon} /> Sign out
               </button>
             </div>
           )}

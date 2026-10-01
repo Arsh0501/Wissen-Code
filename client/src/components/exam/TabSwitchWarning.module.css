@@ -1,0 +1,162 @@
+/* Styles for TabSwitchWarning.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.alertdialogBox {
+  @apply fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4;
+}
+
+.tabSwitchTitleBox {
+  composes: card animate-fade-in from global;
+  @apply w-full max-w-md p-0 overflow-hidden shadow-2xl ring-2;
+}
+
+.tabSwitchTitleBox2 {
+  @apply px-6 pt-7 pb-5 text-center;
+}
+
+.box {
+  @apply w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4;
+}
+
+.alertOctagonIcon {
+  @apply w-7 h-7;
+}
+
+.label {
+  @apply inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full ring-1 mb-3;
+}
+
+.tabSwitchTitle {
+  @apply text-lg font-bold text-white;
+}
+
+.tabSwitchDescText {
+  @apply text-sm text-surface-500 mt-2 leading-relaxed;
+}
+
+.sLabel {
+  @apply text-white font-medium;
+}
+
+.tabSwitchesUsedBox {
+  @apply px-6 py-4 bg-surface-950 border-y border-surface-800;
+}
+
+.tabSwitchesUsedBox2 {
+  @apply flex items-baseline justify-between mb-2;
+}
+
+.tabSwitchesUsedLabel {
+  @apply text-xs font-medium text-surface-500 uppercase tracking-wider;
+}
+
+.countLabel {
+  @apply text-sm font-bold text-white tabular-nums;
+}
+
+.ofLabel {
+  @apply text-surface-500 font-medium;
+}
+
+.allowanceMeterBox {
+  @apply flex gap-1.5;
+}
+
+.allowanceMeterLabel {
+  @apply h-2 flex-1 rounded-full;
+}
+
+.allowanceMeterLabelLow {
+  @apply bg-surface-800;
+}
+
+.allowanceMeterText {
+  @apply text-xs mt-3;
+}
+
+.allowanceMeterTextFinal {
+  @apply text-red-700 font-semibold;
+}
+
+.allowanceMeterTextDefault {
+  @apply text-surface-500;
+}
+
+.returnToTestBox {
+  @apply px-6 py-5;
+}
+
+.dismissButton {
+  @apply w-full py-2.5 rounded-lg text-sm font-semibold text-on-accent transition-colors cursor-pointer;
+}
+
+.tabActivityIsBox {
+  @apply hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/20 text-xs font-medium;
+}
+
+.shieldCheckIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.youHaveLeftBox {
+  @apply flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ring-1 text-xs font-medium tabular-nums;
+}
+
+.finalWarningRing {
+  @apply ring-red-500/40;
+}
+
+.finalWarningIconBg {
+  @apply bg-red-500/10 text-red-600;
+}
+
+.finalWarningChip {
+  @apply bg-red-500/10 text-red-700 ring-red-500/30;
+}
+
+.finalWarningBar {
+  @apply bg-red-500;
+}
+
+.finalWarningButton {
+  @apply bg-red-600 hover:bg-red-500;
+}
+
+.secondWarningRing {
+  @apply ring-orange-500/40;
+}
+
+.secondWarningIconBg {
+  @apply bg-orange-500/10 text-orange-600;
+}
+
+.secondWarningChip {
+  @apply bg-orange-500/10 text-orange-700 ring-orange-500/30;
+}
+
+.secondWarningBar {
+  @apply bg-orange-500;
+}
+
+.secondWarningButton {
+  @apply bg-orange-600 hover:bg-orange-500;
+}
+
+.warningRing {
+  @apply ring-amber-500/40;
+}
+
+.warningIconBg {
+  @apply bg-amber-500/10 text-amber-600;
+}
+
+.warningChip {
+  @apply bg-amber-500/10 text-amber-700 ring-amber-500/30;
+}
+
+.warningBar {
+  @apply bg-amber-500;
+}
+
+.warningButton {
+  @apply bg-amber-600 hover:bg-amber-500;
+}

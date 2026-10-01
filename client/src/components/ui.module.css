@@ -1,0 +1,118 @@
+/* Styles for ui.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.label {
+  composes: badge from global;
+  @apply ring-1;
+}
+
+.label2 {
+  composes: animate-pulse-dot from global;
+  @apply w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5;
+}
+
+.passedLabel {
+  composes: badge from global;
+  @apply bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25 gap-1;
+}
+
+.checkCircleIcon {
+  @apply w-3 h-3;
+}
+
+.failedLabel {
+  composes: badge from global;
+  @apply bg-red-500/15 text-red-600 ring-1 ring-red-500/25 gap-1;
+}
+
+.labelBox {
+  composes: card from global;
+  @apply p-5 transition-shadow hover:shadow-md hover:shadow-surface-700/30;
+}
+
+.labelBox2 {
+  @apply flex items-start justify-between gap-3;
+}
+
+.labelText {
+  @apply text-xs font-medium text-surface-500 uppercase tracking-wider;
+}
+
+.valueText {
+  @apply text-3xl font-bold text-white mt-2 tabular-nums tracking-tight;
+}
+
+.box {
+  @apply w-10 h-10 rounded-xl flex items-center justify-center shrink-0;
+}
+
+.icon {
+  @apply w-5 h-5;
+}
+
+.hintText {
+  @apply text-xs text-surface-500 mt-3 pt-3 border-t border-surface-800;
+}
+
+.box2 {
+  @apply flex flex-col items-center justify-center py-20 text-surface-500;
+}
+
+.box3 {
+  @apply w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mb-3;
+}
+
+.labelText2 {
+  @apply text-sm;
+}
+
+.actionBox {
+  @apply text-center py-16;
+}
+
+.icon2 {
+  @apply w-14 h-14 text-surface-700 mx-auto mb-4;
+}
+
+.title {
+  @apply text-lg font-medium text-surface-300 mb-1;
+}
+
+.bodyText {
+  @apply text-surface-500 text-sm mb-6;
+}
+
+.scoreTextStyle {
+  @apply text-emerald-600;
+}
+
+.scoreTextStyle2 {
+  @apply text-amber-600;
+}
+
+.scoreTextStyle3 {
+  @apply text-red-600;
+}
+
+.liveClassName {
+  @apply bg-emerald-500/15 text-emerald-600 ring-emerald-500/25;
+}
+
+.scheduledClassName {
+  @apply bg-sky-500/15 text-sky-600 ring-sky-500/25;
+}
+
+.closedClassName {
+  @apply bg-surface-700/50 text-surface-300 ring-surface-600;
+}
+
+.draftClassName {
+  @apply bg-amber-500/15 text-amber-600 ring-amber-500/25;
+}
+
+.archivedClassName {
+  @apply bg-surface-800 text-surface-500 ring-surface-700;
+}
+
+.box4 {
+  @apply bg-primary-500/10 text-primary-700;
+}

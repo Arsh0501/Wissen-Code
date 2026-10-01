@@ -12,16 +12,8 @@ import {
   ArrowLeft, Save, Plus, Trash2, Code2, FlaskConical,
   Eye, EyeOff, Download, ListChecks, CheckSquare, Square
 } from 'lucide-react';
-
-const OPTION_IDS = ['a', 'b', 'c', 'd', 'e', 'f'];
-const MAX_OPTIONS = 6;
-
-const LANGUAGES = [
-  { id: 71, name: 'Python', monacoLang: 'python', defaultCode: '# Write your solution here\n\ndef solve():\n    pass\n\nsolve()' },
-  { id: 62, name: 'Java', monacoLang: 'java', defaultCode: 'import java.util.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your solution here\n    }\n}' },
-  { id: 54, name: 'C++', monacoLang: 'cpp', defaultCode: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}' },
-  { id: 63, name: 'JavaScript', monacoLang: 'javascript', defaultCode: '// Write your solution here\nconst readline = require("readline");\nconst rl = readline.createInterface({ input: process.stdin });\n\nrl.on("line", (line) => {\n    console.log(line);\n});' },
-];
+import styles from './QuestionForm.module.css';
+import { LANGUAGES, MAX_OPTIONS, OPTION_IDS, QUESTION_FORM_MESSAGES as MSG } from '../../constants';
 
 export default function QuestionForm() {
   const { theme } = useTheme();
@@ -129,15 +121,15 @@ export default function QuestionForm() {
 
   async function handleSave() {
     if (!title.trim() || !statement.trim()) {
-      alert('Title and problem statement are required.');
+      alert(MSG.titleProblemStatementRequired);
       return;
     }
     const filledOptions = options.map((o) => ({ ...o, text: o.text.trim() })).filter((o) => o.text);
     if (isMcq) {
       const problem =
-        filledOptions.length < 2 ? 'Add at least 2 answer options.'
-        : new Set(filledOptions.map((o) => o.text.toLowerCase())).size !== filledOptions.length ? 'Two options have the same text.'
-        : !correct.some((c) => filledOptions.some((o) => o.id === c)) ? 'Mark at least one option as correct.'
+        filledOptions.length < 2 ? MSG.addLeast2Answer
+        : new Set(filledOptions.map((o) => o.text.toLowerCase())).size !== filledOptions.length ? MSG.twoOptionsHaveSame
+        : !correct.some((c) => filledOptions.some((o) => o.id === c)) ? MSG.markLeastOneOption
         : null;
       if (problem) {
         setActiveTab('options');
@@ -208,7 +200,7 @@ export default function QuestionForm() {
       navigate('/admin/questions');
     } catch (err) {
       console.error('Failed to save question:', err);
-      alert('Failed to save question. Check the console for details.');
+      alert(MSG.failedSaveQuestionCheck);
     } finally {
       setSaving(false);
     }
@@ -243,52 +235,50 @@ export default function QuestionForm() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-950">
+    <div className={styles.arrowLeftBox}>
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/admin/questions" className="btn-ghost p-2">
-              <ArrowLeft className="w-5 h-5" />
+      <header className={styles.arrowLeftHeader}>
+        <div className={styles.arrowLeftBox2}>
+          <div className={styles.arrowLeftBox3}>
+            <Link to="/admin/questions" className={styles.arrowLeftLink}>
+              <ArrowLeft className={styles.arrowLeftIcon} />
             </Link>
-            <div className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-primary-600" />
-              <h1 className="text-lg font-bold text-white">
+            <div className={styles.codeBox}>
+              <Code2 className={styles.codeIcon} />
+              <h1 className={styles.headerTitle}>
                 {isEdit ? 'Edit Question' : 'New Question'}
               </h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className={styles.saveBox}>
             {isEdit && id && (
               <a 
                 href={getExportMdUrl(parseInt(id))}
                 className="btn-outline"
                 download
               >
-                <Download className="w-4 h-4" />
+                <Download className={styles.downloadIcon} />
                 Export as MD
               </a>
             )}
             <button onClick={handleSave} disabled={saving} className="btn-primary">
-              <Save className="w-4 h-4" />
+              <Save className={styles.downloadIcon} />
               {saving ? 'Saving...' : 'Save Question'}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main className={styles.headerMain}>
         {/* Tabs */}
-        <div className="flex gap-1 mb-8 bg-surface-900 rounded-xl p-1 w-fit">
+        <div className={styles.tabsBox}>
           {(isMcq ? (['details', 'options'] as const) : (['details', 'testcases', 'starter'] as const)).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab
-                  ? 'bg-primary-600 text-on-accent shadow-lg'
-                  : 'text-surface-400 hover:text-on-accent hover:bg-surface-800'
-              }`}
+              className={`${styles.tabsButton} ${activeTab === tab
+                  ? styles.tabsButtonSelected
+                  : styles.tabsButtonDefault}`}
             >
               {tab === 'details' && 'Question Details'}
               {tab === 'testcases' && `Test Cases (${testCases.length})`}
@@ -300,39 +290,37 @@ export default function QuestionForm() {
 
         {/* Details Tab */}
         {activeTab === 'details' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className={styles.questionTypeBox}>
             <div>
               <label className="label">Question type</label>
-              <div className="flex gap-2">
+              <div className={styles.detailsTabBox}>
                 {([
-                  { key: 'coding', label: 'Coding', hint: 'Candidate writes a program; graded by test cases', icon: Code2 },
-                  { key: 'mcq', label: 'Multiple choice', hint: 'Candidate picks an answer; graded automatically', icon: ListChecks },
+                  { key: 'coding', label: 'Coding', hint: MSG.candidateWritesProgramGraded, icon: Code2 },
+                  { key: 'mcq', label: 'Multiple choice', hint: MSG.candidatePicksAnswerGraded, icon: ListChecks },
                 ] as const).map(({ key, label, hint, icon: Icon }) => (
                   <button
                     key={key}
                     type="button"
                     disabled={isEdit}
                     onClick={() => { setQType(key); setActiveTab('details'); }}
-                    className={`flex-1 flex items-start gap-3 p-3 rounded-lg border text-left transition-colors disabled:cursor-not-allowed ${
-                      qType === key ? 'border-primary-500 bg-primary-500/10' : 'border-surface-700 hover:border-surface-500 disabled:opacity-50'
-                    }`}
+                    className={`${styles.labelButton} ${qType === key ? styles.labelButtonSelected : styles.labelButtonDefault}`}
                   >
-                    <Icon className={`w-5 h-5 mt-0.5 ${qType === key ? 'text-primary-600' : 'text-surface-500'}`} />
+                    <Icon className={`${styles.detailsTabIcon} ${qType === key ? styles.detailsTabIconSelected : styles.detailsTabIconDefault}`} />
                     <span>
-                      <span className="block text-sm font-semibold text-white">{label}</span>
-                      <span className="block text-xs text-surface-500">{hint}</span>
+                      <span className={styles.label}>{label}</span>
+                      <span className={styles.hintLabel}>{hint}</span>
                     </span>
                   </button>
                 ))}
               </div>
-              {isEdit && <p className="text-xs text-surface-500 mt-1">The type can't be changed after a question is created.</p>}
+              {isEdit && <p className={styles.theTypeCanText}>{MSG.typeCantChangedAfter}</p>}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
+            <div className={styles.titleBox}>
+              <div className={styles.titleBox2}>
                 <label className="label">Title</label>
                 <input
                   className="input"
-                  placeholder="e.g. Two Sum, Reverse Linked List"
+                  placeholder={MSG.twoSumReverseLinkedExample}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
@@ -363,7 +351,7 @@ export default function QuestionForm() {
 
               <div>
                 <label className="label">Topic</label>
-                <input className="input" placeholder="e.g. Arrays, React hooks" value={topic} onChange={(e) => setTopic(e.target.value)} />
+                <input className="input" placeholder={MSG.arraysReactHooksExample} value={topic} onChange={(e) => setTopic(e.target.value)} />
               </div>
 
               <div>
@@ -373,7 +361,7 @@ export default function QuestionForm() {
 
               {!isMcq && <>
               <div>
-                <label className="label">CPU Time Limit (seconds)</label>
+                <label className="label">{MSG.cpuTimeLimitSeconds}</label>
                 <input
                   type="number"
                   className="input"
@@ -399,10 +387,10 @@ export default function QuestionForm() {
             </div>
 
             <div>
-              <label className="label">Problem Statement (Markdown supported)</label>
+              <label className="label">{MSG.problemStatementMarkdownSupported}</label>
               <textarea
-                className="input min-h-[300px] font-mono text-sm"
-                placeholder={`Write the problem statement here. Markdown is supported.\n\n## Example:\nGiven an array of integers, find two numbers that add up to a specific target.\n\n**Input:** nums = [2, 7, 11, 15], target = 9\n**Output:** [0, 1]`}
+                className={styles.writeTheProblemTextarea}
+                placeholder={MSG.writeProblemStatementHere}
                 value={statement}
                 onChange={(e) => setStatement(e.target.value)}
               />
@@ -412,27 +400,26 @@ export default function QuestionForm() {
 
         {/* Answer Options Tab (multiple choice) */}
         {activeTab === 'options' && isMcq && (
-          <div className="space-y-5 animate-fade-in">
-            <p className="text-sm text-surface-400">
-              Tick every correct answer. With more than one ticked, candidates are told to select all that apply, and they must pick exactly those to score.
-            </p>
-            <div className="space-y-2">
+          <div className={styles.tickEveryCorrectBox}>
+            <p className={styles.tickEveryCorrectText}>
+              {MSG.tickEveryCorrectAnswer}</p>
+            <div className={styles.answerOptionsBox}>
               {options.map((o, i) => {
                 const isCorrect = correct.includes(o.id);
                 return (
-                  <div key={o.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isCorrect ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-surface-700'}`}>
+                  <div key={o.id} className={`${styles.idBox} ${isCorrect ? styles.idBoxCorrect : styles.idBoxDefault}`}>
                     <button
                       type="button"
                       onClick={() => setCorrect((c) => (c.includes(o.id) ? c.filter((x) => x !== o.id) : [...c, o.id]))}
-                      className="shrink-0"
-                      aria-label={isCorrect ? `Unmark option ${o.id.toUpperCase()} as correct` : `Mark option ${o.id.toUpperCase()} as correct`}
+                      className={styles.answerOptionsButton}
+                      aria-label={isCorrect ? MSG.unmarkOptionCorrect(o.id.toUpperCase()) : MSG.markOptionCorrect(o.id.toUpperCase())}
                       title={isCorrect ? 'Correct answer' : 'Mark as correct'}
                     >
-                      {isCorrect ? <CheckSquare className="w-5 h-5 text-emerald-600" /> : <Square className="w-5 h-5 text-surface-500" />}
+                      {isCorrect ? <CheckSquare className={styles.checkSquareIcon} /> : <Square className={styles.squareIcon} />}
                     </button>
-                    <span className="w-6 text-sm font-semibold text-surface-500 uppercase">{o.id}</span>
+                    <span className={styles.idLabel}>{o.id}</span>
                     <input
-                      className="input flex-1"
+                      className={styles.optionInput}
                       placeholder={`Option ${o.id.toUpperCase()}`}
                       value={o.text}
                       onChange={(e) => setOptions((opts) => opts.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
@@ -441,10 +428,10 @@ export default function QuestionForm() {
                       type="button"
                       disabled={options.length <= 2}
                       onClick={() => { setOptions((opts) => opts.filter((_, j) => j !== i)); setCorrect((c) => c.filter((x) => x !== o.id)); }}
-                      className="btn-ghost p-2 hover:text-red-600 disabled:opacity-30"
+                      className={styles.removeOptionButton}
                       aria-label={`Remove option ${o.id.toUpperCase()}`}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className={styles.downloadIcon} />
                     </button>
                   </div>
                 );
@@ -454,58 +441,56 @@ export default function QuestionForm() {
               <button
                 type="button"
                 onClick={() => setOptions((opts) => [...opts, { id: OPTION_IDS.find((id) => !opts.some((o) => o.id === id))!, text: '' }])}
-                className="btn-outline text-sm"
+                className={styles.addOptionButton}
               >
-                <Plus className="w-4 h-4" /> Add option
+                <Plus className={styles.downloadIcon} /> Add option
               </button>
             )}
             <div>
-              <label className="label">Explanation <span className="text-surface-500 font-normal">(shown to admins in reports)</span></label>
-              <textarea className="input min-h-[80px]" placeholder="Why the correct answer is correct" value={explanation} onChange={(e) => setExplanation(e.target.value)} />
+              <label className="label">Explanation <span className={styles.shownToAdminsLabel}>{MSG.shownAdminsReports}</span></label>
+              <textarea className={styles.whyTheCorrectTextarea} placeholder={MSG.whyCorrectAnswerCorrect} value={explanation} onChange={(e) => setExplanation(e.target.value)} />
             </div>
           </div>
         )}
 
         {/* Test Cases Tab */}
         {activeTab === 'testcases' && (
-          <div className="space-y-6 animate-fade-in">
+          <div className={styles.questionTypeBox}>
             {/* Existing test cases */}
             {testCases.length > 0 && (
-              <div className="space-y-3">
+              <div className={styles.existingTestBox}>
                 {testCases.map((tc, idx) => (
                   <div
                     key={tc.id}
-                    className="card flex items-start gap-4 p-4"
+                    className={styles.trashBox}
                   >
-                    <div className="flex-1 grid grid-cols-2 gap-4">
+                    <div className={styles.inputBox}>
                       <div>
-                        <label className="text-xs text-surface-500 mb-1 block">Input</label>
-                        <pre className="sample-box text-xs">{tc.input || '(empty)'}</pre>
+                        <label className={styles.inputLabel}>Input</label>
+                        <pre className={styles.existingTestPre}>{tc.input || '(empty)'}</pre>
                       </div>
                       <div>
-                        <label className="text-xs text-surface-500 mb-1 block">Expected Output</label>
-                        <pre className="sample-box text-xs">{tc.expectedOutput}</pre>
+                        <label className={styles.inputLabel}>Expected Output</label>
+                        <pre className={styles.existingTestPre}>{tc.expectedOutput}</pre>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 pt-4">
+                    <div className={styles.trashBox2}>
                       <span
-                        className={`badge text-xs ${
-                          tc.isSample
-                            ? 'bg-primary-500/15 text-primary-600 ring-1 ring-primary-500/25'
-                            : 'bg-surface-800 text-surface-500 ring-1 ring-surface-700'
-                        }`}
+                        className={`${styles.existingTestLabel} ${tc.isSample
+                            ? styles.existingTestLabelSample
+                            : styles.existingTestLabelDefault}`}
                       >
                         {tc.isSample ? (
-                          <><Eye className="w-3 h-3 mr-1" /> Sample</>
+                          <><Eye className={styles.eyeIcon} /> Sample</>
                         ) : (
-                          <><EyeOff className="w-3 h-3 mr-1" /> Hidden</>
+                          <><EyeOff className={styles.eyeIcon} /> Hidden</>
                         )}
                       </span>
                       <button
                         onClick={() => removeTestCase(tc)}
-                        className="btn-ghost p-1.5 text-red-600 hover:bg-red-500/10"
+                        className={styles.trashButton}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className={styles.downloadIcon} />
                       </button>
                     </div>
                   </div>
@@ -514,16 +499,16 @@ export default function QuestionForm() {
             )}
 
             {/* Add new test case */}
-            <div className="card border-dashed border-2 border-surface-700">
-              <h3 className="text-sm font-medium text-surface-300 mb-4 flex items-center gap-2">
-                <FlaskConical className="w-4 h-4" />
+            <div className={styles.flaskConicalBox}>
+              <h3 className={styles.addTestCaseTitle}>
+                <FlaskConical className={styles.downloadIcon} />
                 Add Test Case
               </h3>
-              <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className={styles.inputStdinBox}>
                 <div>
                   <label className="label">Input (stdin)</label>
                   <textarea
-                    className="input font-mono text-sm min-h-[80px]"
+                    className={styles.addNewTextarea}
                     placeholder="5&#10;1 2 3 4 5"
                     value={newTC.input}
                     onChange={(e) => setNewTC((p) => ({ ...p, input: e.target.value }))}
@@ -532,27 +517,26 @@ export default function QuestionForm() {
                 <div>
                   <label className="label">Expected Output</label>
                   <textarea
-                    className="input font-mono text-sm min-h-[80px]"
+                    className={styles.addNewTextarea}
                     placeholder="15"
                     value={newTC.expectedOutput}
                     onChange={(e) => setNewTC((p) => ({ ...p, expectedOutput: e.target.value }))}
                   />
                 </div>
               </div>
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className={styles.plusBox}>
+                <label className={styles.sampleTestCaseLabel}>
                   <input
                     type="checkbox"
                     checked={newTC.isSample}
                     onChange={(e) => setNewTC((p) => ({ ...p, isSample: e.target.checked }))}
-                    className="w-4 h-4 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500"
+                    className={styles.addNewInput}
                   />
-                  <span className="text-sm text-surface-300">
-                    Sample test case (visible to candidate)
-                  </span>
+                  <span className={styles.sampleTestCaseLabel2}>
+                    {MSG.sampleTestCaseVisible}</span>
                 </label>
                 <button onClick={addTestCase} className="btn-outline">
-                  <Plus className="w-4 h-4" /> Add
+                  <Plus className={styles.downloadIcon} /> Add
                 </button>
               </div>
             </div>
@@ -563,16 +547,14 @@ export default function QuestionForm() {
         {activeTab === 'starter' && (
           <div className="animate-fade-in">
             {/* Language tabs */}
-            <div className="flex gap-1 mb-4 bg-surface-900 rounded-lg p-1 w-fit">
+            <div className={styles.languageTabsBox}>
               {LANGUAGES.map((lang) => (
                 <button
                   key={lang.id}
                   onClick={() => setActiveStarterLang(lang.id)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
-                    activeStarterLang === lang.id
-                      ? 'bg-surface-700 text-white'
-                      : 'text-surface-400 hover:text-white'
-                  }`}
+                  className={`${styles.nameButton} ${activeStarterLang === lang.id
+                      ? styles.nameButtonSelected
+                      : styles.nameButtonDefault}`}
                 >
                   {lang.name}
                 </button>
@@ -580,7 +562,7 @@ export default function QuestionForm() {
             </div>
 
             {/* Monaco Editor */}
-            <div className="rounded-xl overflow-hidden border border-surface-800">
+            <div className={styles.monacoEditorBox}>
               <Editor
                 height="400px"
                 language={LANGUAGES.find((l) => l.id === activeStarterLang)?.monacoLang || 'python'}
@@ -606,9 +588,8 @@ export default function QuestionForm() {
                 }}
               />
             </div>
-            <p className="text-xs text-surface-500 mt-2">
-              This code will be pre-filled in the editor when a candidate starts the question.
-            </p>
+            <p className={styles.thisCodeWillText}>
+              {MSG.codePreFilledEditor}</p>
           </div>
         )}
       </main>

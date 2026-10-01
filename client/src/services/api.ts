@@ -1,16 +1,6 @@
 import axios from 'axios';
-import type {
-  Question,
-  Assessment,
-  RunCodeResponse,
-  RunTestsResponse,
-  SubmissionResult,
-  Language,
-  AssessmentInput,
-  DashboardData,
-  CandidateSummary,
-  AssessmentStats,
-} from '../types';
+import type { Question, Assessment, RunCodeResponse, RunTestsResponse, SubmissionResult, Language, AssessmentInput, DashboardData, QuestionInput, AssessmentSubmissionsResponse, PublicInvite, SessionResponse, InviteLink } from '../types';
+import { STORAGE_KEYS } from '../constants';
 
 const api = axios.create({
   baseURL: '/api',
@@ -21,7 +11,7 @@ const api = axios.create({
 
 // Inject JWT token from localStorage
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('wissen-token');
+  const token = localStorage.getItem(STORAGE_KEYS.token);
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
@@ -44,22 +34,6 @@ export async function getQuestions(filters?: {
 export async function getQuestion(id: number): Promise<Question> {
   const { data } = await api.get(`/questions/${id}`);
   return data;
-}
-
-// Tags are sent as an array; the server stores them as a JSON string
-export interface QuestionInput {
-  title?: string;
-  statement?: string;
-  difficulty?: Question['difficulty'];
-  tags?: string[];
-  timeLimit?: number;
-  memoryLimit?: number;
-  type?: 'coding' | 'mcq';
-  options?: { id: string; text: string }[];
-  correctOptions?: string[];
-  explanation?: string;
-  topic?: string;
-  skills?: string[];
 }
 
 export async function createQuestion(question: QuestionInput & {
@@ -212,28 +186,6 @@ export async function getSubmissionResults(
 
 // ---- Sessions (Timer + Autosave) ----
 
-export interface SessionResponse {
-  sessionId: number;
-  startedAt: string;
-  finishedAt: string | null;
-  timeLimitMinutes: number;
-  remainingSeconds: number;
-  isFinished: boolean;
-  tabSwitchCount: number;
-  tabSwitchLimit: number;
-  attempt?: number;
-  drafts: {
-    id: number;
-    sessionId: number;
-    questionId: number;
-    languageId: number;
-    languageName: string;
-    code: string;
-    isFlagged: boolean;
-    isAnswered: boolean;
-  }[];
-}
-
 // Existing session for the current candidate; never creates one (so the timer doesn't start)
 export async function getSessionStatus(
   assessmentId: number
@@ -302,16 +254,6 @@ export async function finishSession(sessionId: number): Promise<any> {
 
 // ---- Admin Reports ----
 
-export interface CandidateSubmissionSummary extends CandidateSummary {
-  session: { finishedAt: string | null; startedAt: string } | null;
-}
-
-export interface AssessmentSubmissionsResponse {
-  assessment: { id: number; name: string; timeLimitMinutes: number; passingScore: number };
-  candidates: CandidateSubmissionSummary[];
-  stats: AssessmentStats;
-}
-
 export async function getAssessmentSubmissions(
   assessmentId: number
 ): Promise<AssessmentSubmissionsResponse> {
@@ -345,35 +287,6 @@ export async function downloadAssessmentCsv(assessmentId: number): Promise<{ blo
 }
 
 // ---- Invite links ----
-
-export interface InviteLink {
-  id: number;
-  token: string;
-  assessmentId: number;
-  label: string;
-  maxUses: number | null;
-  expiresAt: string | null;
-  revokedAt: string | null;
-  createdAt: string;
-  uses: number;
-  state: 'active' | 'revoked' | 'expired' | 'full';
-  participants: { name: string; email: string; joinedAt: string }[];
-}
-
-export interface PublicInvite {
-  assessment: {
-    name: string;
-    description: string;
-    timeLimitMinutes: number;
-    passingScore: number;
-    questionCount: number;
-    startAt: string | null;
-    endAt: string | null;
-  };
-  label: string;
-  canJoin: boolean;
-  problem: string | null;
-}
 
 export function inviteUrl(token: string): string {
   return `${window.location.origin}/invite/${token}`;

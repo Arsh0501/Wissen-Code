@@ -8,15 +8,13 @@ import { apiError } from '../../services/api';
 import {
   approveQuestion, generateQuestions, getAIStatus, saveDraftsForReview, validateQuestions,
 } from '../../services/ai';
-import type { GenerateRequest, GeneratedQuestion, ValidationReport } from '../../services/ai';
 import {
   Sparkles, Wand2, ShieldCheck, CheckCircle, Edit, Trash2, Plus, X, AlertTriangle, ChevronDown,
   Inbox, ListChecks, Code2, Square, CheckSquare,
 } from 'lucide-react';
-
-type Item = { q: GeneratedQuestion; report?: ValidationReport; include: boolean; editing: boolean };
-
-const STEPS = ['Define', 'Generate', 'Preview & edit', 'Validate', 'Approve'] as const;
+import styles from './AIQuestionStudio.module.css';
+import type { StudioItem, GenerateRequest, GeneratedQuestion } from '../../types';
+import { AI_STUDIO_STEPS, COMMON_MESSAGES, AI_QUESTION_STUDIO_MESSAGES as MSG } from '../../constants';
 
 export default function AIQuestionStudio() {
   const qc = useQueryClient();
@@ -24,7 +22,7 @@ export default function AIQuestionStudio() {
 
   const [form, setForm] = useState<GenerateRequest>({ topic: '', difficulty: 'mixed', questionType: 'mixed', count: 4, skills: [], notes: '' });
   const [skillDraft, setSkillDraft] = useState('');
-  const [items, setItems] = useState<Item[]>([]);
+  const [items, setItems] = useState<StudioItem[]>([]);
   const [result, setResult] = useState<{ approved: string[]; blocked: { title: string; reason: string }[]; saved: number } | null>(null);
 
   const generate = useMutation({
@@ -83,60 +81,59 @@ export default function AIQuestionStudio() {
 
   return (
     <AdminLayout
-      title="Generate questions with AI"
-      subtitle="Describe what you need, review and edit the drafts, validate them, then approve them into the question bank"
-      maxWidth="max-w-6xl"
-      actions={<Link to="/admin/questions?tab=review" className="btn-outline text-sm"><Inbox className="w-4 h-4" /> Review queue</Link>}
+      title={MSG.generateQuestionsAi}
+      subtitle={MSG.describeWhatNeedReview}
+      maxWidth={styles.generateQuestionsWithMaxWidth}
+      actions={<Link to="/admin/questions?tab=review" className={styles.reviewQueueLink}><Inbox className={styles.inboxIcon} /> Review queue</Link>}
     >
       {/* Progress */}
-      <ol className="flex flex-wrap items-center gap-2 mb-6 text-xs font-medium">
-        {STEPS.map((label, i) => (
-          <li key={label} className="flex items-center gap-2">
-            <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${i < step ? 'bg-emerald-500/10 text-emerald-700' : i === step ? 'bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/30' : 'bg-surface-800 text-surface-500'}`}>
-              {i < step ? <CheckCircle className="w-3.5 h-3.5" /> : <span className="tabular-nums">{i + 1}</span>}
+      <ol className={styles.questionBankList}>
+        {AI_STUDIO_STEPS.map((label, i) => (
+          <li key={label} className={styles.labelItem}>
+            <span className={`${styles.label} ${i < step ? styles.labelHigh : i === step ? styles.labelSelected : styles.labelDefault}`}>
+              {i < step ? <CheckCircle className={styles.checkCircleIcon} /> : <span className={styles.progressLabel}>{i + 1}</span>}
               {label}
             </span>
-            {i < STEPS.length - 1 && <span className="w-4 h-px bg-surface-700" aria-hidden="true" />}
+            {i < AI_STUDIO_STEPS.length - 1 && <span className={styles.progressLabel2} aria-hidden="true" />}
           </li>
         ))}
-        <li className="flex items-center gap-2 ml-1 text-surface-500">→ Question bank</li>
+        <li className={styles.questionBankItem}>→ Question bank</li>
       </ol>
 
       {status.data && status.data.provider === 'stand-in' && (
-        <p className="mb-5 text-xs text-surface-500 flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-primary-600" />
-          AI is running on the built-in stand-in until the AI backend is connected. Output is realistic sample content.
-        </p>
+        <p className={styles.aiIsRunningText}>
+          <Sparkles className={styles.sparklesIcon} />
+          {MSG.aiRunningBuiltStand}</p>
       )}
 
       {result && (
-        <div className="card mb-6">
-          <h2 className="text-base font-semibold text-white flex items-center gap-2"><CheckCircle className="w-5 h-5 text-emerald-600" /> Done</h2>
-          <ul className="text-sm text-surface-300 mt-3 space-y-1">
-            {result.approved.length > 0 && <li><b className="text-white">{result.approved.length}</b> approved and added to the question bank: {result.approved.join(', ')}.</li>}
-            {result.approved.length === 0 && result.blocked.length === 0 && <li><b className="text-white">{result.saved}</b> saved to the review queue for approval later.</li>}
-            {result.blocked.map((b) => <li key={b.title} className="text-red-700">"{b.title}" stayed in the review queue: {b.reason}</li>)}
+        <div className={styles.checkCircleBox}>
+          <h2 className={styles.doneTitle}><CheckCircle className={styles.checkCircleIcon2} /> Done</h2>
+          <ul className={styles.progressList}>
+            {result.approved.length > 0 && <li><b className={styles.lengthBox}>{result.approved.length}</b> {MSG.approvedAddedQuestionBank}{result.approved.join(', ')}.</li>}
+            {result.approved.length === 0 && result.blocked.length === 0 && <li><b className={styles.lengthBox}>{result.saved}</b> {MSG.savedReviewQueueApproval}</li>}
+            {result.blocked.map((b) => <li key={b.title} className={styles.progressItem}>"{b.title}{MSG.stayedReviewQueue}{b.reason}</li>)}
           </ul>
-          <div className="flex gap-2 mt-4">
-            <Link to="/admin/questions" className="btn-primary text-sm">Go to question bank</Link>
-            {(result.blocked.length > 0 || result.approved.length === 0) && <Link to="/admin/questions?tab=review" className="btn-outline text-sm">Open review queue</Link>}
-            <button onClick={() => setResult(null)} className="btn-ghost text-sm">Generate more</button>
+          <div className={styles.goToQuestionBox}>
+            <Link to="/admin/questions" className={styles.goToQuestionLink}>{MSG.goQuestionBank}</Link>
+            {(result.blocked.length > 0 || result.approved.length === 0) && <Link to="/admin/questions?tab=review" className={styles.reviewQueueLink}>Open review queue</Link>}
+            <button onClick={() => setResult(null)} className={styles.generateMoreButton}>Generate more</button>
           </div>
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6 items-start">
+      <div className={styles.whatDoYouBox}>
         {/* ── Define ── */}
         <form
-          className="card space-y-4 lg:sticky lg:top-4"
+          className={styles.whatDoYouForm}
           onSubmit={(e) => { e.preventDefault(); if (form.topic.trim().length >= 2) generate.mutate(); }}
         >
-          <h2 className="text-sm font-semibold text-white">What do you need?</h2>
+          <h2 className={styles.whatDoYouTitle}>{MSG.whatDoNeed}</h2>
           <div>
             <label className="label" htmlFor="g-topic">Topic *</label>
-            <input id="g-topic" className="input" placeholder="e.g. Frontend engineering, Arrays" value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} maxLength={120} />
+            <input id="g-topic" className="input" placeholder={MSG.frontendEngineeringArraysExample} value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} maxLength={120} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={styles.gDiffBox}>
             <div>
               <label className="label" htmlFor="g-diff">Difficulty</label>
               <select id="g-diff" className="input" value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value as GenerateRequest['difficulty'] })}>
@@ -150,26 +147,26 @@ export default function AIQuestionStudio() {
           </div>
           <div>
             <span className="label">Question type</span>
-            <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-surface-800">
+            <div className={styles.defineBox}>
               {([['mixed', 'Mixed'], ['coding', 'Coding'], ['mcq', 'MCQ']] as const).map(([k, l]) => (
-                <button key={k} type="button" onClick={() => setForm({ ...form, questionType: k })} className={`py-1.5 rounded-md text-sm font-medium ${form.questionType === k ? 'bg-surface-900 text-white shadow-sm' : 'text-surface-500'}`}>{l}</button>
+                <button key={k} type="button" onClick={() => setForm({ ...form, questionType: k })} className={`${styles.lButton} ${form.questionType === k ? styles.lButtonSelected : styles.lButtonDefault}`}>{l}</button>
               ))}
             </div>
           </div>
           <div>
             <label className="label" htmlFor="g-skill">Required skills</label>
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className={styles.defineBox2}>
               {form.skills.map((s) => (
-                <span key={s} className="badge bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/20 gap-1">
+                <span key={s} className={styles.sLabel}>
                   {s}
-                  <button type="button" onClick={() => setForm({ ...form, skills: form.skills.filter((x) => x !== s) })} aria-label={`Remove ${s}`}><X className="w-3 h-3" /></button>
+                  <button type="button" onClick={() => setForm({ ...form, skills: form.skills.filter((x) => x !== s) })} aria-label={`Remove ${s}`}><X className={styles.xIcon} /></button>
                 </span>
               ))}
             </div>
             <input
               id="g-skill"
               className="input"
-              placeholder="Type a skill and press Enter"
+              placeholder={MSG.typeSkillPressEnter}
               value={skillDraft}
               onChange={(e) => setSkillDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addSkill(); } }}
@@ -177,51 +174,51 @@ export default function AIQuestionStudio() {
             />
           </div>
           <div>
-            <label className="label" htmlFor="g-notes">Notes <span className="text-surface-500 font-normal">(optional)</span></label>
-            <textarea id="g-notes" className="input min-h-[70px]" placeholder="e.g. focus on real-world scenarios, avoid trick questions" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={1000} />
+            <label className="label" htmlFor="g-notes">Notes <span className={styles.optionalLabel}>(optional)</span></label>
+            <textarea id="g-notes" className={styles.gNotesTextarea} placeholder={MSG.focusRealWorldScenariosExample} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} maxLength={1000} />
           </div>
-          {generate.isError && <p className="text-sm text-red-600">{apiError(generate.error, 'Generation failed')}</p>}
-          {items.length > 0 && !generate.isPending && <p className="text-xs text-amber-700">Generating again replaces the current drafts.</p>}
-          <button type="submit" disabled={generate.isPending || form.topic.trim().length < 2} className="btn-primary w-full">
-            <Wand2 className="w-4 h-4" /> {generate.isPending ? 'Generating...' : items.length ? 'Regenerate' : 'Generate'}
+          {generate.isError && <p className={styles.defineText}>{apiError(generate.error, 'Generation failed')}</p>}
+          {items.length > 0 && !generate.isPending && <p className={styles.generatingAgainReplacesText}>{MSG.generatingAgainReplacesCurrent}</p>}
+          <button type="submit" disabled={generate.isPending || form.topic.trim().length < 2} className={styles.wandButton}>
+            <Wand2 className={styles.inboxIcon} /> {generate.isPending ? 'Generating...' : items.length ? 'Regenerate' : 'Generate'}
           </button>
         </form>
 
         {/* ── Preview / edit / validate / approve ── */}
-        <div className="lg:col-span-2 space-y-4 min-w-0">
+        <div className={styles.defineBox3}>
           {!items.length ? (
-            <div className="card text-center py-16">
-              <div className="w-14 h-14 rounded-2xl bg-primary-500/10 text-primary-600 flex items-center justify-center mx-auto mb-4">
-                {generate.isPending ? <div className="w-6 h-6 border-2 border-primary-600 border-t-transparent rounded-full animate-spin" /> : <Sparkles className="w-7 h-7" />}
+            <div className={styles.nothingIsAddedBox}>
+              <div className={styles.defineBox4}>
+                {generate.isPending ? <div className={styles.defineBox5} /> : <Sparkles className={styles.sparklesIcon2} />}
               </div>
-              <p className="text-sm font-semibold text-white">{generate.isPending ? 'Writing questions...' : 'Drafts will appear here'}</p>
-              <p className="text-xs text-surface-500 mt-1">Nothing is added to the question bank until you approve it.</p>
+              <p className={styles.whatDoYouTitle}>{generate.isPending ? 'Writing questions...' : MSG.draftsAppearHere}</p>
+              <p className={styles.nothingIsAddedText}>{MSG.nothingAddedQuestionBank}</p>
             </div>
           ) : (
             <>
-              <div className="card flex flex-wrap items-center justify-between gap-3 py-4">
-                <div className="text-sm text-surface-300">
-                  <b className="text-white">{chosen.length}</b> of {items.length} selected
-                  {allValidated && (failing.length ? <span className="text-red-700"> · {failing.length} failed validation</span> : <span className="text-emerald-700"> · all validated</span>)}
+              <div className={styles.ofBox}>
+                <div className={styles.ofBox2}>
+                  <b className={styles.lengthBox}>{chosen.length}</b> of {items.length} selected
+                  {allValidated && (failing.length ? <span className={styles.progressItem}> · {failing.length} failed validation</span> : <span className={styles.allValidatedLabel}> · all validated</span>)}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => validate.mutate()} disabled={validate.isPending || !items.length} className={allValidated ? 'btn-outline text-sm' : 'btn-primary text-sm'}>
-                    <ShieldCheck className="w-4 h-4" /> {validate.isPending ? 'Validating...' : allValidated ? 'Validate again' : 'Validate'}
+                <div className={styles.keepInTheBox}>
+                  <button onClick={() => validate.mutate()} disabled={validate.isPending || !items.length} className={allValidated ? styles.reviewQueueLink : styles.goToQuestionLink}>
+                    <ShieldCheck className={styles.inboxIcon} /> {validate.isPending ? 'Validating...' : allValidated ? 'Validate again' : 'Validate'}
                   </button>
-                  <button onClick={() => approve.mutate('save')} disabled={approve.isPending || !chosen.length} className="btn-outline text-sm" title="Keep in the review queue for someone to approve later">
-                    <Inbox className="w-4 h-4" /> Save for review
+                  <button onClick={() => approve.mutate('save')} disabled={approve.isPending || !chosen.length} className={styles.reviewQueueLink} title={MSG.keepReviewQueueSomeone}>
+                    <Inbox className={styles.inboxIcon} /> Save for review
                   </button>
                   <button
                     onClick={() => approve.mutate('approve')}
                     disabled={approve.isPending || !allValidated || failing.length > 0}
-                    className="btn-primary text-sm"
-                    title={!allValidated ? 'Validate first' : failing.length ? 'Fix or deselect the failing questions' : 'Add to the question bank'}
+                    className={styles.goToQuestionLink}
+                    title={!allValidated ? 'Validate first' : failing.length ? MSG.fixDeselectFailingQuestions : COMMON_MESSAGES.addQuestionBank}
                   >
-                    <CheckCircle className="w-4 h-4" /> {approve.isPending ? 'Approving...' : `Approve ${chosen.length}`}
+                    <CheckCircle className={styles.inboxIcon} /> {approve.isPending ? 'Approving...' : `Approve ${chosen.length}`}
                   </button>
                 </div>
-                {validate.isError && <p className="w-full text-sm text-red-600">{apiError(validate.error, 'Validation failed')}</p>}
-                {approve.isError && <p className="w-full text-sm text-red-600">{apiError(approve.error, 'Could not save')}</p>}
+                {validate.isError && <p className={styles.defineText2}>{apiError(validate.error, 'Validation failed')}</p>}
+                {approve.isError && <p className={styles.defineText2}>{apiError(approve.error, 'Could not save')}</p>}
               </div>
 
               {items.map((it, idx) => (
@@ -244,31 +241,31 @@ export default function AIQuestionStudio() {
 }
 
 function DraftCard({ item, index, onToggleInclude, onToggleEdit, onRemove, onChange }: {
-  item: Item; index: number; onToggleInclude: () => void; onToggleEdit: () => void; onRemove: () => void; onChange: (p: Partial<GeneratedQuestion>) => void;
+  item: StudioItem; index: number; onToggleInclude: () => void; onToggleEdit: () => void; onRemove: () => void; onChange: (p: Partial<GeneratedQuestion>) => void;
 }) {
   const { q, report } = item;
   const [showReport, setShowReport] = useState(false);
   const TypeIcon = q.type === 'mcq' ? ListChecks : Code2;
   return (
-    <div className={`card p-0 overflow-hidden ${item.include ? '' : 'opacity-60'}`}>
-      <div className="flex items-start justify-between gap-3 p-5">
-        <div className="flex items-start gap-3 min-w-0">
-          <button onClick={onToggleInclude} className="mt-0.5 shrink-0" aria-label={item.include ? 'Exclude from approval' : 'Include in approval'} title={item.include ? 'Selected' : 'Not selected'}>
-            {item.include ? <CheckSquare className="w-5 h-5 text-primary-600" /> : <Square className="w-5 h-5 text-surface-500" />}
+    <div className={`${styles.discardBox} ${item.include ? '' : styles.discardBoxDefault}`}>
+      <div className={styles.discardBox2}>
+        <div className={styles.qBox}>
+          <button onClick={onToggleInclude} className={styles.toggleIncludeButton} aria-label={item.include ? 'Exclude from approval' : 'Include in approval'} title={item.include ? 'Selected' : 'Not selected'}>
+            {item.include ? <CheckSquare className={styles.checkSquareIcon} /> : <Square className={styles.squareIcon} />}
           </button>
-          <div className="min-w-0">
-            <h3 className="font-semibold text-white">Q{index + 1}. {q.title}</h3>
-            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              <span className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 gap-1"><TypeIcon className="w-3 h-3" /> {q.type === 'mcq' ? 'Multiple choice' : 'Coding'}</span>
-              <span className={`badge-${q.difficulty} capitalize`}>{q.difficulty}</span>
-              {q.skills.slice(0, 4).map((s) => <span key={s} className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700">{s}</span>)}
+          <div className={styles.qBox2}>
+            <h3 className={styles.qTitle}>Q{index + 1}. {q.title}</h3>
+            <div className={styles.difficultyBox}>
+              <span className={styles.defineLabel}><TypeIcon className={styles.xIcon} /> {q.type === 'mcq' ? 'Multiple choice' : 'Coding'}</span>
+              <span className={`${styles.difficultyLabel} badge-${q.difficulty}`}>{q.difficulty}</span>
+              {q.skills.slice(0, 4).map((s) => <span key={s} className={styles.sLabel2}>{s}</span>)}
               <VerdictBadge report={report} />
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button onClick={onToggleEdit} className={`btn-ghost p-2 ${item.editing ? 'text-primary-700' : ''}`} title={item.editing ? 'Done editing' : 'Edit'}><Edit className="w-4 h-4" /></button>
-          <button onClick={onRemove} className="btn-ghost p-2 hover:text-red-600" title="Discard"><Trash2 className="w-4 h-4" /></button>
+        <div className={styles.discardBox3}>
+          <button onClick={onToggleEdit} className={`${styles.toggleEditButton} ${item.editing ? styles.toggleEditButtonEditing : ''}`} title={item.editing ? 'Done editing' : 'Edit'}><Edit className={styles.inboxIcon} /></button>
+          <button onClick={onRemove} className={styles.discardButton} title="Discard"><Trash2 className={styles.inboxIcon} /></button>
         </div>
       </div>
 
@@ -276,14 +273,14 @@ function DraftCard({ item, index, onToggleInclude, onToggleEdit, onRemove, onCha
 
       {report && (
         <>
-          <button onClick={() => setShowReport((v) => !v)} className="w-full flex items-center justify-between px-5 py-2.5 border-t border-surface-800 bg-surface-950 text-xs font-medium text-surface-400 hover:bg-surface-800/50 cursor-pointer" aria-expanded={showReport}>
-            <span className="flex items-center gap-2">
+          <button onClick={() => setShowReport((v) => !v)} className={styles.chevronDownButton} aria-expanded={showReport}>
+            <span className={styles.labelItem}>
               Validation report
-              {report.duplicateOf && <span className="text-amber-700">· similar to "{report.duplicateOf.title}"</span>}
+              {report.duplicateOf && <span className={styles.similarToLabel}>· similar to "{report.duplicateOf.title}"</span>}
             </span>
-            <ChevronDown className={`w-4 h-4 transition-transform ${showReport ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`${styles.chevronDownIcon} ${showReport ? styles.chevronDownIconReport : ''}`} />
           </button>
-          {showReport && <div className="p-5 border-t border-surface-800"><ValidationPanel report={report} /></div>}
+          {showReport && <div className={styles.defineBox6}><ValidationPanel report={report} /></div>}
         </>
       )}
     </div>
@@ -293,19 +290,19 @@ function DraftCard({ item, index, onToggleInclude, onToggleEdit, onRemove, onCha
 function DraftPreview({ q }: { q: GeneratedQuestion }) {
   const samples = q.testCases.filter((t) => t.isSample);
   return (
-    <div className="px-5 pb-5 space-y-3">
-      <div className="text-sm text-surface-300 space-y-2 max-h-72 overflow-y-auto pr-2 [&_strong]:text-white [&_code]:px-1 [&_code]:rounded [&_code]:bg-surface-800 [&_pre]:bg-surface-950 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5">
+    <div className={styles.statementBox}>
+      <div className={styles.statementBox2}>
         <ReactMarkdown>{q.statement}</ReactMarkdown>
       </div>
       {q.type === 'mcq' ? (
-        <ul className="space-y-1.5">
+        <ul className={styles.defineList}>
           {q.options.map((o) => {
             const right = q.correctOptionIds.includes(o.id);
-            return <li key={o.id} className={`px-3 py-2 rounded-lg border text-sm ${right ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700' : 'border-surface-800 text-surface-300'}`}><b className="uppercase mr-2">{o.id}</b>{o.text}{right && ' ✓'}</li>;
+            return <li key={o.id} className={`${styles.textItem} ${right ? styles.textItemRight : styles.textItemDefault}`}><b className={styles.idBox}>{o.id}</b>{o.text}{right && ' ✓'}</li>;
           })}
         </ul>
       ) : (
-        <p className="text-xs text-surface-500">{samples.length} sample · {q.testCases.length - samples.length} hidden test cases · reference solution {q.referenceSolution.trim() ? 'included' : 'missing'}</p>
+        <p className={styles.lengthText}>{samples.length} sample · {q.testCases.length - samples.length} {MSG.hiddenTestCasesReference}{q.referenceSolution.trim() ? 'included' : 'missing'}</p>
       )}
     </div>
   );
@@ -314,10 +311,10 @@ function DraftPreview({ q }: { q: GeneratedQuestion }) {
 function DraftEditor({ q, onChange }: { q: GeneratedQuestion; onChange: (p: Partial<GeneratedQuestion>) => void }) {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
   return (
-    <div className="px-5 pb-5 space-y-4 border-t border-surface-800 pt-4">
-      <p className="text-xs text-amber-700 flex items-center gap-1.5"><AlertTriangle className="w-3.5 h-3.5" /> Editing clears this question&apos;s validation. Validate again before approving.</p>
-      <div className="grid sm:grid-cols-3 gap-3">
-        <div className="sm:col-span-2">
+    <div className={styles.alertTriangleBox}>
+      <p className={styles.editingClearsThisText}><AlertTriangle className={styles.checkCircleIcon} /> {MSG.editingClearsQuestionsValidation}</p>
+      <div className={styles.titleBox}>
+        <div className={styles.titleBox2}>
           <label className="label">Title</label>
           <input className="input" value={q.title} onChange={(e) => onChange({ title: e.target.value })} maxLength={200} />
         </div>
@@ -330,53 +327,53 @@ function DraftEditor({ q, onChange }: { q: GeneratedQuestion; onChange: (p: Part
       </div>
       <div>
         <label className="label">Statement (Markdown)</label>
-        <textarea className="input min-h-[180px] font-mono text-xs" value={q.statement} onChange={(e) => onChange({ statement: e.target.value })} />
+        <textarea className={styles.defineTextarea} value={q.statement} onChange={(e) => onChange({ statement: e.target.value })} />
       </div>
       {q.type === 'mcq' ? (
-        <div className="space-y-2">
-          <span className="label">Options — tick the correct answer(s)</span>
+        <div className={styles.optionsTickTheBox}>
+          <span className="label">{MSG.optionsTickCorrectAnswer}</span>
           {q.options.map((o, i) => {
             const right = q.correctOptionIds.includes(o.id);
             return (
-              <div key={o.id} className="flex items-center gap-2">
+              <div key={o.id} className={styles.labelItem}>
                 <button type="button" onClick={() => onChange({ correctOptionIds: right ? q.correctOptionIds.filter((c) => c !== o.id) : [...q.correctOptionIds, o.id] })} aria-label={`Toggle ${o.id} correct`}>
-                  {right ? <CheckSquare className="w-5 h-5 text-emerald-600" /> : <Square className="w-5 h-5 text-surface-500" />}
+                  {right ? <CheckSquare className={styles.checkCircleIcon2} /> : <Square className={styles.squareIcon} />}
                 </button>
-                <span className="w-5 text-sm font-semibold text-surface-500 uppercase">{o.id}</span>
-                <input className="input flex-1" value={o.text} onChange={(e) => onChange({ options: q.options.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) })} />
-                <button type="button" disabled={q.options.length <= 2} onClick={() => onChange({ options: q.options.filter((_, j) => j !== i), correctOptionIds: q.correctOptionIds.filter((c) => c !== o.id) })} className="btn-ghost p-1.5 disabled:opacity-30" aria-label={`Remove option ${o.id}`}><Trash2 className="w-4 h-4" /></button>
+                <span className={styles.idLabel}>{o.id}</span>
+                <input className={styles.defineInput} value={o.text} onChange={(e) => onChange({ options: q.options.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)) })} />
+                <button type="button" disabled={q.options.length <= 2} onClick={() => onChange({ options: q.options.filter((_, j) => j !== i), correctOptionIds: q.correctOptionIds.filter((c) => c !== o.id) })} className={styles.removeOptionButton} aria-label={`Remove option ${o.id}`}><Trash2 className={styles.inboxIcon} /></button>
               </div>
             );
           })}
           {q.options.length < 6 && (
-            <button type="button" onClick={() => onChange({ options: [...q.options, { id: ids.find((id) => !q.options.some((o) => o.id === id))!, text: '' }] })} className="btn-ghost text-sm"><Plus className="w-4 h-4" /> Add option</button>
+            <button type="button" onClick={() => onChange({ options: [...q.options, { id: ids.find((id) => !q.options.some((o) => o.id === id))!, text: '' }] })} className={styles.generateMoreButton}><Plus className={styles.inboxIcon} /> Add option</button>
           )}
           <div>
             <label className="label">Explanation</label>
-            <textarea className="input min-h-[60px]" value={q.explanation} onChange={(e) => onChange({ explanation: e.target.value })} />
+            <textarea className={styles.defineTextarea2} value={q.explanation} onChange={(e) => onChange({ explanation: e.target.value })} />
           </div>
         </div>
       ) : (
         <>
           <div>
             <span className="label">Test cases</span>
-            <div className="space-y-2">
+            <div className={styles.optionsTickTheBox}>
               {q.testCases.map((t, i) => (
-                <div key={i} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-start">
-                  <textarea className="input font-mono text-xs min-h-[52px]" placeholder="Input" value={t.input} onChange={(e) => onChange({ testCases: q.testCases.map((x, j) => (j === i ? { ...x, input: e.target.value } : x)) })} />
-                  <textarea className="input font-mono text-xs min-h-[52px]" placeholder="Expected output" value={t.expectedOutput} onChange={(e) => onChange({ testCases: q.testCases.map((x, j) => (j === i ? { ...x, expectedOutput: e.target.value } : x)) })} />
-                  <label className="flex items-center gap-1 text-xs text-surface-400 pt-2 whitespace-nowrap">
+                <div key={i} className={styles.sampleBox}>
+                  <textarea className={styles.inputTextarea} placeholder="Input" value={t.input} onChange={(e) => onChange({ testCases: q.testCases.map((x, j) => (j === i ? { ...x, input: e.target.value } : x)) })} />
+                  <textarea className={styles.inputTextarea} placeholder="Expected output" value={t.expectedOutput} onChange={(e) => onChange({ testCases: q.testCases.map((x, j) => (j === i ? { ...x, expectedOutput: e.target.value } : x)) })} />
+                  <label className={styles.sampleLabel}>
                     <input type="checkbox" checked={t.isSample} onChange={(e) => onChange({ testCases: q.testCases.map((x, j) => (j === i ? { ...x, isSample: e.target.checked } : x)) })} /> Sample
                   </label>
-                  <button type="button" onClick={() => onChange({ testCases: q.testCases.filter((_, j) => j !== i) })} className="btn-ghost p-1.5 mt-1" aria-label={`Remove test ${i + 1}`}><Trash2 className="w-4 h-4" /></button>
+                  <button type="button" onClick={() => onChange({ testCases: q.testCases.filter((_, j) => j !== i) })} className={styles.removeTestButton} aria-label={`Remove test ${i + 1}`}><Trash2 className={styles.inboxIcon} /></button>
                 </div>
               ))}
             </div>
-            <button type="button" onClick={() => onChange({ testCases: [...q.testCases, { input: '', expectedOutput: '', isSample: false }] })} className="btn-ghost text-sm mt-2"><Plus className="w-4 h-4" /> Add test case</button>
+            <button type="button" onClick={() => onChange({ testCases: [...q.testCases, { input: '', expectedOutput: '', isSample: false }] })} className={styles.addTestCaseButton}><Plus className={styles.inboxIcon} /> Add test case</button>
           </div>
           <div>
-            <label className="label">Reference solution (Python) <span className="text-surface-500 font-normal">— used to verify expected outputs</span></label>
-            <textarea className="input font-mono text-xs min-h-[120px] [font-variant-ligatures:none]" value={q.referenceSolution} onChange={(e) => onChange({ referenceSolution: e.target.value })} />
+            <label className="label">Reference solution (Python) <span className={styles.optionalLabel}>{MSG.usedVerifyExpectedOutputs}</span></label>
+            <textarea className={styles.defineTextarea3} value={q.referenceSolution} onChange={(e) => onChange({ referenceSolution: e.target.value })} />
           </div>
         </>
       )}

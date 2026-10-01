@@ -1,0 +1,10 @@
+/* Styles for ThemeToggle.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.switchToButton {
+  composes: btn-ghost from global;
+  @apply p-2;
+}
+
+.sunIcon {
+  @apply w-4 h-4;
+}

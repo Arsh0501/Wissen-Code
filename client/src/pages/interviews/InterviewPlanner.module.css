@@ -1,0 +1,243 @@
+/* Styles for InterviewPlanner.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.interviewDetailsBox {
+  @apply grid lg:grid-cols-5 gap-6 items-start;
+}
+
+.interviewDetailsForm {
+  composes: card from global;
+  @apply space-y-4 lg:col-span-2;
+}
+
+.interviewDetailsTitle {
+  @apply text-sm font-semibold text-white;
+}
+
+.pNameBox {
+  @apply grid grid-cols-2 gap-3;
+}
+
+.pNameBox2 {
+  @apply col-span-2 sm:col-span-1;
+}
+
+.pReqTextarea {
+  composes: input from global;
+  @apply min-h-[90px];
+}
+
+.inputsBox {
+  @apply flex flex-wrap gap-1.5 mb-2;
+}
+
+.sLabel {
+  composes: badge from global;
+  @apply bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/20 gap-1;
+}
+
+.xIcon {
+  @apply w-3 h-3;
+}
+
+.pDurInput {
+  composes: input from global;
+  @apply w-32;
+}
+
+.inputsText {
+  @apply text-sm text-red-600;
+}
+
+.wandButton {
+  composes: btn-primary from global;
+  @apply w-full;
+}
+
+.wandIcon {
+  @apply w-4 h-4;
+}
+
+.planBox {
+  @apply lg:col-span-3 space-y-4 min-w-0;
+}
+
+.sparklesBox {
+  composes: card from global;
+  @apply text-center py-16;
+}
+
+.sparklesBox2 {
+  @apply w-14 h-14 rounded-2xl bg-primary-500/10 text-primary-600 flex items-center justify-center mx-auto mb-4;
+}
+
+.sparklesIcon {
+  @apply w-7 h-7;
+}
+
+.addTheRequiredText {
+  @apply text-xs text-surface-500 mt-1;
+}
+
+.interviewPlanBox {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.interviewPlanTitle {
+  @apply text-base font-semibold text-white;
+}
+
+.totalText {
+  @apply text-sm mt-0.5 tabular-nums flex items-center gap-1.5;
+}
+
+.totalTextSelected {
+  @apply text-emerald-700;
+}
+
+.totalTextDefault {
+  @apply text-amber-700;
+}
+
+.plusBox {
+  @apply flex gap-2;
+}
+
+.fitToDurationButton {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.addSectionButton {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.timeBarBox {
+  @apply flex h-2.5 rounded-full overflow-hidden mt-4 bg-surface-800;
+}
+
+.rationaleText {
+  @apply text-xs text-surface-500 mt-3;
+}
+
+.removeSectionBox {
+  composes: card from global;
+  @apply space-y-3;
+}
+
+.removeSectionBox2 {
+  @apply flex items-center gap-2;
+}
+
+.timeBarLabel {
+  @apply w-2.5 h-8 rounded-full;
+}
+
+.sectionTopicInput {
+  composes: input from global;
+  @apply flex-1 font-semibold;
+}
+
+.minLabel {
+  @apply flex items-center gap-1.5 text-sm text-surface-400 shrink-0;
+}
+
+.minutesForInput {
+  composes: input from global;
+  @apply w-20 text-right tabular-nums;
+}
+
+.moveUpBox {
+  @apply flex flex-col;
+}
+
+.moveUpButton {
+  composes: btn-ghost from global;
+  @apply p-0.5;
+}
+
+.arrowUpIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.removeSectionButton {
+  composes: btn-ghost from global;
+  @apply p-1.5 hover:text-red-600;
+}
+
+.goalForThisInput {
+  composes: input from global;
+  @apply text-sm;
+}
+
+.timeBarBox2 {
+  @apply space-y-2;
+}
+
+.removeQuestionBox {
+  @apply flex items-start gap-2;
+}
+
+.timeBarLabel2 {
+  @apply text-xs text-surface-500 pt-2.5 w-5 text-right tabular-nums;
+}
+
+.questionToAskTextarea {
+  composes: input from global;
+  @apply flex-1 text-sm min-h-[40px];
+}
+
+.removeQuestionButton {
+  composes: btn-ghost from global;
+  @apply p-1.5 mt-0.5;
+}
+
+.addQuestionButton {
+  composes: btn-ghost from global;
+  @apply text-xs;
+}
+
+.questionsBecomeTheBox {
+  composes: card from global;
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.questionsBecomeTheText {
+  @apply text-xs text-surface-500;
+}
+
+.checkCircleBox {
+  @apply flex flex-col items-end gap-1;
+}
+
+.planAnInterviewMaxWidth {
+  @apply max-w-6xl;
+}
+
+.interviewPrimary {
+  @apply bg-primary-500;
+}
+
+.interviewSky {
+  @apply bg-sky-500;
+}
+
+.interviewEmerald {
+  @apply bg-emerald-500;
+}
+
+.interviewAmber {
+  @apply bg-amber-500;
+}
+
+.interviewRose {
+  @apply bg-rose-500;
+}
+
+.interviewIndigo {
+  @apply bg-indigo-500;
+}
+
+.sectionDot {
+  @apply w-2.5 h-8 rounded-full;
+}

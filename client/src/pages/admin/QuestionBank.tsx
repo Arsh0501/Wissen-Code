@@ -10,6 +10,8 @@ import type { Question } from '../../types';
 import {
   Plus, Edit, Trash2, FileText, Search, ChevronDown, Upload, Eye, X, Download, EyeOff, Sparkles,
 } from 'lucide-react';
+import styles from './QuestionBank.module.css';
+import { QUESTION_BANK_MESSAGES as MSG } from '../../constants';
 
 export default function QuestionBank() {
   const navigate = useNavigate();
@@ -37,7 +39,7 @@ export default function QuestionBank() {
       setLoading(true);
       setQuestions(await getQuestions());
     } catch (err) {
-      setError(apiError(err, 'Failed to load questions'));
+      setError(apiError(err, MSG.failedLoadQuestions));
     } finally {
       setLoading(false);
     }
@@ -46,15 +48,15 @@ export default function QuestionBank() {
   async function handleDelete(q: Question) {
     const used = q._count?.assessments ?? 0;
     const msg = used
-      ? `"${q.title}" is used in ${used} assessment${used === 1 ? '' : 's'}. Deleting it removes it from those assessments and deletes candidates' answers to it. Continue?`
-      : `Delete "${q.title}"? This cannot be undone.`;
+      ? MSG.deleteUsedQuestionConfirm(q.title, used)
+      : MSG.deleteQuestionConfirm(q.title);
     if (!confirm(msg)) return;
     try {
       await deleteQuestion(q.id);
       setQuestions((prev) => prev.filter((x) => x.id !== q.id));
       if (preview?.id === q.id) setPreview(null);
     } catch (err) {
-      setError(apiError(err, 'Failed to delete question'));
+      setError(apiError(err, MSG.failedDeleteQuestion));
     }
   }
 
@@ -62,7 +64,7 @@ export default function QuestionBank() {
     try {
       setPreview(await getQuestion(id));
     } catch (err) {
-      setError(apiError(err, 'Failed to load question'));
+      setError(apiError(err, MSG.failedLoadQuestion));
     }
   }
 
@@ -89,11 +91,11 @@ export default function QuestionBank() {
     if (!file) return;
 
     if (!file.name.endsWith('.md')) {
-      alert('Please select a Markdown (.md) file');
+      alert(MSG.pleaseSelectMarkdownMd);
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert('File is too large. Maximum size is 2MB.');
+      alert(MSG.fileTooLargeMaximum);
       return;
     }
 
@@ -108,7 +110,7 @@ export default function QuestionBank() {
       }
       navigate('/admin/questions/new', { state: { prefill: data } });
     } catch (err: any) {
-      alert('Import failed: ' + apiError(err, 'Failed to import MD file'));
+      alert('Import failed: ' + apiError(err, MSG.failedImportMdFile));
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -118,88 +120,88 @@ export default function QuestionBank() {
   return (
     <AdminLayout
       title="Question Bank"
-      subtitle={`${questions.length} questions · ${counts.easy} easy · ${counts.medium} medium · ${counts.hard} hard`}
+      subtitle={MSG.questionsEasyMediumHard(questions.length, counts.easy, counts.medium, counts.hard)}
       actions={
-        <div className="relative">
-          <button onClick={() => setShowNewDropdown(!showNewDropdown)} disabled={importing} className="btn-primary text-sm">
-            <Plus className="w-4 h-4" />
+        <div className={styles.plusBox}>
+          <button onClick={() => setShowNewDropdown(!showNewDropdown)} disabled={importing} className={styles.plusButton}>
+            <Plus className={styles.plusIcon} />
             {importing ? 'Importing...' : 'New Question'}
-            <ChevronDown className="w-4 h-4 ml-1" />
+            <ChevronDown className={styles.chevronDownIcon} />
           </button>
           {showNewDropdown && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowNewDropdown(false)} />
-              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-surface-800 ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
-                <div className="py-1">
-                  <Link to="/admin/questions/new" className="block px-4 py-2 text-sm text-surface-200 hover:bg-surface-700">
+              <div className={styles.box} onClick={() => setShowNewDropdown(false)} />
+              <div className={styles.manualBox}>
+                <div className={styles.manualBox2}>
+                  <Link to="/admin/questions/new" className={styles.manualLink}>
                     Manual
                   </Link>
-                  <Link to="/admin/questions/ai" className="flex items-center justify-between px-4 py-2 text-sm text-surface-200 hover:bg-surface-700">
+                  <Link to="/admin/questions/ai" className={styles.sparklesLink}>
                     <span>Generate with AI</span>
-                    <Sparkles className="w-3 h-3 text-primary-600" />
+                    <Sparkles className={styles.sparklesIcon} />
                   </Link>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full text-left px-4 py-2 text-sm text-surface-200 hover:bg-surface-700 flex items-center justify-between"
+                    className={styles.uploadButton}
                   >
-                    <span>Import from MD file</span>
-                    <Upload className="w-3 h-3 text-surface-400" />
+                    <span>{MSG.importMdFile}</span>
+                    <Upload className={styles.uploadIcon} />
                   </button>
                 </div>
               </div>
             </>
           )}
-          <input type="file" ref={fileInputRef} className="hidden" accept=".md,text/markdown" onChange={handleFileUpload} />
+          <input type="file" ref={fileInputRef} className={styles.input} accept=".md,text/markdown" onChange={handleFileUpload} />
         </div>
       }
     >
-      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{error}</div>}
+      {error && <div className={styles.errorBox}>{error}</div>}
 
       {/* Bank vs AI review queue */}
-      <div className="flex gap-1 mb-6 border-b border-surface-800">
+      <div className={styles.bankVsBox}>
         {([['bank', 'Question bank', questions.length], ['review', 'Pending review', pendingCount]] as const).map(([key, label, n]) => (
           <button
             key={key}
             onClick={() => { setView(key); if (key === 'bank') loadQuestions(); }}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${view === key ? 'border-primary-600 text-primary-700' : 'border-transparent text-surface-500 hover:text-surface-300'}`}
+            className={`${styles.labelButton} ${view === key ? styles.labelButtonSelected : styles.labelButtonDefault}`}
           >
             {label}
-            <span className={`ml-2 badge ${key === 'review' && n > 0 ? 'bg-amber-500/15 text-amber-700' : 'bg-surface-800 text-surface-500'}`}>{n}</span>
+            <span className={`${styles.nLabel} ${key === 'review' && n > 0 ? styles.nLabelOn : styles.nLabelOff}`}>{n}</span>
           </button>
         ))}
       </div>
 
       {view === 'review' ? <ReviewQueue /> : <>
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
+      <div className={styles.difficultyBox}>
+        <div className={styles.searchBox}>
+          <Search className={styles.searchIcon} />
           <input
             type="text"
-            className="input pl-10"
-            placeholder="Search questions by title..."
+            className={styles.searchQuestionsByInput}
+            placeholder={MSG.searchQuestionsTitle}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <select className="input w-auto" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} aria-label="Difficulty">
+        <select className={styles.difficultySelect} value={difficulty} onChange={(e) => setDifficulty(e.target.value)} aria-label="Difficulty">
           <option value="">All difficulties</option>
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
         </select>
-        <select className="input w-auto" value={type} onChange={(e) => setType(e.target.value)} aria-label="Question type">
+        <select className={styles.difficultySelect} value={type} onChange={(e) => setType(e.target.value)} aria-label="Question type">
           <option value="">All types</option>
           <option value="coding">Coding</option>
           <option value="mcq">Multiple choice</option>
         </select>
-        <select className="input w-auto" value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Topic">
+        <select className={styles.difficultySelect} value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Topic">
           <option value="">All topics</option>
           {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         {(searchTerm || difficulty || tag || type) && (
-          <button onClick={() => { setSearchTerm(''); setDifficulty(''); setTag(''); setType(''); }} className="btn-ghost text-sm">
-            <X className="w-4 h-4" /> Clear
+          <button onClick={() => { setSearchTerm(''); setDifficulty(''); setTag(''); setType(''); }} className={styles.clearButton}>
+            <X className={styles.plusIcon} /> Clear
           </button>
         )}
       </div>
@@ -210,76 +212,76 @@ export default function QuestionBank() {
         <EmptyState
           icon={FileText}
           title="No questions yet"
-          body="Create your first question to get started."
-          action={<Link to="/admin/questions/new" className="btn-primary"><Plus className="w-4 h-4" /> Create Question</Link>}
+          body={MSG.createFirstQuestionGet}
+          action={<Link to="/admin/questions/new" className="btn-primary"><Plus className={styles.plusIcon} /> Create Question</Link>}
         />
       ) : filteredQuestions.length === 0 ? (
-        <p className="text-center text-surface-500 py-16">No questions match these filters.</p>
+        <p className={styles.noQuestionsMatchText}>{MSG.noQuestionsMatchThese}</p>
       ) : (
-        <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
+        <div className={styles.titleBox}>
+          <div className={styles.titleBox2}>
+            <table className={styles.titleTable}>
               <thead>
-                <tr className="border-b border-surface-800 text-xs font-medium text-surface-500 uppercase tracking-wider whitespace-nowrap">
-                  <th className="text-left px-6 py-3">Title</th>
-                  <th className="text-left px-4 py-3">Type</th>
-                  <th className="text-left px-4 py-3">Difficulty</th>
-                  <th className="text-left px-4 py-3">Topics</th>
-                  <th className="text-right px-4 py-3">Test cases</th>
-                  <th className="text-right px-4 py-3">Languages</th>
-                  <th className="text-right px-4 py-3">Used in</th>
-                  <th className="text-right px-6 py-3">Actions</th>
+                <tr className={styles.titleRow}>
+                  <th className={styles.titleTh}>Title</th>
+                  <th className={styles.typeTh}>Type</th>
+                  <th className={styles.typeTh}>Difficulty</th>
+                  <th className={styles.typeTh}>Topics</th>
+                  <th className={styles.testCasesTh}>Test cases</th>
+                  <th className={styles.testCasesTh}>Languages</th>
+                  <th className={styles.testCasesTh}>Used in</th>
+                  <th className={styles.actionsTh}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-800/50">
+              <tbody className={styles.filtersBody}>
                 {filteredQuestions.map((q) => (
-                  <tr key={q.id} className="hover:bg-surface-800/30 transition-colors">
-                    <td className="px-6 py-3">
-                      <button onClick={() => openPreview(q.id)} className="font-medium text-surface-100 hover:text-primary-700 text-left">
+                  <tr key={q.id} className={styles.titleRow2}>
+                    <td className={styles.titleCell}>
+                      <button onClick={() => openPreview(q.id)} className={styles.titleButton}>
                         {q.title}
                       </button>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700">{q.type === 'mcq' ? 'MCQ' : 'Coding'}</span>
-                      {q.source === 'ai' && <span className="badge bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/20 ml-1 gap-0.5" title="Generated by AI and approved"><Sparkles className="w-3 h-3" /> AI</span>}
+                    <td className={styles.filtersCell}>
+                      <span className={styles.filtersLabel}>{q.type === 'mcq' ? 'MCQ' : 'Coding'}</span>
+                      {q.source === 'ai' && <span className={styles.generatedByAiLabel} title={MSG.generatedAiApproved}><Sparkles className={styles.sparklesIcon2} /> AI</span>}
                     </td>
-                    <td className="px-4 py-3"><span className={`badge-${q.difficulty}`}>{q.difficulty}</span></td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 flex-wrap">
+                    <td className={styles.difficultyCell}><span className={`badge-${q.difficulty}`}>{q.difficulty}</span></td>
+                    <td className={styles.difficultyCell}>
+                      <div className={styles.filtersBox}>
                         {parseJsonArray(q.tags).map((t) => (
                           <button
                             key={t}
                             onClick={() => setTag(t)}
-                            className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 hover:text-white"
+                            className={styles.tButton}
                           >
                             {t}
                           </button>
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q.type === 'mcq' ? '—' : q._count?.testCases ?? 0}</td>
-                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q._count?.starterCodes ?? 0}</td>
-                    <td className="px-4 py-3 text-right text-sm tabular-nums whitespace-nowrap">
+                    <td className={styles.filtersCell2}>{q.type === 'mcq' ? '—' : q._count?.testCases ?? 0}</td>
+                    <td className={styles.filtersCell2}>{q._count?.starterCodes ?? 0}</td>
+                    <td className={styles.filtersCell3}>
                       {q._count?.assessments ? (
-                        <span className="text-surface-300">{q._count.assessments} assessment{q._count.assessments === 1 ? '' : 's'}</span>
+                        <span className={styles.assessmentsLabel}>{q._count.assessments} assessment{q._count.assessments === 1 ? '' : 's'}</span>
                       ) : (
-                        <span className="text-surface-600">—</span>
+                        <span className={styles.filtersLabel2}>—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openPreview(q.id)} className="btn-ghost p-2" title="Preview">
-                          <Eye className="w-4 h-4" />
+                    <td className={styles.titleCell}>
+                      <div className={styles.previewBox}>
+                        <button onClick={() => openPreview(q.id)} className={styles.previewButton} title="Preview">
+                          <Eye className={styles.plusIcon} />
                         </button>
-                        <Link to={`/admin/questions/${q.id}/edit`} className="btn-ghost p-2" title="Edit">
-                          <Edit className="w-4 h-4" />
+                        <Link to={`/admin/questions/${q.id}/edit`} className={styles.previewButton} title="Edit">
+                          <Edit className={styles.plusIcon} />
                         </Link>
                         <button
                           onClick={() => handleDelete(q)}
-                          className="btn-ghost p-2 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                          className={styles.deleteButton}
                           title="Delete"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className={styles.plusIcon} />
                         </button>
                       </div>
                     </td>
@@ -295,52 +297,52 @@ export default function QuestionBank() {
 
       {/* Preview drawer */}
       {preview && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPreview(null)} />
-          <aside className="relative w-full max-w-2xl h-full bg-surface-900 border-l border-surface-800 overflow-y-auto animate-slide-in">
-            <div className="sticky top-0 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-6 py-4 flex items-start justify-between gap-4">
+        <div className={styles.exportAsMarkdownBox}>
+          <div className={styles.previewDrawerBox} onClick={() => setPreview(null)} />
+          <aside className={styles.exportAsMarkdownAside}>
+            <div className={styles.exportAsMarkdownBox2}>
               <div>
-                <h2 className="text-lg font-bold text-white">{preview.title}</h2>
-                <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-surface-400">
+                <h2 className={styles.title}>{preview.title}</h2>
+                <div className={styles.difficultyBox2}>
                   <span className={`badge-${preview.difficulty}`}>{preview.difficulty}</span>
                   {parseJsonArray(preview.tags).map((t) => <span key={t}>#{t}</span>)}
                   <span>· {preview.timeLimit}s · {Math.round(preview.memoryLimit / 1024)} MB</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <a href={getExportMdUrl(preview.id)} className="btn-ghost p-2" title="Export as Markdown"><Download className="w-4 h-4" /></a>
-                <Link to={`/admin/questions/${preview.id}/edit`} className="btn-ghost p-2" title="Edit"><Edit className="w-4 h-4" /></Link>
-                <button onClick={() => setPreview(null)} className="btn-ghost p-2" aria-label="Close"><X className="w-5 h-5" /></button>
+              <div className={styles.exportAsMarkdownBox3}>
+                <a href={getExportMdUrl(preview.id)} className={styles.previewButton} title="Export as Markdown"><Download className={styles.plusIcon} /></a>
+                <Link to={`/admin/questions/${preview.id}/edit`} className={styles.previewButton} title="Edit"><Edit className={styles.plusIcon} /></Link>
+                <button onClick={() => setPreview(null)} className={styles.previewButton} aria-label="Close"><X className={styles.xIcon} /></button>
               </div>
             </div>
-            <div className="p-6 space-y-6">
-              <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
+            <div className={styles.statementBox}>
+              <div className={styles.previewStatement}>
                 <ReactMarkdown>{preview.statement}</ReactMarkdown>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-white mb-2">Test cases ({preview.testCases?.length ?? 0})</h3>
-                <div className="space-y-2">
+                <h3 className={styles.testCasesTitle}>Test cases ({preview.testCases?.length ?? 0})</h3>
+                <div className={styles.previewDrawerBox2}>
                   {preview.testCases?.map((tc, i) => (
-                    <div key={tc.id} className="rounded-lg border border-surface-800 overflow-hidden">
-                      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-800/50 text-xs">
-                        <span className="text-surface-300">Test {i + 1}</span>
+                    <div key={tc.id} className={styles.testBox}>
+                      <div className={styles.testBox2}>
+                        <span className={styles.assessmentsLabel}>Test {i + 1}</span>
                         {tc.isSample ? (
-                          <span className="text-emerald-600 flex items-center gap-1"><Eye className="w-3 h-3" /> Sample</span>
+                          <span className={styles.sampleLabel}><Eye className={styles.sparklesIcon2} /> Sample</span>
                         ) : (
-                          <span className="text-surface-500 flex items-center gap-1"><EyeOff className="w-3 h-3" /> Hidden</span>
+                          <span className={styles.hiddenLabel}><EyeOff className={styles.sparklesIcon2} /> Hidden</span>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 divide-x divide-surface-800 text-xs font-mono">
-                        <pre className="p-2 text-surface-300 whitespace-pre-wrap">{tc.input}</pre>
-                        <pre className="p-2 text-emerald-700 whitespace-pre-wrap">{tc.expectedOutput}</pre>
+                      <div className={styles.inputBox}>
+                        <pre className={styles.inputPre}>{tc.input}</pre>
+                        <pre className={styles.expectedOutputPre}>{tc.expectedOutput}</pre>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-white mb-2">Starter code</h3>
-                <p className="text-sm text-surface-400">
+                <h3 className={styles.testCasesTitle}>Starter code</h3>
+                <p className={styles.previewDrawerText}>
                   {preview.starterCodes?.length ? preview.starterCodes.map((s) => s.languageName).join(', ') : 'None'}
                 </p>
               </div>

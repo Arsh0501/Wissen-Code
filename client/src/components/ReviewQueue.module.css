@@ -1,0 +1,135 @@
+/* Styles for ReviewQueue.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.pText {
+  @apply text-sm text-red-600;
+}
+
+.clipboardCheckBox {
+  @apply space-y-4;
+}
+
+.clipboardCheckBox2 {
+  @apply p-3 rounded-lg bg-primary-500/[0.06] border border-primary-500/15 text-sm text-surface-300 flex gap-2;
+}
+
+.clipboardCheckIcon {
+  @apply w-4 h-4 text-primary-600 shrink-0 mt-0.5;
+}
+
+.textBox {
+  @apply p-3 rounded-lg text-sm border;
+}
+
+.textBoxOk {
+  @apply bg-emerald-500/10 border-emerald-500/25 text-emerald-700;
+}
+
+.textBoxDefault {
+  @apply bg-red-500/10 border-red-500/25 text-red-700;
+}
+
+.sparklesIcon {
+  @apply w-4 h-4;
+}
+
+.chevronDownBox {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.runValidationAgainBox {
+  @apply flex flex-wrap items-start justify-between gap-3 p-5;
+}
+
+.titleBox {
+  @apply min-w-0;
+}
+
+.titleBox2 {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.title {
+  @apply font-semibold text-white;
+}
+
+.label {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700;
+}
+
+.difficultyLabel {
+  @apply capitalize;
+}
+
+.pText2 {
+  @apply text-xs text-surface-500 mt-1;
+}
+
+.runValidationAgainButton {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.refreshCwIconValidating {
+  @apply animate-spin;
+}
+
+.editLink {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.rejectButton {
+  composes: btn-outline from global;
+  @apply text-sm hover:text-red-600;
+}
+
+.approveButton {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.chevronDownButton {
+  @apply w-full flex items-center justify-between px-5 py-2.5 border-t border-surface-800 bg-surface-950 text-xs font-medium text-surface-400 hover:bg-surface-800/50 cursor-pointer;
+}
+
+.chevronDownIcon {
+  @apply w-4 h-4 transition-transform;
+}
+
+.chevronDownIconOpen {
+  @apply rotate-180;
+}
+
+.statementBox {
+  @apply grid lg:grid-cols-2 gap-5 p-5 border-t border-surface-800;
+}
+
+.statementBox2 {
+  @apply text-sm text-surface-300 space-y-2 [&_strong]:text-white [&_code]:px-1 [&_code]:rounded [&_code]:bg-surface-800 [&_pre]:bg-surface-950 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_ul]:list-disc [&_ul]:pl-5;
+}
+
+.ulList {
+  @apply !list-none !pl-0 space-y-1.5 mt-3;
+}
+
+.textItem {
+  @apply px-3 py-2 rounded-lg border text-sm;
+}
+
+.textItemRight {
+  @apply border-emerald-500/40 bg-emerald-500/5 text-emerald-700;
+}
+
+.textItemDefault {
+  @apply border-surface-800;
+}
+
+.idBox {
+  @apply uppercase mr-2;
+}
+
+.notValidatedYetText {
+  @apply text-sm text-surface-500;
+}
