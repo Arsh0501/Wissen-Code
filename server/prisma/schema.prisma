@@ -216,3 +216,51 @@ model InviteRedemption {
 
   @@unique([inviteId, userId])
 }
+
+// 1-to-1 live technical interview session
+model InterviewSession {
+  id                 Int                 @id @default(autoincrement())
+  token              String              @unique // public invite/access token
+  candidateName      String
+  candidateEmail     String              @default("")
+  interviewerName    String              @default("Interviewer")
+  meetingUrl         String?             // External Teams / Google Meet link
+  status             String              @default("waiting") // "waiting" | "active" | "ended"
+  durationMinutes    Int                 @default(60)
+  currentQuestionId  Int?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  drafts             InterviewDraft[]
+  snapshots          InterviewSnapshot[]
+}
+
+// Persisted code drafts per question for an interview session
+model InterviewDraft {
+  id           Int              @id @default(autoincrement())
+  sessionId    Int
+  questionId   Int
+  languageId   Int
+  languageName String
+  code         String
+  updatedAt    DateTime         @updatedAt
+
+  session      InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
+}
+
+// Submitted code snapshot per question during an interview session
+model InterviewSnapshot {
+  id          Int              @id @default(autoincrement())
+  sessionId   Int
+  questionId  Int
+  language    String
+  sourceCode  String
+  submittedAt DateTime         @default(now())
+
+  session     InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+

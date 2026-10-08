@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -10,12 +11,16 @@ import adminReportRoutes from './routes/admin-reports';
 import adminQuestionRoutes from './routes/admin-questions';
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
+import interviewRoutes from './routes/interview-sessions';
 import { authenticate } from './middleware/auth';
 import { isMockMode, getActiveLanguages } from './services/judge0';
+import { setupSocketIO } from './socket';
 
 dotenv.config();
 
 const app = express();
+const httpServer = http.createServer(app);
+setupSocketIO(httpServer);
 const PORT = process.env.PORT || 4000;
 
 // Middleware
@@ -36,6 +41,9 @@ app.use('/api/auth', authRoutes);
 // Invite links: anyone with a link can view it and join without an account
 app.use('/api/public/invite', publicInviteRoutes);
 
+// 1-to-1 Interview Session routes: token-based access for candidate & interviewer
+app.use('/api/interview-sessions', interviewRoutes);
+
 // Everything below requires a valid Bearer token
 app.use('/api', authenticate);
 
@@ -53,7 +61,7 @@ app.use('/api/invites', adminInviteRoutes);
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', judgeMode: isMockMode() ? 'mock' : 'live', timestamp: new Date().toISOString() });
 });
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`\n🚀 Wissen-Code server running on http://localhost:${PORT}`);
   console.log(
     isMockMode()

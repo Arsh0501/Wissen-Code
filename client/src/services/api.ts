@@ -12,6 +12,8 @@ import type {
   AssessmentStats,
 } from '../types';
 
+export type { RunCodeResponse };
+
 const api = axios.create({
   baseURL: '/api',
   headers: {
@@ -481,4 +483,132 @@ export function getReportDownloadUrl(candidateName: string, assessmentId: number
   return `/api/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/pdf`;
 }
 
+// ── 1-to-1 Interview Session APIs ──
+
+export interface InterviewSessionData {
+  id: number;
+  token: string;
+  candidateName: string;
+  candidateEmail?: string;
+  interviewerName: string;
+  meetingUrl?: string | null;
+  status: 'waiting' | 'active' | 'ended';
+  durationMinutes: number;
+  currentQuestionId: number | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  createdAt?: string;
+  _count?: {
+    snapshots: number;
+    drafts: number;
+  };
+}
+
+export async function validateInterviewToken(token: string): Promise<{ valid: boolean; authToken?: string; session: InterviewSessionData }> {
+  const { data } = await api.get(`/interview-sessions/validate/${encodeURIComponent(token)}`);
+  return data;
+}
+
+export async function getInterviewQuestion(sessionId: number, questionId: number): Promise<Question> {
+  const { data } = await api.get(`/interview-sessions/${sessionId}/question/${questionId}`);
+  return data;
+}
+
+export async function startInterviewSession(sessionId: number): Promise<{ session: InterviewSessionData }> {
+  const { data } = await api.post(`/interview-sessions/${sessionId}/start`);
+  return data;
+}
+
+export async function submitInterviewCode(
+  sessionId: number,
+  input: { questionId: number; language: string; sourceCode: string }
+): Promise<{ success: boolean; message: string; savedAt: string }> {
+  const { data } = await api.post(`/interview-sessions/${sessionId}/submit-code`, input);
+  return data;
+}
+
+export async function saveInterviewDraft(
+  sessionId: number,
+  input: { questionId: number; languageId?: number; languageName?: string; code: string }
+): Promise<{ success: boolean }> {
+  const { data } = await api.post(`/interview-sessions/${sessionId}/draft`, input);
+  return data;
+}
+
+export async function getInterviewDraft(
+  sessionId: number,
+  questionId: number
+): Promise<{ draft: { code: string; languageId: number; languageName: string } | null }> {
+  const { data } = await api.get(`/interview-sessions/${sessionId}/draft/${questionId}`);
+  return data;
+}
+
+export interface InterviewSnapshotData {
+  id: number;
+  sessionId: number;
+  questionId: number;
+  language: string;
+  sourceCode: string;
+  submittedAt: string;
+}
+
+export async function getInterviewSnapshots(
+  sessionId: number
+): Promise<{ snapshots: InterviewSnapshotData[] }> {
+  const { data } = await api.get(`/interview-sessions/${sessionId}/snapshots`);
+  return data;
+}
+
+export async function getAvailableQuestions(): Promise<{
+  questions: Array<{ id: number; title: string; difficulty: string; tags: string; statement: string }>;
+}> {
+  const { data } = await api.get('/interview-sessions/available-questions');
+  return data;
+}
+
+export async function endInterviewSession(sessionId: number): Promise<{ session: InterviewSessionData }> {
+  const { data } = await api.post(`/interview-sessions/${sessionId}/end`);
+  return data;
+}
+
+export async function getAllInterviewSessions(): Promise<{ sessions: InterviewSessionData[] }> {
+  const { data } = await api.get('/interview-sessions');
+  return data;
+}
+
+export async function getCandidateUsers(): Promise<{ candidates: Array<{ id: number; name: string; email: string }> }> {
+  const { data } = await api.get('/interview-sessions/candidates');
+  return data;
+}
+
+export interface CreateInterviewSessionInput {
+  candidateName: string;
+  candidateEmail: string;
+  interviewerName?: string;
+  meetingUrl?: string;
+  durationMinutes?: number;
+  currentQuestionId?: number;
+}
+
+export async function createInterviewSession(
+  input: CreateInterviewSessionInput
+): Promise<{ success: boolean; session: InterviewSessionData }> {
+  const { data } = await api.post('/interview-sessions', input);
+  return data;
+}
+
+export async function updateInterviewSession(
+  id: number,
+  data: Partial<CreateInterviewSessionInput> & { status?: string }
+): Promise<{ success: boolean; session: InterviewSessionData }> {
+  const res = await api.patch(`/interview-sessions/${id}`, data);
+  return res.data;
+}
+
+export async function deleteInterviewSession(id: number): Promise<{ success: boolean }> {
+  const { data } = await api.delete(`/interview-sessions/${id}`);
+  return data;
+}
+
 export default api;
+

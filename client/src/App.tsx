@@ -16,6 +16,9 @@ import CandidateReport from './pages/admin/CandidateReport';
 import ExamDashboard from './pages/candidate/ExamDashboard';
 import AssessmentView from './pages/candidate/AssessmentView';
 import SubmissionResult from './pages/candidate/SubmissionResult';
+import InterviewRoom from './pages/candidate/InterviewRoom';
+import InterviewerRoom from './pages/interviewer/InterviewerRoom';
+import InterviewManager from './pages/admin/InterviewManager';
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { isLoggedIn } = useAuth();
@@ -40,6 +43,10 @@ function AppRoutes() {
       <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
       {/* Public: anyone with a shared link can open it */}
       <Route path="/invite/:token" element={<InvitePage />} />
+      {/* Public 1-to-1 Interview Room (Candidate & Interviewer) */}
+      <Route path="/interview/:token" element={<InterviewRoom />} />
+      <Route path="/interview/:token/interviewer" element={<InterviewerRoom />} />
+      <Route path="/interviewer/:token" element={<InterviewerRoom />} />
 
       <Route
         element={
@@ -58,6 +65,7 @@ function AppRoutes() {
         <Route path="/admin/assessments" element={<RequireAdmin><AssessmentManager /></RequireAdmin>} />
         <Route path="/admin/assessments/new" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
         <Route path="/admin/assessments/:id/edit" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
+        <Route path="/admin/interviews" element={<RequireAdmin><InterviewManager /></RequireAdmin>} />
         <Route path="/admin/submissions/:assessmentId" element={<RequireAdmin><SubmissionsViewer /></RequireAdmin>} />
         <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAdmin><CandidateReport /></RequireAdmin>} />
       </Route>
