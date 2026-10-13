@@ -1,0 +1,821 @@
+/* Styles for CandidateReport.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.loadingReportBox {
+  @apply text-center py-24;
+}
+
+.routeGuardBox {
+  @apply w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4;
+}
+
+.loadingReportText {
+  @apply text-surface-500 text-sm;
+}
+
+.alertTriangleBox {
+  composes: card from global;
+  @apply max-w-md mx-auto text-center py-12 mt-10;
+}
+
+.alertTriangleIcon {
+  @apply w-10 h-10 text-red-600 mx-auto mb-3;
+}
+
+.routeGuardText {
+  @apply text-red-700 mb-4;
+}
+
+.proctoringBox {
+  composes: animate-fade-in from global;
+  @apply max-w-5xl mx-auto space-y-6;
+}
+
+.downloadReportBtnSection {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.downloadReportBtnBox {
+  @apply flex flex-col md:flex-row;
+}
+
+.downloadReportBtnBox2 {
+  @apply flex-1 p-6;
+}
+
+.downloadReportBtnBox3 {
+  @apply flex items-start justify-between gap-4;
+}
+
+.candidateReportBox {
+  @apply flex items-center gap-4 min-w-0;
+}
+
+.heroCandidateBox {
+  @apply w-12 h-12 rounded-xl bg-primary-500/10 text-primary-700 flex items-center justify-center text-lg font-bold shrink-0;
+}
+
+.candidateReportBox2 {
+  @apply min-w-0;
+}
+
+.candidateReportText {
+  @apply text-[11px] font-semibold text-primary-600 uppercase tracking-wider;
+}
+
+.nameTitle {
+  @apply text-2xl font-bold text-white leading-tight break-words;
+}
+
+.emailLink {
+  @apply text-sm text-surface-500 hover:text-primary-700;
+}
+
+.noEmailOnLabel {
+  @apply text-sm text-surface-500;
+}
+
+.downloadReportBtnButton {
+  composes: btn-primary from global;
+  @apply shrink-0;
+}
+
+.downloadIcon {
+  @apply w-4 h-4;
+}
+
+.heroCandidateLabel {
+  @apply hidden sm:inline;
+}
+
+.heroCandidateList {
+  @apply grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-3 mt-6 pt-5 border-t border-surface-800 text-sm;
+}
+
+.passingScoreBox {
+  @apply md:w-64 p-6 ring-1 ring-inset flex flex-col items-center justify-center text-center;
+}
+
+.resultPanelBox {
+  @apply text-5xl font-extrabold tabular-nums tracking-tight mt-3;
+}
+
+.resultPanelLabel {
+  @apply text-2xl;
+}
+
+.passingScoreText {
+  @apply text-xs text-surface-500 mt-1;
+}
+
+.rankedText {
+  @apply text-xs text-surface-400 mt-3 pt-3 border-t border-surface-700/60 w-full;
+}
+
+.resultPanelLabel2 {
+  @apply font-semibold text-white;
+}
+
+.resultPanelText {
+  @apply mt-1 tabular-nums;
+}
+
+.resultPanelLabel3 {
+  @apply inline-block mx-1;
+}
+
+.resultPanelLabelPassed {
+  @apply text-emerald-600;
+}
+
+.resultPanelLabelDefault {
+  @apply text-red-600;
+}
+
+.keyNumbersSection {
+  @apply grid grid-cols-2 lg:grid-cols-4 gap-4;
+}
+
+.comparisonIntegritySection {
+  @apply grid lg:grid-cols-3 gap-4;
+}
+
+.comparisonIntegrityBoxOn {
+  @apply lg:col-span-2;
+}
+
+.comparisonIntegrityBoxOff {
+  @apply hidden;
+}
+
+.integrityCardOff {
+  @apply lg:col-span-3;
+}
+
+.barChartBox {
+  @apply flex items-center justify-between px-5 py-4 border-b border-surface-800;
+}
+
+.questionSummaryTitle {
+  @apply text-sm font-semibold text-white flex items-center gap-2;
+}
+
+.barChartIcon {
+  @apply w-4 h-4 text-primary-600;
+}
+
+.clickAQuestionLabel {
+  @apply text-xs text-surface-500;
+}
+
+.questionSummaryBox {
+  @apply overflow-x-auto;
+}
+
+.questionSummaryTable {
+  @apply w-full text-sm;
+}
+
+.questionSummaryRow {
+  @apply text-[11px] text-surface-500 uppercase tracking-wider border-b border-surface-800 bg-surface-950;
+}
+
+.questionSummaryTh {
+  @apply text-left font-medium px-5 py-2.5 w-10 hidden sm:table-cell;
+}
+
+.questionTh {
+  @apply text-left font-medium pl-5 sm:pl-3 pr-3 py-2.5;
+}
+
+.languageTh {
+  @apply text-left font-medium px-3 py-2.5 hidden md:table-cell;
+}
+
+.testsTh {
+  @apply text-right font-medium px-3 py-2.5 hidden sm:table-cell;
+}
+
+.marksTh {
+  @apply text-right font-medium px-3 py-2.5;
+}
+
+.scoreTh {
+  @apply text-right font-medium px-5 py-2.5 sm:w-40;
+}
+
+.questionSummaryBody {
+  @apply divide-y divide-surface-800;
+}
+
+.titleRow {
+  @apply hover:bg-surface-950 cursor-pointer;
+}
+
+.questionSummaryCell {
+  @apply px-5 py-3 text-surface-500 tabular-nums hidden sm:table-cell;
+}
+
+.titleCell {
+  @apply pl-5 sm:pl-3 pr-3 py-3 font-medium text-white;
+}
+
+.questionSummaryCell2 {
+  @apply px-3 py-3 text-surface-400 hidden md:table-cell;
+}
+
+.questionSummaryCell3 {
+  @apply px-3 py-3 text-right tabular-nums text-surface-300 hidden sm:table-cell;
+}
+
+.questionSummaryCell4 {
+  @apply px-3 py-3 text-right tabular-nums text-surface-300;
+}
+
+.questionSummaryCell5 {
+  @apply px-5 py-3;
+}
+
+.skippedBox {
+  @apply text-right;
+}
+
+.skippedLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-500 ring-1 ring-surface-700;
+}
+
+.questionDetailsSection {
+  @apply space-y-4;
+}
+
+.questionDetailsTitle {
+  @apply text-lg font-semibold text-white;
+}
+
+.proctoringSection {
+  @apply scroll-mt-20;
+}
+
+.labelBoxWide {
+  @apply col-span-2;
+}
+
+.labelTerm {
+  @apply text-[11px] font-medium text-surface-500 uppercase tracking-wider;
+}
+
+.value {
+  @apply text-surface-100 mt-0.5;
+}
+
+.valueBox {
+  composes: card from global;
+  @apply p-4;
+}
+
+.labelBox {
+  @apply flex items-center justify-between;
+}
+
+.proctoringActivityIcon {
+  @apply w-4 h-4 text-surface-500;
+}
+
+.valueBox2 {
+  @apply text-2xl font-bold text-white tabular-nums mt-1.5;
+}
+
+.hintBox {
+  @apply text-xs text-surface-500 mt-0.5;
+}
+
+.proctoringActivityBox {
+  @apply flex items-center justify-end gap-3;
+}
+
+.proctoringActivityBox2 {
+  @apply hidden sm:block w-20 h-1.5 rounded-full bg-surface-800 overflow-hidden;
+}
+
+.proctoringActivityBox3 {
+  @apply h-full rounded-full;
+}
+
+.proctoringActivityLabel {
+  @apply w-10 text-right font-semibold tabular-nums;
+}
+
+.viewActivityLogBox {
+  @apply rounded-xl ring-1 ring-inset p-5 flex flex-col;
+}
+
+.labelBox2 {
+  @apply flex items-center gap-2;
+}
+
+.proctoringActivityIcon2 {
+  @apply w-5 h-5;
+}
+
+.labelTitle {
+  @apply text-sm font-semibold;
+}
+
+.tabSwitchLimitText {
+  @apply text-xs text-red-700 mt-1;
+}
+
+.proctoringActivityList {
+  @apply mt-3 space-y-2 text-sm flex-1;
+}
+
+.labelTerm2 {
+  @apply text-surface-400;
+}
+
+.value2 {
+  @apply font-semibold tabular-nums;
+}
+
+.valueDefault {
+  @apply text-white;
+}
+
+.viewActivityLogLink {
+  @apply text-xs font-medium text-primary-600 hover:text-primary-700 mt-3;
+}
+
+.qBox {
+  composes: card from global;
+  @apply p-5 bg-surface-950 flex items-center justify-between gap-4 scroll-mt-20;
+}
+
+.titleBox {
+  @apply flex items-center gap-3 min-w-0;
+}
+
+.title {
+  @apply font-semibold text-white truncate;
+}
+
+.skippedBox2 {
+  @apply text-right shrink-0;
+}
+
+.proctoringActivityBox4 {
+  @apply text-xs text-surface-500 mt-1 tabular-nums;
+}
+
+.qBox2 {
+  composes: card from global;
+  @apply p-0 overflow-hidden scroll-mt-20;
+}
+
+.proctoringActivityBox5 {
+  @apply flex items-start justify-between gap-4 p-5;
+}
+
+.titleBox2 {
+  @apply flex items-start gap-3 min-w-0;
+}
+
+.proctoringActivityBox6 {
+  @apply text-2xl font-bold leading-none;
+}
+
+.statementBox {
+  @apply px-5 pb-5 space-y-2;
+}
+
+.statementText {
+  @apply text-sm text-surface-300 whitespace-pre-wrap;
+}
+
+.textBox {
+  @apply flex items-start justify-between gap-3 px-3 py-2.5 rounded-lg border text-sm;
+}
+
+.textBoxCorrect {
+  @apply border-emerald-500/40 bg-emerald-500/5;
+}
+
+.textBoxPicked {
+  @apply border-red-500/40 bg-red-500/5;
+}
+
+.textBoxDefault {
+  @apply border-surface-800;
+}
+
+.textLabel {
+  @apply text-surface-100;
+}
+
+.proctoringActivityBox7 {
+  @apply text-surface-500 mr-2;
+}
+
+.proctoringActivityLabel2 {
+  @apply flex gap-1.5 shrink-0;
+}
+
+.candidateAposSLabel {
+  composes: badge from global;
+  @apply ring-1;
+}
+
+.candidateAposSLabelCorrect {
+  @apply bg-emerald-500/10 text-emerald-700 ring-emerald-500/25;
+}
+
+.candidateAposSLabelDefault {
+  @apply bg-red-500/10 text-red-700 ring-red-500/25;
+}
+
+.correctLabel {
+  composes: badge from global;
+  @apply bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25;
+}
+
+.headerBox {
+  @apply text-2xl font-bold tabular-nums leading-none;
+}
+
+.testCaseBox {
+  @apply px-5 pb-4 flex flex-wrap gap-1.5;
+}
+
+.testCaseLabel {
+  @apply w-6 h-6 rounded-md flex items-center justify-center;
+}
+
+.testCaseLabelOk {
+  @apply bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/25;
+}
+
+.testCaseLabelDefault {
+  @apply bg-red-500/10 text-red-600 ring-1 ring-red-500/25;
+}
+
+.checkCircleIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.failedTestCasesBox {
+  @apply border-t border-surface-800;
+}
+
+.failedTestCasesBox2 {
+  @apply px-5 py-2.5 text-[11px] font-semibold text-surface-500 uppercase tracking-wider bg-surface-950;
+}
+
+.caseTable {
+  @apply w-full text-xs;
+}
+
+.caseRow {
+  @apply text-[10px] text-surface-500 uppercase tracking-wider border-b border-surface-800;
+}
+
+.caseTh {
+  @apply text-left font-medium px-5 py-2 w-20 hidden sm:table-cell;
+}
+
+.verdictTh {
+  @apply text-left font-medium pl-5 sm:pl-3 pr-3 py-2 sm:w-36;
+}
+
+.expectedTh {
+  @apply text-left font-medium px-3 py-2;
+}
+
+.actualTh {
+  @apply text-left font-medium px-5 py-2;
+}
+
+.failedCasesRow {
+  @apply align-top;
+}
+
+.failedCasesCell {
+  @apply px-5 py-2.5 text-surface-500 tabular-nums hidden sm:table-cell;
+}
+
+.failedCasesCell2 {
+  @apply pl-5 sm:pl-3 pr-3 py-2.5;
+}
+
+.failedCasesLabel {
+  composes: badge from global;
+  @apply bg-red-500/10 text-red-700 ring-1 ring-red-500/20 whitespace-nowrap;
+}
+
+.failedCasesCell3 {
+  @apply px-3 py-2.5;
+}
+
+.failedCasesPre {
+  @apply font-mono text-emerald-700 whitespace-pre-wrap break-all max-h-32 overflow-y-auto [font-variant-ligatures:none];
+}
+
+.failedCasesCell4 {
+  @apply px-5 py-2.5;
+}
+
+.failedCasesPre2 {
+  @apply font-mono text-red-700 whitespace-pre-wrap break-all max-h-32 overflow-y-auto [font-variant-ligatures:none];
+}
+
+.chevronDownButton {
+  @apply w-full px-5 py-2 text-xs font-medium text-primary-600 hover:text-primary-700 hover:bg-surface-950 border-t border-surface-800 flex items-center justify-center gap-1 cursor-pointer;
+}
+
+.chevronDownIcon {
+  @apply w-3.5 h-3.5 transition-transform;
+}
+
+.chevronDownIconAll {
+  @apply rotate-180;
+}
+
+.failedCasesBox {
+  @apply px-5 pb-5 pt-1;
+}
+
+.qLabel {
+  @apply w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold shrink-0;
+}
+
+.qLabelMuted {
+  @apply bg-surface-800 text-surface-500;
+}
+
+.qLabelDefault {
+  @apply bg-primary-500/10 text-primary-700;
+}
+
+.proctoringActivityBox8 {
+  @apply flex items-center justify-between gap-3 mb-3;
+}
+
+.proctoringActivityTitle {
+  @apply text-lg font-semibold text-white flex items-center gap-2;
+}
+
+.eyeOffBox {
+  @apply grid grid-cols-1 lg:grid-cols-2 gap-4;
+}
+
+.eyeOffBox2 {
+  @apply flex items-center justify-between px-4 py-3 border-b border-surface-800;
+}
+
+.tabSwitchesTitle {
+  @apply font-medium text-white text-sm flex items-center gap-2;
+}
+
+.limitReachedAutoLabel {
+  composes: badge from global;
+  @apply bg-red-500/10 text-red-700 ring-1 ring-red-500/25;
+}
+
+.countLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-500 ring-1 ring-surface-700 tabular-nums;
+}
+
+.tabSwitchesBox {
+  @apply grid grid-cols-2 divide-x divide-surface-800 border-b border-surface-800;
+}
+
+.leftTheTestLabel {
+  @apply text-surface-300;
+}
+
+.sLabel {
+  @apply tabular-nums text-surface-100 font-medium;
+}
+
+.pastesBox {
+  @apply grid grid-cols-3 divide-x divide-surface-800 border-b border-surface-800;
+}
+
+.questionTitleLabel {
+  @apply text-surface-300 truncate;
+}
+
+.charsLabelLarge {
+  @apply text-red-700 font-semibold;
+}
+
+.charCountLabel {
+  @apply tabular-nums;
+}
+
+.largeLabel {
+  composes: badge from global;
+  @apply bg-red-500/10 text-red-700 ring-1 ring-red-500/25 ml-2;
+}
+
+.onlyTheSizeText {
+  @apply text-xs text-surface-500 mt-2;
+}
+
+.labelBox3 {
+  @apply px-4 py-3;
+}
+
+.labelBox4 {
+  @apply text-[10px] font-medium text-surface-500 uppercase tracking-wider;
+}
+
+.valueBox3 {
+  @apply text-xl font-bold tabular-nums;
+}
+
+.emptyText {
+  @apply text-sm text-surface-500 text-center py-6;
+}
+
+.pastesList {
+  @apply divide-y divide-surface-800 max-h-64 overflow-y-auto;
+}
+
+.leftItem {
+  @apply px-4 py-2.5 text-xs flex items-center justify-between gap-3;
+}
+
+.leftBox {
+  @apply min-w-0 flex flex-col;
+}
+
+.timeLabel {
+  @apply text-surface-500;
+}
+
+.rightBox {
+  @apply text-surface-500 shrink-0 text-right;
+}
+
+.usersBox {
+  composes: card from global;
+  @apply p-5;
+}
+
+.usersBox2 {
+  @apply flex flex-wrap items-start justify-between gap-4 mb-5;
+}
+
+.pastesBox2 {
+  @apply flex gap-6 text-right;
+}
+
+.valueBox4 {
+  @apply text-base font-bold text-white tabular-nums;
+}
+
+.pastesBox3 {
+  @apply relative h-2.5 rounded-full bg-surface-800 mt-9 mb-8 mx-1;
+}
+
+.pastesBoxPassed {
+  @apply bg-emerald-500;
+}
+
+.pastesBoxDefault {
+  @apply bg-red-500;
+}
+
+.marker {
+  @apply bg-surface-100 text-surface-200;
+}
+
+.marker2 {
+  @apply bg-primary-600 text-primary-700;
+}
+
+.labelBox5 {
+  @apply absolute -top-1 w-0.5 h-[18px];
+}
+
+.label {
+  @apply absolute whitespace-nowrap text-[10px] font-semibold;
+}
+
+.labelBelow {
+  @apply top-5;
+}
+
+.labelDefault {
+  @apply -top-4;
+}
+
+.chevronDownBox {
+  @apply mt-3 rounded-lg border border-surface-800 overflow-hidden;
+}
+
+.chevronDownButton2 {
+  @apply w-full flex items-center justify-between px-3 py-2 bg-surface-950 hover:bg-surface-800/60 transition-colors text-left cursor-pointer;
+}
+
+.submittedCodeLabel {
+  @apply flex items-center gap-2 text-xs font-medium text-surface-300;
+}
+
+.codeIcon {
+  @apply w-3.5 h-3.5 text-surface-500;
+}
+
+.pastesLabel {
+  @apply text-surface-500 font-normal;
+}
+
+.chevronDownIcon2 {
+  @apply w-4 h-4 text-surface-500 transition-transform;
+}
+
+.copyCodeBox {
+  @apply relative border-t border-surface-800;
+}
+
+.copyCodeButton {
+  composes: btn-ghost from global;
+  @apply absolute top-2 right-2 text-xs px-2 py-1 bg-surface-900/90;
+}
+
+.checkIcon {
+  @apply w-3.5 h-3.5 text-emerald-600;
+}
+
+.pastesPre {
+  @apply text-xs font-mono leading-relaxed overflow-x-auto max-h-96 py-3 bg-surface-900 [font-variant-ligatures:none];
+}
+
+.pastesBox4 {
+  @apply flex;
+}
+
+.pastesLabel2 {
+  @apply w-10 shrink-0 pr-3 text-right text-surface-600 select-none;
+}
+
+.pastesLabel3 {
+  @apply text-surface-100 whitespace-pre pr-4;
+}
+
+.resultPanel {
+  @apply bg-emerald-500/[0.07] ring-emerald-500/20;
+}
+
+.resultPanel2 {
+  @apply bg-red-500/[0.07] ring-red-500/20;
+}
+
+.scoreTextStyle {
+  @apply text-amber-600;
+}
+
+.scoreFillStyle {
+  @apply bg-amber-500;
+}
+
+.reviewRecommendedBox {
+  @apply bg-red-500/[0.06] ring-red-500/20;
+}
+
+.reviewRecommendedText {
+  @apply text-red-700;
+}
+
+.minorActivityBox {
+  @apply bg-amber-500/[0.06] ring-amber-500/20;
+}
+
+.minorActivityText {
+  @apply text-amber-700;
+}
+
+.noConcernsBox {
+  @apply bg-emerald-500/[0.06] ring-emerald-500/20;
+}
+
+.noConcernsText {
+  @apply text-emerald-700;
+}
+
+.minorActivityClassName {
+  @apply bg-amber-500/10 text-amber-700 ring-amber-500/25;
+}
+
+.anchorHigh {
+  @apply left-0;
+}
+
+.anchorHigh2 {
+  @apply right-0;
+}
+
+.anchorLow {
+  @apply left-1/2 -translate-x-1/2;
+}

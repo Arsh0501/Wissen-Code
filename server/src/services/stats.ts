@@ -1,3 +1,5 @@
+import { parseQuestionIds } from './question-set';
+
 // Marks-weighted candidate summaries computed in memory, so list views don't
 // need a query per candidate. Mirrors computeEvaluation() in grading.ts.
 
@@ -17,6 +19,7 @@ interface SessionInfo {
   candidateName: string;
   startedAt: Date;
   finishedAt: Date | null;
+  questionIds?: string; // candidate's random subset, when the assessment uses one
 }
 
 export interface CandidateSummary {
@@ -39,7 +42,6 @@ export function summarizeCandidates(
   sessions: SessionInfo[]
 ): CandidateSummary[] {
   const marksByQuestion = new Map(questions.map((q) => [q.questionId, q.marks]));
-  const totalMarks = questions.reduce((acc, q) => acc + q.marks, 0);
 
   // Latest submission per candidate per question
   const latest = new Map<string, Map<number, ScoredSubmission>>();
@@ -54,8 +56,13 @@ export function summarizeCandidates(
   const names = new Set([...latest.keys(), ...sessionByName.keys()]);
 
   return Array.from(names).map((name) => {
-    const byQ = latest.get(name) ?? new Map<number, ScoredSubmission>();
     const session = sessionByName.get(name);
+    // Candidates on a random subset are scored only against the questions they received
+    const subset = parseQuestionIds(session?.questionIds);
+    const pool = subset ? questions.filter((q) => subset.includes(q.questionId)) : questions;
+    const poolIds = new Set(pool.map((q) => q.questionId));
+    const totalMarks = pool.reduce((acc, q) => acc + q.marks, 0);
+    const byQ = new Map([...(latest.get(name) ?? new Map<number, ScoredSubmission>())].filter(([qid]) => poolIds.has(qid)));
     let marksObtained = 0;
     let lastSubmittedAt: Date | null = null;
     for (const s of byQ.values()) {
@@ -71,7 +78,7 @@ export function summarizeCandidates(
       status: completed ? 'completed' : 'in-progress',
       startedAt: session?.startedAt.toISOString() ?? null,
       submittedAt: (session?.finishedAt ?? lastSubmittedAt)?.toISOString() ?? null,
-      totalQuestions: questions.length,
+      totalQuestions: pool.length,
       attemptedQuestions: byQ.size,
       marksObtained: Math.round(marksObtained * 100) / 100,
       totalMarks,

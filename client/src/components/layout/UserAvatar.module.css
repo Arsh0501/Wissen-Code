@@ -1,0 +1,37 @@
+/* Styles for UserAvatar.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.box {
+  @apply rounded-full flex items-center justify-center font-semibold text-on-accent shrink-0;
+}
+
+.palettePrimary {
+  @apply bg-primary-600;
+}
+
+.paletteEmerald {
+  @apply bg-emerald-600;
+}
+
+.paletteSky {
+  @apply bg-sky-600;
+}
+
+.paletteAmber {
+  @apply bg-amber-600;
+}
+
+.paletteRose {
+  @apply bg-rose-600;
+}
+
+.paletteIndigo {
+  @apply bg-indigo-600;
+}
+
+.dimensionLg {
+  @apply w-16 h-16 text-xl;
+}
+
+.dimensionDefault {
+  @apply w-8 h-8 text-xs;
+}

@@ -1,0 +1,174 @@
+/* Styles for InvitePage.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.codeBox {
+  @apply min-h-screen bg-surface-950 flex items-center justify-center p-4 relative overflow-hidden;
+}
+
+.box {
+  @apply pointer-events-none absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl;
+}
+
+.box2 {
+  @apply pointer-events-none absolute bottom-1/4 right-1/4 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl;
+}
+
+.themeToggle {
+  @apply absolute top-4 right-4;
+}
+
+.codeBox2 {
+  composes: animate-fade-in from global;
+  @apply relative w-full max-w-lg;
+}
+
+.codeBox3 {
+  @apply flex items-center justify-center gap-2.5 mb-6;
+}
+
+.codeBox4 {
+  @apply w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center;
+}
+
+.codeIcon {
+  @apply w-5 h-5 text-on-accent;
+}
+
+.wissenCodeLabel {
+  @apply text-lg font-bold text-white tracking-tight;
+}
+
+.link2offBox {
+  composes: card from global;
+  @apply text-center py-10;
+}
+
+.link2offBox2 {
+  @apply w-14 h-14 rounded-2xl bg-red-500/10 text-red-600 flex items-center justify-center mx-auto mb-4;
+}
+
+.link2offIcon {
+  @apply w-7 h-7;
+}
+
+.linkNotAvailableTitle {
+  @apply text-lg font-semibold text-white;
+}
+
+.loadErrorText {
+  @apply text-sm text-surface-500 mt-2;
+}
+
+.box3 {
+  composes: card from global;
+  @apply text-center py-14;
+}
+
+.box4 {
+  @apply w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto;
+}
+
+.youAposVeBox {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.youAposVeBox2 {
+  @apply p-6 border-b border-surface-800;
+}
+
+.youAposVeText {
+  @apply text-[11px] font-semibold text-primary-600 uppercase tracking-wider;
+}
+
+.nameTitle {
+  @apply text-2xl font-bold text-white mt-1;
+}
+
+.box5 {
+  @apply grid grid-cols-3 gap-2 mt-5;
+}
+
+.labelBox {
+  @apply rounded-lg bg-surface-950 ring-1 ring-surface-800 px-3 py-2.5;
+}
+
+.labelBox2 {
+  @apply flex items-center gap-1 text-[10px] font-medium text-surface-500 uppercase tracking-wider;
+}
+
+.icon {
+  @apply w-3 h-3;
+}
+
+.valueBox {
+  @apply text-sm font-semibold text-white mt-0.5 tabular-nums;
+}
+
+.availableUntilText {
+  @apply flex items-center gap-1.5 text-xs text-surface-500 mt-3;
+}
+
+.calendarIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.invNameForm {
+  @apply p-6 space-y-4;
+}
+
+.youAposReText {
+  @apply text-xs text-surface-500 rounded-lg bg-surface-950 ring-1 ring-surface-800 px-3 py-2;
+}
+
+.nameBox {
+  @apply text-surface-300;
+}
+
+.useTheSameText {
+  @apply text-xs text-surface-500 mt-1;
+}
+
+.errorBox {
+  @apply p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700;
+}
+
+.goToSignButton {
+  @apply block mt-1 font-semibold underline;
+}
+
+.shieldCheckBox {
+  @apply rounded-lg bg-surface-950 ring-1 ring-surface-800 p-3 text-xs text-surface-400 flex gap-2;
+}
+
+.shieldCheckIcon {
+  @apply w-4 h-4 text-emerald-600 shrink-0;
+}
+
+.startAssessmentBox {
+  @apply text-surface-200;
+}
+
+.button {
+  composes: btn-primary from global;
+  @apply w-full py-2.5;
+}
+
+.arrowRightIcon {
+  @apply w-4 h-4;
+}
+
+.alertTriangleBox {
+  @apply p-6;
+}
+
+.alertTriangleBox2 {
+  @apply p-4 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-800 flex items-start gap-2;
+}
+
+.alertTriangleIcon {
+  @apply w-4 h-4 shrink-0 mt-0.5;
+}
+
+.ifYouThinkText {
+  @apply text-xs text-surface-500 mt-3;
+}

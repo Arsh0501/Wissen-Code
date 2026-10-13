@@ -1,0 +1,233 @@
+/* Styles for ShareLinksModal.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.closeBox {
+  @apply fixed inset-0 z-[60] flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto;
+}
+
+.dialogBox {
+  composes: card animate-fade-in from global;
+  @apply w-full max-w-2xl p-0 overflow-hidden shadow-2xl my-8;
+}
+
+.closeBox2 {
+  @apply flex items-start justify-between gap-4 px-6 py-5 border-b border-surface-800;
+}
+
+.linkBox {
+  @apply flex items-start gap-3 min-w-0;
+}
+
+.linkBox2 {
+  @apply w-10 h-10 rounded-xl bg-primary-500/10 text-primary-700 flex items-center justify-center shrink-0;
+}
+
+.linkIcon {
+  @apply w-5 h-5;
+}
+
+.shareTitleBox {
+  @apply min-w-0;
+}
+
+.shareTitle {
+  @apply text-lg font-semibold text-white;
+}
+
+.nameText {
+  @apply text-sm text-surface-500 truncate;
+}
+
+.closeButton {
+  composes: btn-ghost from global;
+  @apply p-2;
+}
+
+.xIcon {
+  @apply w-4 h-4;
+}
+
+.anyoneWithABox {
+  @apply px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto;
+}
+
+.anyoneWithAText {
+  @apply text-sm text-surface-400;
+}
+
+.alertTriangleBox {
+  @apply p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-800 flex items-start gap-2;
+}
+
+.alertTriangleIcon {
+  @apply w-4 h-4 shrink-0 mt-0.5;
+}
+
+.errorBox {
+  @apply p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700;
+}
+
+.invLabelForm {
+  @apply rounded-xl border border-surface-700 p-4 space-y-4 bg-surface-950;
+}
+
+.optionalOnlyYouLabel {
+  @apply text-surface-500 font-normal;
+}
+
+.invMaxBox {
+  @apply grid sm:grid-cols-2 gap-4;
+}
+
+.cancelBox {
+  @apply flex justify-end gap-2;
+}
+
+.cancelButton {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.linkButton {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.plusBox {
+  @apply flex flex-wrap gap-2;
+}
+
+.createWithOptionsButton {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.linksText {
+  @apply text-[11px] font-semibold text-surface-500 uppercase tracking-wider mb-2;
+}
+
+.loadingText {
+  @apply text-sm text-surface-500 py-4 text-center;
+}
+
+.noLinksYetText {
+  @apply text-sm text-surface-500 py-6 text-center rounded-xl border border-dashed border-surface-700;
+}
+
+.existingLinksList {
+  @apply space-y-3;
+}
+
+.createdItem {
+  @apply rounded-xl border p-4;
+}
+
+.createdItemActive {
+  @apply border-surface-700 bg-surface-900;
+}
+
+.createdItemInactive {
+  @apply border-surface-800 bg-surface-950;
+}
+
+.createdBox {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
+.labelBox {
+  @apply flex items-center gap-2 min-w-0;
+}
+
+.label {
+  composes: badge from global;
+  @apply ring-1;
+}
+
+.existingLinksLabel {
+  @apply text-sm font-medium text-white truncate;
+}
+
+.createdLabel {
+  @apply text-xs text-surface-500;
+}
+
+.existingLinksBox {
+  @apply flex gap-2 mt-3;
+}
+
+.inviteLinkInput {
+  composes: input from global;
+  @apply font-mono text-xs flex-1 min-w-0;
+}
+
+.inviteLinkInputInactive {
+  @apply line-through text-surface-500;
+}
+
+.copyButton {
+  composes: btn-primary from global;
+  @apply text-sm shrink-0;
+}
+
+.usersBox {
+  @apply flex flex-wrap items-center justify-between gap-2 mt-3 text-xs text-surface-500;
+}
+
+.usersBox2 {
+  @apply flex flex-wrap gap-x-4 gap-y-1;
+}
+
+.joinedButton {
+  @apply flex items-center gap-1 hover:text-surface-200 cursor-pointer;
+}
+
+.usersIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.usesLabel {
+  @apply tabular-nums;
+}
+
+.chevronDownIcon {
+  @apply w-3 h-3 transition-transform;
+}
+
+.chevronDownIconPeople {
+  @apply rotate-180;
+}
+
+.revokeButton {
+  @apply flex items-center gap-1 text-red-600 hover:text-red-700 font-medium cursor-pointer;
+}
+
+.existingLinksList2 {
+  @apply mt-3 pt-3 border-t border-surface-800 space-y-1.5 text-xs;
+}
+
+.nameItem {
+  @apply flex justify-between gap-3;
+}
+
+.nameLabel {
+  @apply text-surface-200 truncate;
+}
+
+.existingLinksLabel2 {
+  @apply text-surface-500;
+}
+
+.existingLinksLabel3 {
+  @apply text-surface-500 shrink-0;
+}
+
+.activeClassName {
+  @apply bg-emerald-500/10 text-emerald-700 ring-emerald-500/25;
+}
+
+.turnedOffClassName {
+  @apply bg-surface-800 text-surface-500 ring-surface-700;
+}
+
+.expiredClassName {
+  @apply bg-amber-500/10 text-amber-700 ring-amber-500/25;
+}

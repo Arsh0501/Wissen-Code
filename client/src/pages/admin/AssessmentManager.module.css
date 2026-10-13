@@ -1,0 +1,179 @@
+/* Styles for AssessmentManager.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.generateWithAiLink {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.sparklesIcon {
+  @apply w-4 h-4 text-primary-600;
+}
+
+.newAssessmentLink {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.plusIcon {
+  @apply w-4 h-4;
+}
+
+.errorBox {
+  @apply mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700;
+}
+
+.searchBox {
+  @apply flex flex-wrap items-center justify-between gap-3 mb-6;
+}
+
+.box {
+  @apply flex gap-1 p-1 rounded-lg bg-surface-900 border border-surface-800 overflow-x-auto;
+}
+
+.labelButton {
+  @apply px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors;
+}
+
+.labelButtonSelected {
+  @apply bg-surface-700 text-white;
+}
+
+.labelButtonDefault {
+  @apply text-surface-400 hover:text-white;
+}
+
+.label {
+  @apply text-surface-500 text-xs tabular-nums;
+}
+
+.searchBox2 {
+  @apply relative w-full sm:w-64;
+}
+
+.searchIcon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500;
+}
+
+.searchAssessmentsInput {
+  composes: input from global;
+  @apply pl-9 py-1.5 text-sm;
+}
+
+.noAssessmentsMatchText {
+  @apply text-center text-surface-500 py-16;
+}
+
+.box2 {
+  @apply grid gap-4;
+}
+
+.createALinkBox {
+  composes: card from global;
+  @apply p-5;
+}
+
+.createALinkBoxSelected {
+  @apply opacity-60 pointer-events-none;
+}
+
+.nameBox {
+  @apply flex flex-wrap items-start justify-between gap-4;
+}
+
+.nameBox2 {
+  @apply min-w-0 flex-1;
+}
+
+.nameBox3 {
+  @apply flex items-center gap-2 flex-wrap;
+}
+
+.nameLink {
+  @apply text-lg font-semibold text-white hover:text-primary-700;
+}
+
+.descriptionText {
+  @apply text-sm text-surface-400 mt-1 line-clamp-2;
+}
+
+.clockBox {
+  @apply flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-surface-400;
+}
+
+.timeLimitMinutesLabel {
+  @apply flex items-center gap-1;
+}
+
+.clockIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.completedBox {
+  @apply flex gap-6 text-center;
+}
+
+.statsText {
+  @apply text-lg font-semibold text-white tabular-nums;
+}
+
+.completedText {
+  @apply text-[11px] text-surface-500 uppercase tracking-wider;
+}
+
+.statsText2 {
+  @apply text-lg font-semibold tabular-nums;
+}
+
+.statsTextDefault {
+  @apply text-surface-500;
+}
+
+.createALinkBox2 {
+  @apply flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-surface-800;
+}
+
+.statsBox {
+  @apply flex flex-wrap gap-1.5;
+}
+
+.titleLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700 text-xs;
+}
+
+.marksLabel {
+  @apply text-surface-600 ml-1;
+}
+
+.createALinkBox3 {
+  @apply flex items-center gap-2;
+}
+
+.statsLabel {
+  @apply text-xs text-sky-600;
+}
+
+.moreActionsBox {
+  @apply relative;
+}
+
+.moreActionsButton {
+  composes: btn-ghost from global;
+  @apply p-2;
+}
+
+.statsBox2 {
+  @apply fixed inset-0 z-40;
+}
+
+.copyBox {
+  @apply absolute right-0 mt-1 w-48 rounded-lg bg-surface-800 border border-surface-700 shadow-xl z-50 py-1 text-sm;
+}
+
+.duplicateButton {
+  @apply w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700;
+}
+
+.deleteButton {
+  @apply w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-500/10;
+}

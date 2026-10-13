@@ -1,0 +1,689 @@
+/* Styles for AssessmentForm.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.label {
+  @apply flex items-start gap-3 p-4 rounded-lg bg-surface-800/50 border border-surface-700 cursor-pointer hover:border-surface-600;
+}
+
+.icon {
+  @apply w-5 h-5 text-primary-600 mt-0.5 shrink-0;
+}
+
+.labelBox {
+  @apply flex-1;
+}
+
+.labelText {
+  @apply text-sm font-medium text-surface-100;
+}
+
+.hintText {
+  @apply text-xs text-surface-500 mt-0.5;
+}
+
+.switchButton {
+  @apply relative w-10 h-6 rounded-full transition-colors shrink-0;
+}
+
+.switchButtonChecked {
+  @apply bg-primary-600;
+}
+
+.switchButtonDefault {
+  @apply bg-surface-600;
+}
+
+.label2 {
+  @apply absolute top-1 left-1 w-4 h-4 rounded-full bg-on-accent transition-transform;
+}
+
+.labelChecked {
+  @apply translate-x-4;
+}
+
+.box {
+  composes: input from global;
+  @apply flex flex-wrap items-center gap-1.5 min-h-[42px] py-1.5 cursor-text;
+}
+
+.vLabel {
+  composes: badge from global;
+  @apply ring-1 gap-1;
+}
+
+.vLabelBad {
+  @apply bg-red-500/10 text-red-700 ring-red-500/25;
+}
+
+.vLabelDefault {
+  @apply bg-primary-500/10 text-primary-700 ring-primary-500/20;
+}
+
+.xIcon {
+  @apply w-3 h-3;
+}
+
+.idInput {
+  @apply flex-1 min-w-[140px] bg-transparent outline-none text-sm;
+}
+
+.currentlyLabel {
+  @apply flex items-center gap-2;
+}
+
+.unsavedChangesLabel {
+  @apply text-amber-700 text-xs;
+}
+
+.closeLink {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.saveDraftNowButton {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.saveIcon {
+  @apply w-4 h-4;
+}
+
+.alertTriangleBox {
+  @apply mb-6 flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-800;
+}
+
+.alertTriangleIcon {
+  @apply w-4 h-4 mt-0.5 shrink-0 text-amber-600;
+}
+
+.serverErrorBox {
+  @apply mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700;
+}
+
+.stepperList {
+  @apply flex gap-2 mb-6 overflow-x-auto pb-1;
+}
+
+.labelButton {
+  @apply flex items-center gap-2 px-3.5 py-2.5 rounded-lg border text-sm font-medium whitespace-nowrap transition-colors;
+}
+
+.labelButtonActive {
+  @apply border-primary-500 bg-primary-600/15 text-white;
+}
+
+.labelButtonInactive {
+  @apply border-surface-800 bg-surface-900 text-surface-400 hover:text-white;
+}
+
+.stepperLabel {
+  @apply w-5 h-5 rounded-full text-xs flex items-center justify-center;
+}
+
+.stepperLabelError {
+  @apply bg-red-500 text-on-accent;
+}
+
+.stepperLabelActive {
+  @apply bg-primary-500 text-on-accent;
+}
+
+.stepperLabelDone {
+  @apply bg-emerald-500 text-on-accent;
+}
+
+.stepperLabelDefault {
+  @apply bg-surface-700 text-surface-300;
+}
+
+.stepperIcon {
+  @apply w-4 h-4 hidden sm:block;
+}
+
+.stepperLabel2 {
+  @apply text-xs text-surface-500;
+}
+
+.stepperList2 {
+  @apply mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700 list-disc list-inside;
+}
+
+.aNameBox {
+  composes: animate-fade-in from global;
+  @apply grid lg:grid-cols-3 gap-6;
+}
+
+.aNameBox2 {
+  composes: card from global;
+  @apply space-y-5 lg:col-span-2;
+}
+
+.aDescTextarea {
+  composes: input from global;
+  @apply min-h-[80px];
+}
+
+.markdownLabel {
+  @apply text-surface-500 font-normal;
+}
+
+.aInstrTextarea {
+  composes: input from global;
+  @apply min-h-[120px] font-mono text-xs;
+}
+
+.shownOnTheText {
+  @apply text-xs text-surface-500 mt-1;
+}
+
+.aDiffBox {
+  composes: card from global;
+  @apply space-y-5;
+}
+
+.stepBasicBox {
+  @apply space-y-2;
+}
+
+.lButton {
+  @apply w-full flex items-start gap-3 p-3 rounded-lg border text-left;
+}
+
+.lButtonOn {
+  @apply border-primary-500 bg-primary-500/10;
+}
+
+.lButtonDefault {
+  @apply border-surface-700 hover:border-surface-500;
+}
+
+.stepBasicIcon {
+  @apply w-5 h-5 mt-0.5;
+}
+
+.stepBasicIconOn {
+  @apply text-primary-600;
+}
+
+.stepBasicIconDefault {
+  @apply text-surface-500;
+}
+
+.lLabel {
+  @apply block text-sm font-semibold text-white;
+}
+
+.hintLabel {
+  @apply block text-xs text-surface-500;
+}
+
+.checkIcon {
+  @apply w-4 h-4 text-primary-600;
+}
+
+.searchBox {
+  composes: animate-fade-in from global;
+  @apply grid lg:grid-cols-2 gap-6;
+}
+
+.searchBox2 {
+  composes: card from global;
+  @apply p-0 overflow-hidden flex flex-col;
+}
+
+.searchBox3 {
+  @apply p-4 border-b border-surface-800 space-y-3;
+}
+
+.questionBankBox {
+  @apply flex items-center justify-between gap-2;
+}
+
+.questionBankTitle {
+  @apply text-sm font-semibold text-white;
+}
+
+.sparklesBox {
+  @apply flex items-center gap-3;
+}
+
+.generateWithAiLink {
+  @apply text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1;
+}
+
+.newQuestionLink {
+  @apply text-xs text-primary-600 hover:text-primary-700;
+}
+
+.searchBox4 {
+  @apply relative;
+}
+
+.searchIcon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500;
+}
+
+.searchQuestionsInput {
+  composes: input from global;
+  @apply pl-9 py-1.5 text-sm;
+}
+
+.difficultyBox {
+  @apply grid grid-cols-3 gap-2;
+}
+
+.difficultySelect {
+  composes: input from global;
+  @apply py-1.5 text-sm;
+}
+
+.stepSelectList {
+  @apply divide-y divide-surface-800/60 overflow-y-auto max-h-[480px];
+}
+
+.plusItem {
+  @apply flex items-center gap-3 px-4 py-3 hover:bg-surface-800/30;
+}
+
+.titleBox {
+  @apply flex-1 min-w-0;
+}
+
+.titleText {
+  @apply text-sm text-surface-100 truncate;
+}
+
+.difficultyBox2 {
+  @apply flex items-center gap-1.5 mt-1 flex-wrap;
+}
+
+.stepSelectLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700;
+}
+
+.topicMatchLabel {
+  composes: badge from global;
+  @apply bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/20;
+}
+
+.stepSelectLabel2 {
+  @apply text-[11px] text-surface-500;
+}
+
+.stepSelectLabel3 {
+  @apply text-[11px];
+}
+
+.stepSelectLabelTestCases {
+  @apply text-surface-600;
+}
+
+.stepSelectLabelDefault {
+  @apply text-red-600;
+}
+
+.addButton {
+  composes: btn-outline from global;
+  @apply text-xs px-2.5 py-1;
+}
+
+.plusIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.stepSelectItem {
+  @apply text-sm text-surface-500 text-center py-10 px-6;
+}
+
+.selectedQuestionsBox {
+  @apply p-4 border-b border-surface-800 flex items-center justify-between;
+}
+
+.totalLabel {
+  @apply text-sm text-surface-400;
+}
+
+.totalMarksLabel {
+  @apply text-white font-semibold tabular-nums;
+}
+
+.addQuestionsFromText {
+  @apply text-sm text-surface-500 text-center py-16 px-6;
+}
+
+.stepSelectList2 {
+  @apply divide-y divide-surface-800/60 overflow-y-auto max-h-[540px];
+}
+
+.removeItem {
+  @apply flex items-center gap-3 px-4 py-3;
+}
+
+.stepSelectLabel4 {
+  @apply w-6 h-6 rounded-md bg-surface-800 text-xs text-surface-300 flex items-center justify-center shrink-0;
+}
+
+.difficultyBox3 {
+  @apply flex gap-1.5 mt-1;
+}
+
+.marksLabel {
+  @apply flex items-center gap-1.5 text-xs text-surface-400;
+}
+
+.marksForInput {
+  composes: input from global;
+  @apply w-16 py-1 px-2 text-sm text-right;
+}
+
+.moveUpBox {
+  @apply flex flex-col;
+}
+
+.moveUpButton {
+  composes: btn-ghost from global;
+  @apply p-0.5;
+}
+
+.removeButton {
+  composes: btn-ghost from global;
+  @apply p-1.5 text-red-600 hover:bg-red-500/10;
+}
+
+.timingQuestionsAmpBox {
+  @apply space-y-6;
+}
+
+.aTimeBox {
+  @apply grid grid-cols-2 gap-4;
+}
+
+.aTimeLabel {
+  composes: label from global;
+  @apply flex items-center gap-1.5;
+}
+
+.aCountInput {
+  composes: input from global;
+  @apply w-28;
+}
+
+.calendarBox {
+  composes: card from global;
+  @apply space-y-4;
+}
+
+.validityWindowTitle {
+  @apply text-sm font-semibold text-white flex items-center gap-1.5;
+}
+
+.leaveEmptyToText {
+  @apply text-xs text-surface-500 -mt-2;
+}
+
+.lLabel2 {
+  @apply flex items-start gap-3 p-3 rounded-lg border cursor-pointer;
+}
+
+.stepConfigureInput {
+  @apply mt-1;
+}
+
+.stepConfigureIcon {
+  @apply w-4 h-4 mt-0.5;
+}
+
+.lLabel3 {
+  @apply block text-sm font-medium text-white;
+}
+
+.codeBox {
+  @apply p-4 rounded-lg bg-surface-800/50 border border-surface-700;
+}
+
+.allowedLanguagesText {
+  @apply text-sm font-medium text-surface-100 flex items-center gap-2;
+}
+
+.codeIcon {
+  @apply w-5 h-5 text-primary-600;
+}
+
+.noneSelectedAllText {
+  @apply text-xs text-surface-500 mt-0.5 mb-3;
+}
+
+.stepConfigureBox {
+  @apply flex flex-wrap gap-2;
+}
+
+.nameButton {
+  @apply flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors;
+}
+
+.nameButtonDefault {
+  @apply border-surface-700 text-surface-400 hover:text-white;
+}
+
+.difficultyBox4 {
+  composes: card from global;
+  @apply lg:col-span-2 space-y-4;
+}
+
+.stepReviewTitle {
+  @apply text-xl font-bold text-white;
+}
+
+.descriptionText {
+  @apply text-sm text-surface-400 mt-1;
+}
+
+.difficultyBox5 {
+  @apply flex flex-wrap gap-1.5 mt-2;
+}
+
+.difficultyLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700 capitalize;
+}
+
+.stepReviewTable {
+  @apply w-full text-sm;
+}
+
+.stepReviewRow {
+  @apply text-xs text-surface-500 uppercase tracking-wider border-b border-surface-800;
+}
+
+.stepReviewTh {
+  @apply text-left font-medium py-2;
+}
+
+.marksTh {
+  @apply text-right font-medium py-2;
+}
+
+.stepReviewBody {
+  @apply divide-y divide-surface-800/60;
+}
+
+.stepReviewCell {
+  @apply py-2 text-surface-500;
+}
+
+.titleCell {
+  @apply py-2 text-surface-100;
+}
+
+.stepReviewCell2 {
+  @apply py-2 text-surface-400;
+}
+
+.stepReviewCell3 {
+  @apply py-2;
+}
+
+.marksCell {
+  @apply py-2 text-right tabular-nums text-surface-200;
+}
+
+.noQuestionsSelectedCell {
+  @apply py-6 text-center text-surface-500;
+}
+
+.totalRow {
+  @apply border-t border-surface-700;
+}
+
+.totalCell {
+  @apply py-2 text-right text-surface-400;
+}
+
+.totalMarksCell {
+  @apply py-2 text-right font-semibold text-white tabular-nums;
+}
+
+.configurationBox {
+  composes: card from global;
+  @apply space-y-3 text-sm;
+}
+
+.configurationTitle {
+  @apply font-semibold text-white;
+}
+
+.kBox {
+  @apply flex justify-between gap-4;
+}
+
+.vLabel2 {
+  @apply text-surface-200 text-right;
+}
+
+.stepGenerateBox {
+  composes: animate-fade-in from global;
+  @apply max-w-2xl mx-auto space-y-6;
+}
+
+.stepGenerateBox2 {
+  composes: card from global;
+  @apply text-center py-10;
+}
+
+.stepGenerateBox3 {
+  @apply w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4;
+}
+
+.stepGenerateBoxOn {
+  @apply bg-emerald-500/10 text-emerald-600;
+}
+
+.stepGenerateBoxOff {
+  @apply bg-primary-500/10 text-primary-600;
+}
+
+.checkCircleIcon {
+  @apply w-7 h-7;
+}
+
+.assessmentGeneratedTitle {
+  @apply text-lg font-semibold text-white;
+}
+
+.savedAsText {
+  @apply text-sm text-surface-500 mt-1;
+}
+
+.continueToPublishButton {
+  composes: btn-primary from global;
+  @apply mt-5;
+}
+
+.thisSavesTheText {
+  @apply text-sm text-surface-500 mt-1 max-w-md mx-auto;
+}
+
+.goToGenerateButton {
+  composes: btn-primary from global;
+  @apply mt-4;
+}
+
+.statusBox {
+  @apply flex flex-wrap items-center justify-between gap-4;
+}
+
+.statusText {
+  @apply text-[11px] font-semibold text-surface-500 uppercase tracking-wider;
+}
+
+.stepPublishText {
+  @apply text-lg font-semibold text-white mt-0.5 flex items-center gap-2;
+}
+
+.stepPublishLabel {
+  composes: animate-pulse-dot from global;
+  @apply w-2.5 h-2.5 rounded-full bg-emerald-500;
+}
+
+.lockIcon {
+  @apply w-4 h-4 text-surface-500;
+}
+
+.youHaveUnsavedText {
+  @apply text-xs text-amber-700 mt-3;
+}
+
+.linkBox {
+  composes: card from global;
+  @apply flex flex-wrap items-center justify-between gap-4;
+}
+
+.inviteCandidatesText {
+  @apply text-sm font-semibold text-white flex items-center gap-2;
+}
+
+.viewResultsBox {
+  @apply flex justify-end gap-2;
+}
+
+.doneLink {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.backBox {
+  @apply flex justify-between mt-6;
+}
+
+.readinessCheckTitle {
+  @apply text-sm font-semibold text-white mb-3;
+}
+
+.everythingLooksGoodText {
+  @apply text-sm text-emerald-700 flex items-center gap-2;
+}
+
+.textItem {
+  @apply flex items-start gap-2 text-sm;
+}
+
+.xcircleIcon {
+  @apply w-4 h-4 text-red-600 shrink-0 mt-0.5;
+}
+
+.alertTriangleIcon2 {
+  @apply w-4 h-4 text-amber-600 shrink-0 mt-0.5;
+}
+
+.textLabel {
+  @apply flex-1 text-surface-300;
+}
+
+.fixButton {
+  @apply text-xs text-primary-600 hover:text-primary-700 shrink-0;
+}
+
+.adminLayoutMaxWidth {
+  @apply max-w-6xl;
+}

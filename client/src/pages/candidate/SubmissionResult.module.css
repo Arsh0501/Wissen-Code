@@ -1,0 +1,291 @@
+/* Styles for SubmissionResult.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.chevronDownBox {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.chevronDownButton {
+  @apply w-full flex items-center justify-between gap-4 p-4 text-left hover:bg-surface-800/30;
+}
+
+.qBox {
+  @apply min-w-0;
+}
+
+.qTitle {
+  @apply font-medium text-white truncate;
+}
+
+.difficultyBox {
+  @apply flex items-center gap-2 mt-1 text-xs text-surface-500;
+}
+
+.notAttemptedLabel {
+  @apply text-amber-600;
+}
+
+.chevronDownBox2 {
+  @apply flex items-center gap-4 shrink-0;
+}
+
+.passedTestCasesBox {
+  @apply text-right;
+}
+
+.passedTestCasesText {
+  @apply text-sm text-surface-400 tabular-nums;
+}
+
+.marksObtainedText {
+  @apply text-lg font-bold tabular-nums;
+}
+
+.label {
+  @apply text-surface-500 text-sm font-normal;
+}
+
+.chevronDownIcon {
+  @apply w-4 h-4 text-surface-500 transition-transform;
+}
+
+.chevronDownIconOpen {
+  @apply rotate-180;
+}
+
+.testCaseBox {
+  @apply flex gap-1.5 px-4 pb-4 flex-wrap;
+}
+
+.testBox {
+  @apply flex items-center justify-center w-8 h-8 rounded-md;
+}
+
+.testBoxPassed {
+  @apply bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25;
+}
+
+.testBoxDefault {
+  @apply bg-red-500/15 text-red-600 ring-1 ring-red-500/25;
+}
+
+.checkCircleIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.testCaseBox2 {
+  @apply border-t border-surface-800 p-4;
+}
+
+.noAnswerWasText {
+  @apply text-sm text-surface-500;
+}
+
+.testTable {
+  @apply w-full text-sm;
+}
+
+.testRow {
+  @apply text-xs text-surface-500 uppercase tracking-wider;
+}
+
+.testTh {
+  @apply text-left font-medium pb-2;
+}
+
+.timeTh {
+  @apply text-right font-medium pb-2;
+}
+
+.testCaseBody {
+  @apply divide-y divide-surface-800/60;
+}
+
+.testCaseCell {
+  @apply py-1.5 text-surface-300;
+}
+
+.testCaseCell2 {
+  @apply py-1.5 text-surface-400;
+}
+
+.hiddenLabel {
+  @apply inline-flex items-center gap-1;
+}
+
+.eyeOffIcon {
+  @apply w-3 h-3;
+}
+
+.statusDescCell {
+  @apply py-1.5;
+}
+
+.statusDescCellPassed {
+  @apply text-emerald-600;
+}
+
+.statusDescCellDefault {
+  @apply text-red-600;
+}
+
+.testCaseCell3 {
+  @apply py-1.5 text-right text-surface-400 tabular-nums;
+}
+
+.arrowLeftBox {
+  @apply min-h-screen bg-surface-950;
+}
+
+.arrowLeftHeader {
+  @apply sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800;
+}
+
+.arrowLeftBox2 {
+  @apply max-w-3xl mx-auto px-6 py-3 flex items-center justify-between;
+}
+
+.codeBox {
+  @apply flex items-center gap-3;
+}
+
+.codeBox2 {
+  @apply w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center;
+}
+
+.codeIcon {
+  @apply w-5 h-5 text-on-accent;
+}
+
+.wissenCodeLabel {
+  @apply text-lg font-bold text-white;
+}
+
+.backToDashboardButton {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.arrowLeftIcon {
+  @apply w-4 h-4;
+}
+
+.testCaseMain {
+  @apply max-w-3xl mx-auto px-6 py-10;
+}
+
+.trophyBox {
+  composes: card from global;
+  @apply text-center;
+}
+
+.trophyIcon {
+  @apply w-16 h-16 text-primary-600 mx-auto mb-4;
+}
+
+.testSubmittedTitle {
+  @apply text-2xl font-bold text-white mb-3;
+}
+
+.yourTestHasText {
+  @apply text-surface-400 mb-2;
+}
+
+.errorText {
+  @apply text-surface-500 text-sm;
+}
+
+.loadResultsButton {
+  composes: btn-outline from global;
+  @apply mt-6;
+}
+
+.checkCircleBox {
+  composes: card animate-fade-in from global;
+  @apply text-center;
+}
+
+.checkCircleBox2 {
+  @apply w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 flex items-center justify-center;
+}
+
+.checkCircleIcon2 {
+  @apply w-9 h-9 text-emerald-600;
+}
+
+.nameTitle {
+  @apply text-2xl font-bold text-white mb-2;
+}
+
+.thankYouText {
+  @apply text-surface-400;
+}
+
+.candidateNameLabel {
+  @apply text-white font-medium;
+}
+
+.scoresForThisText {
+  @apply text-surface-500 text-sm mt-4 flex items-center justify-center gap-1.5;
+}
+
+.nameBox {
+  composes: animate-fade-in from global;
+  @apply space-y-6;
+}
+
+.nameText {
+  @apply text-sm text-surface-400 mb-1;
+}
+
+.yourResultBox {
+  @apply flex items-center justify-center gap-3 mb-4;
+}
+
+.yourResultTitle {
+  @apply text-2xl font-bold text-white;
+}
+
+.headlineText {
+  @apply text-6xl font-extrabold tabular-nums;
+}
+
+.marksObtainedText2 {
+  @apply text-surface-400 text-sm mt-2;
+}
+
+.awardBox {
+  @apply grid grid-cols-3 gap-3 mt-6;
+}
+
+.awardBox2 {
+  @apply bg-surface-800 rounded-lg p-3;
+}
+
+.awardIcon {
+  @apply w-4 h-4 text-primary-600 mx-auto mb-1;
+}
+
+.lengthText {
+  @apply text-sm font-semibold text-white tabular-nums;
+}
+
+.fullySolvedText {
+  @apply text-[11px] text-surface-500 uppercase tracking-wider;
+}
+
+.questionWiseResultsBox {
+  @apply space-y-3;
+}
+
+.questionWiseResultsBox2 {
+  @apply flex items-center justify-between;
+}
+
+.questionWiseResultsTitle {
+  @apply text-lg font-semibold text-white;
+}
+
+.hiddenTestOutputsLabel {
+  @apply text-xs text-surface-500 flex items-center gap-1;
+}

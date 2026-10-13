@@ -3,6 +3,8 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Code2 } from 'lucide-react';
 import ThemeToggle from '../components/ThemeToggle';
+import styles from './LoginPage.module.css';
+import { LOGIN_PAGE_MESSAGES as MSG } from '../constants';
 
 export default function LoginPage() {
   const { login, isLoggedIn, authError } = useAuth();
@@ -19,32 +21,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
-      <ThemeToggle className="fixed top-4 right-4 z-10" />
+    <div className={styles.signInToBox}>
+      <ThemeToggle className={styles.themeToggle} />
       {/* Background gradient */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-600/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary-400/5 rounded-full blur-3xl" />
+      <div className={styles.backgroundGradientBox}>
+        <div className={styles.backgroundGradientBox2} />
+        <div className={styles.backgroundGradientBox3} />
       </div>
 
-      <div className="relative w-full max-w-md animate-fade-in">
+      <div className={styles.signInToBox2}>
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-600/30">
-              <Code2 className="w-7 h-7 text-on-accent" />
+        <div className={styles.signInToBox3}>
+          <div className={styles.codeBox}>
+            <div className={styles.codeBox2}>
+              <Code2 className={styles.codeIcon} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">WissenCode</h1>
-              <p className="text-xs text-surface-500 uppercase tracking-widest">Assessment Platform</p>
+              <h1 className={styles.wissenCodeTitle}>WissenCode</h1>
+              <p className={styles.assessmentPlatformText}>Assessment Platform</p>
             </div>
           </div>
-          <p className="text-surface-400 text-sm">Sign in to continue to the platform</p>
+          <p className={styles.signInToText}>{MSG.signContinuePlatform}</p>
         </div>
 
         {/* Login Card */}
         <div className="card">
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+          <form onSubmit={handleSubmit} className={styles.loginEmailForm} noValidate>
             <div>
               <label className="label" htmlFor="login-email">
                 Email
@@ -77,7 +79,7 @@ export default function LoginPage() {
             </div>
 
             {authError && (
-              <p role="alert" className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              <p role="alert" className={styles.authErrorText}>
                 {authError}
               </p>
             )}
@@ -85,7 +87,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={!email.trim() || !password}
-              className="btn-primary w-full py-3 text-base"
+              className={styles.signInButton}
             >
               Sign In
             </button>

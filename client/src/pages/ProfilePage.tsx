@@ -2,8 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import UserAvatar from '../components/layout/UserAvatar';
 import { Save, Check } from 'lucide-react';
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import styles from './ProfilePage.module.css';
+import { EMAIL_RE, PROFILE_PAGE_MESSAGES as MSG } from '../constants';
 
 export default function ProfilePage() {
   const { user, role, updateProfile } = useAuth();
@@ -19,11 +19,11 @@ export default function ProfilePage() {
     setSaved(false);
 
     if (!name.trim() || !email.trim()) {
-      setFormError('Name and email are required.');
+      setFormError(MSG.nameEmailRequired);
       return;
     }
     if (!EMAIL_RE.test(email.trim())) {
-      setFormError('Enter a valid email address.');
+      setFormError(MSG.enterValidEmailAddress);
       return;
     }
 
@@ -33,24 +33,24 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="animate-fade-in max-w-2xl">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white">Profile</h2>
-        <p className="text-surface-400 text-sm mt-1">Manage your account information.</p>
+    <div className={styles.profileBox}>
+      <div className={styles.profileBox2}>
+        <h2 className={styles.profileTitle}>Profile</h2>
+        <p className={styles.manageYourAccountText}>{MSG.manageAccountInformation}</p>
       </div>
 
       <div className="card">
-        <div className="flex items-center gap-4 mb-6">
+        <div className={styles.nameBox}>
           <UserAvatar user={user} size="lg" />
           <div>
-            <p className="text-lg font-semibold text-white">{user.name}</p>
-            <span className="badge bg-primary-500/15 text-primary-600 ring-1 ring-primary-500/25 capitalize">
+            <p className={styles.nameText}>{user.name}</p>
+            <span className={styles.roleLabel}>
               {role}
             </span>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit} className={styles.profileNameForm} noValidate>
           <div>
             <label className="label" htmlFor="profile-name">
               Full Name
@@ -86,17 +86,17 @@ export default function ProfilePage() {
             <label className="label" htmlFor="profile-role">
               Role
             </label>
-            <input id="profile-role" className="input opacity-60 cursor-not-allowed" value={role} disabled readOnly />
+            <input id="profile-role" className={styles.profileRoleInput} value={role} disabled readOnly />
           </div>
 
           {formError && (
-            <p role="alert" className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            <p role="alert" className={styles.formErrorText}>
               {formError}
             </p>
           )}
 
           <button type="submit" className="btn-primary">
-            {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            {saved ? <Check className={styles.checkIcon} /> : <Save className={styles.checkIcon} />}
             {saved ? 'Saved' : 'Save Changes'}
           </button>
         </form>

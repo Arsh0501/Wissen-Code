@@ -1,13 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-
-export type ThemePreference = 'light' | 'dark' | 'system';
-export type ResolvedTheme = 'light' | 'dark';
-
-const STORAGE_KEY = 'wissen-theme';
+import type { ThemePreference, ResolvedTheme, ThemeContextType } from '../types';
+import { STORAGE_KEYS, THEME_CONTEXT_MESSAGES as MSG } from '../constants';
 
 function readPreference(): ThemePreference {
   try {
-    const v = localStorage.getItem(STORAGE_KEY);
+    const v = localStorage.getItem(STORAGE_KEYS.theme);
     return v === 'light' || v === 'dark' ? v : 'system';
   } catch {
     return 'system';
@@ -16,13 +13,6 @@ function readPreference(): ThemePreference {
 
 function systemTheme(): ResolvedTheme {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-interface ThemeContextType {
-  preference: ThemePreference;
-  theme: ResolvedTheme; // what is actually shown
-  setPreference: (p: ThemePreference) => void;
-  toggle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -48,8 +38,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const setPreference = useCallback((p: ThemePreference) => {
     setPreferenceState(p);
     try {
-      if (p === 'system') localStorage.removeItem(STORAGE_KEY);
-      else localStorage.setItem(STORAGE_KEY, p);
+      if (p === 'system') localStorage.removeItem(STORAGE_KEYS.theme);
+      else localStorage.setItem(STORAGE_KEYS.theme, p);
     } catch {
       // Storage can be unavailable (private mode) — the choice still applies for this visit
     }
@@ -63,6 +53,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
+  if (!ctx) throw new Error(MSG.useThemeOutsideProvider);
   return ctx;
 }

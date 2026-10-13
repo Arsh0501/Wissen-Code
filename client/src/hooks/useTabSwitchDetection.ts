@@ -1,12 +1,6 @@
 import { useEffect, useRef } from 'react';
-
-// Ignore blips shorter than this (OS notifications, focus flicker) so candidates aren't flagged unfairly.
-const MIN_AWAY_MS = 500;
-
-export interface TabSwitchEvent {
-  leftAt: Date;
-  durationMs: number;
-}
+import type { TabSwitchEvent } from '../types';
+import { MIN_AWAY_MS } from '../constants';
 
 /**
  * Detects the candidate leaving the exam — switching tabs, minimising, or focusing another window —

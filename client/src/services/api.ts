@@ -1,16 +1,6 @@
 import axios from 'axios';
-import type {
-  Question,
-  Assessment,
-  RunCodeResponse,
-  RunTestsResponse,
-  SubmissionResult,
-  Language,
-  AssessmentInput,
-  DashboardData,
-  CandidateSummary,
-  AssessmentStats,
-} from '../types';
+import type { Question, Assessment, RunCodeResponse, RunTestsResponse, SubmissionResult, Language, AssessmentInput, DashboardData, QuestionInput, AssessmentSubmissionsResponse, PublicInvite, SessionResponse, InviteLink } from '../types';
+import { STORAGE_KEYS } from '../constants';
 
 const api = axios.create({
   baseURL: '/api',
@@ -21,7 +11,7 @@ const api = axios.create({
 
 // Inject JWT token from localStorage
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('wissen-token');
+  const token = localStorage.getItem(STORAGE_KEYS.token);
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
@@ -34,6 +24,8 @@ export async function getQuestions(filters?: {
   search?: string;
   difficulty?: string;
   tag?: string;
+  type?: 'coding' | 'mcq';
+  status?: 'active' | 'pending_review' | 'rejected' | 'all';
 }): Promise<Question[]> {
   const { data } = await api.get('/questions', { params: filters });
   return data;
@@ -42,16 +34,6 @@ export async function getQuestions(filters?: {
 export async function getQuestion(id: number): Promise<Question> {
   const { data } = await api.get(`/questions/${id}`);
   return data;
-}
-
-// Tags are sent as an array; the server stores them as a JSON string
-export interface QuestionInput {
-  title?: string;
-  statement?: string;
-  difficulty?: Question['difficulty'];
-  tags?: string[];
-  timeLimit?: number;
-  memoryLimit?: number;
 }
 
 export async function createQuestion(question: QuestionInput & {
@@ -204,27 +186,6 @@ export async function getSubmissionResults(
 
 // ---- Sessions (Timer + Autosave) ----
 
-export interface SessionResponse {
-  sessionId: number;
-  startedAt: string;
-  finishedAt: string | null;
-  timeLimitMinutes: number;
-  remainingSeconds: number;
-  isFinished: boolean;
-  tabSwitchCount: number;
-  tabSwitchLimit: number;
-  drafts: {
-    id: number;
-    sessionId: number;
-    questionId: number;
-    languageId: number;
-    languageName: string;
-    code: string;
-    isFlagged: boolean;
-    isAnswered: boolean;
-  }[];
-}
-
 // Existing session for the current candidate; never creates one (so the timer doesn't start)
 export async function getSessionStatus(
   assessmentId: number
@@ -293,16 +254,6 @@ export async function finishSession(sessionId: number): Promise<any> {
 
 // ---- Admin Reports ----
 
-export interface CandidateSubmissionSummary extends CandidateSummary {
-  session: { finishedAt: string | null; startedAt: string } | null;
-}
-
-export interface AssessmentSubmissionsResponse {
-  assessment: { id: number; name: string; timeLimitMinutes: number; passingScore: number };
-  candidates: CandidateSubmissionSummary[];
-  stats: AssessmentStats;
-}
-
 export async function getAssessmentSubmissions(
   assessmentId: number
 ): Promise<AssessmentSubmissionsResponse> {
@@ -335,104 +286,7 @@ export async function downloadAssessmentCsv(assessmentId: number): Promise<{ blo
   return { blob: res.data, filename: match?.[1] || `results-assessment-${assessmentId}.csv` };
 }
 
-// ---- AI assessment generation ----
-
-export interface AIStatus {
-  configured: boolean;
-  canVerify: boolean;
-  minQuestions: number;
-  maxQuestions: number;
-}
-
-export interface AIGeneratedQuestion {
-  title: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  tags: string[];
-  rationale: string;
-  statement: string;
-  test_cases: { input: string; expected_output: string; is_sample: boolean }[];
-  starter_code_python: string;
-  starter_code_javascript: string;
-  starter_code_java: string;
-  starter_code_cpp: string;
-  reference_solution_python: string;
-  verification:
-    | { status: 'verified'; dropped: number }
-    | { status: 'unverified'; reason: string }
-    | { status: 'failed'; reason: string };
-}
-
-export interface AIGenerationPreview {
-  candidate: {
-    name: string;
-    experience_level: 'intern' | 'junior' | 'mid' | 'senior' | 'staff';
-    years_of_experience: number;
-    primary_languages: string[];
-    skills: string[];
-    summary: string;
-  };
-  questions: AIGeneratedQuestion[];
-  suggested_time_minutes: number;
-  model: string;
-}
-
-export async function getAIStatus(): Promise<AIStatus> {
-  const { data } = await api.get('/ai/status');
-  return data;
-}
-
-export async function generateAssessmentFromResume(input: {
-  resumePdfBase64?: string;
-  resumeText?: string;
-  questionCount: number;
-  focus?: string;
-}): Promise<AIGenerationPreview> {
-  // Generation reads the resume and writes several problems — it can take a few minutes
-  const { data } = await api.post('/ai/generate', input, { timeout: 11 * 60 * 1000 });
-  return data;
-}
-
-export async function createAIAssessment(input: {
-  name: string;
-  description?: string;
-  timeLimitMinutes: number;
-  passingScore: number;
-  questions: Omit<AIGeneratedQuestion, 'verification' | 'rationale' | 'reference_solution_python'>[];
-}): Promise<{ id: number; name: string }> {
-  const { data } = await api.post('/ai/create-assessment', input);
-  return data;
-}
-
 // ---- Invite links ----
-
-export interface InviteLink {
-  id: number;
-  token: string;
-  assessmentId: number;
-  label: string;
-  maxUses: number | null;
-  expiresAt: string | null;
-  revokedAt: string | null;
-  createdAt: string;
-  uses: number;
-  state: 'active' | 'revoked' | 'expired' | 'full';
-  participants: { name: string; email: string; joinedAt: string }[];
-}
-
-export interface PublicInvite {
-  assessment: {
-    name: string;
-    description: string;
-    timeLimitMinutes: number;
-    passingScore: number;
-    questionCount: number;
-    startAt: string | null;
-    endAt: string | null;
-  };
-  label: string;
-  canJoin: boolean;
-  problem: string | null;
-}
 
 export function inviteUrl(token: string): string {
   return `${window.location.origin}/invite/${token}`;
@@ -463,6 +317,13 @@ export async function joinInvite(token: string, input: { name: string; email: st
   assessmentId: number;
 }> {
   const { data } = await api.post(`/public/invite/${encodeURIComponent(token)}/join`, input);
+  return data;
+}
+
+// ---- Retakes ----
+
+export async function retakeAssessment(assessmentId: number): Promise<SessionResponse> {
+  const { data } = await api.post('/sessions/retake', { assessmentId });
   return data;
 }
 

@@ -1,0 +1,81 @@
+/* Styles for ValidationPanel.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.notValidatedLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-500 ring-1 ring-surface-700;
+}
+
+.failsLabel {
+  composes: badge from global;
+  @apply bg-red-500/10 text-red-700 ring-1 ring-red-500/25 gap-1;
+}
+
+.xcircleIcon {
+  @apply w-3 h-3;
+}
+
+.warnsLabel {
+  composes: badge from global;
+  @apply bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25 gap-1;
+}
+
+.passedLabel {
+  composes: badge from global;
+  @apply bg-emerald-500/10 text-emerald-700 ring-1 ring-emerald-500/25 gap-1;
+}
+
+.ulList {
+  @apply divide-y divide-surface-800 rounded-lg border border-surface-800 overflow-hidden;
+}
+
+.messageItem {
+  @apply bg-surface-900;
+}
+
+.messageButton {
+  @apply w-full flex items-start gap-3 px-3 py-2.5 text-left disabled:cursor-default;
+}
+
+.labelIcon {
+  @apply w-4 h-4 mt-0.5 shrink-0;
+}
+
+.messageLabel {
+  @apply flex-1 min-w-0;
+}
+
+.label {
+  @apply block text-sm font-medium text-white;
+}
+
+.messageLabel2 {
+  @apply block text-xs text-surface-400;
+}
+
+.chevronDownIcon {
+  @apply w-4 h-4 text-surface-500 transition-transform;
+}
+
+.chevronDownIconOpen {
+  @apply rotate-180;
+}
+
+.ulList2 {
+  @apply px-10 pb-3 space-y-1 list-disc text-xs text-surface-300;
+}
+
+.passedClassName {
+  @apply text-emerald-600;
+}
+
+.warningClassName {
+  @apply text-amber-600;
+}
+
+.failedClassName {
+  @apply text-red-600;
+}
+
+.skippedClassName {
+  @apply text-surface-500;
+}

@@ -5,6 +5,7 @@ import prisma from '../prisma';
 import { adminOnly } from '../middleware/adminOnly';
 import { signToken } from '../middleware/auth';
 import { availabilityError } from './sessions';
+import { emailAllowed, parseEmailList } from '../services/access';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -144,7 +145,8 @@ async function findInvite(token: string) {
       assessment: {
         select: {
           id: true, name: true, description: true, instructions: true, timeLimitMinutes: true, passingScore: true,
-          status: true, startAt: true, endAt: true, _count: { select: { questions: true } },
+          status: true, startAt: true, endAt: true, accessMode: true, allowedEmails: true, questionCount: true,
+          _count: { select: { questions: true } },
         },
       },
     },
@@ -165,7 +167,7 @@ publicInviteRoutes.get('/:token', async (req: Request, res: Response) => {
         description: a.description,
         timeLimitMinutes: a.timeLimitMinutes,
         passingScore: a.passingScore,
-        questionCount: a._count.questions,
+        questionCount: a.questionCount ? Math.min(a.questionCount, a._count.questions) : a._count.questions,
         startAt: a.startAt,
         endAt: a.endAt,
       },
@@ -189,6 +191,12 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
 
     const invite = await findInvite(req.params.token);
     if (!invite) return res.status(404).json({ error: 'This link is not valid.' });
+
+    // An email allow-list still applies to people arriving through a link
+    const { accessMode, allowedEmails } = invite.assessment;
+    if (accessMode === 'restricted' && !emailAllowed(email, parseEmailList(allowedEmails))) {
+      return res.status(403).json({ error: 'This assessment is limited to specific email addresses, and yours is not on the list.' });
+    }
 
     let user = await prisma.user.findUnique({ where: { email } });
     if (user && !user.isGuest) {

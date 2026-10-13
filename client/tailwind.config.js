@@ -3,6 +3,8 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    // CSS modules can compose global utilities (e.g. gradient stops), so scan them too
+    "./src/**/*.module.css",
   ],
   // Built dynamically as `badge-${difficulty}`, so the scanner can't see them
   safelist: ['badge-easy', 'badge-medium', 'badge-hard'],
@@ -36,6 +38,16 @@ export default {
         success: '#22c55e',
         warning: '#f59e0b',
         danger: '#ef4444',
+      },
+      // Accent text shades are variables so dark mode can lighten them wherever the class is used
+      // (including @apply inside CSS modules). Background/border shades are unaffected.
+      textColor: {
+          emerald: { 600: 'rgb(var(--text-emerald-600) / <alpha-value>)', 700: 'rgb(var(--text-emerald-700) / <alpha-value>)', 800: 'rgb(var(--text-emerald-800) / <alpha-value>)' },
+          red: { 600: 'rgb(var(--text-red-600) / <alpha-value>)', 700: 'rgb(var(--text-red-700) / <alpha-value>)', 800: 'rgb(var(--text-red-800) / <alpha-value>)' },
+          amber: { 600: 'rgb(var(--text-amber-600) / <alpha-value>)', 700: 'rgb(var(--text-amber-700) / <alpha-value>)', 800: 'rgb(var(--text-amber-800) / <alpha-value>)' },
+          sky: { 600: 'rgb(var(--text-sky-600) / <alpha-value>)', 700: 'rgb(var(--text-sky-700) / <alpha-value>)', 800: 'rgb(var(--text-sky-800) / <alpha-value>)' },
+          orange: { 600: 'rgb(var(--text-orange-600) / <alpha-value>)', 700: 'rgb(var(--text-orange-700) / <alpha-value>)', 800: 'rgb(var(--text-orange-800) / <alpha-value>)' },
+          primary: { 600: 'rgb(var(--text-primary-600) / <alpha-value>)', 700: 'rgb(var(--text-primary-700) / <alpha-value>)', 800: 'rgb(var(--text-primary-800) / <alpha-value>)' },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],

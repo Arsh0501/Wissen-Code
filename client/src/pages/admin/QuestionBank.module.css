@@ -1,0 +1,309 @@
+/* Styles for QuestionBank.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.plusBox {
+  @apply relative;
+}
+
+.plusButton {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.plusIcon {
+  @apply w-4 h-4;
+}
+
+.chevronDownIcon {
+  @apply w-4 h-4 ml-1;
+}
+
+.box {
+  @apply fixed inset-0 z-40;
+}
+
+.manualBox {
+  @apply absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-surface-800 ring-1 ring-black ring-opacity-5 z-50 overflow-hidden;
+}
+
+.manualBox2 {
+  @apply py-1;
+}
+
+.manualLink {
+  @apply block px-4 py-2 text-sm text-surface-200 hover:bg-surface-700;
+}
+
+.sparklesLink {
+  @apply flex items-center justify-between px-4 py-2 text-sm text-surface-200 hover:bg-surface-700;
+}
+
+.sparklesIcon {
+  @apply w-3 h-3 text-primary-600;
+}
+
+.uploadButton {
+  @apply w-full text-left px-4 py-2 text-sm text-surface-200 hover:bg-surface-700 flex items-center justify-between;
+}
+
+.uploadIcon {
+  @apply w-3 h-3 text-surface-400;
+}
+
+.input {
+  @apply hidden;
+}
+
+.errorBox {
+  @apply mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700;
+}
+
+.bankVsBox {
+  @apply flex gap-1 mb-6 border-b border-surface-800;
+}
+
+.labelButton {
+  @apply px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors;
+}
+
+.labelButtonSelected {
+  @apply border-primary-600 text-primary-700;
+}
+
+.labelButtonDefault {
+  @apply border-transparent text-surface-500 hover:text-surface-300;
+}
+
+.nLabel {
+  composes: badge from global;
+  @apply ml-2;
+}
+
+.nLabelOn {
+  @apply bg-amber-500/15 text-amber-700;
+}
+
+.nLabelOff {
+  @apply bg-surface-800 text-surface-500;
+}
+
+.difficultyBox {
+  @apply flex flex-wrap gap-3 mb-6;
+}
+
+.searchBox {
+  @apply relative flex-1 min-w-[220px];
+}
+
+.searchIcon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500;
+}
+
+.searchQuestionsByInput {
+  composes: input from global;
+  @apply pl-10;
+}
+
+.difficultySelect {
+  composes: input from global;
+  @apply w-auto;
+}
+
+.clearButton {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.noQuestionsMatchText {
+  @apply text-center text-surface-500 py-16;
+}
+
+.titleBox {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.titleBox2 {
+  @apply overflow-x-auto;
+}
+
+.titleTable {
+  @apply w-full;
+}
+
+.titleRow {
+  @apply border-b border-surface-800 text-xs font-medium text-surface-500 uppercase tracking-wider whitespace-nowrap;
+}
+
+.titleTh {
+  @apply text-left px-6 py-3;
+}
+
+.typeTh {
+  @apply text-left px-4 py-3;
+}
+
+.testCasesTh {
+  @apply text-right px-4 py-3;
+}
+
+.actionsTh {
+  @apply text-right px-6 py-3;
+}
+
+.filtersBody {
+  @apply divide-y divide-surface-800/50;
+}
+
+.titleRow2 {
+  @apply hover:bg-surface-800/30 transition-colors;
+}
+
+.titleCell {
+  @apply px-6 py-3;
+}
+
+.titleButton {
+  @apply font-medium text-surface-100 hover:text-primary-700 text-left;
+}
+
+.filtersCell {
+  @apply px-4 py-3 whitespace-nowrap;
+}
+
+.filtersLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700;
+}
+
+.generatedByAiLabel {
+  composes: badge from global;
+  @apply bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/20 ml-1 gap-0.5;
+}
+
+.sparklesIcon2 {
+  @apply w-3 h-3;
+}
+
+.difficultyCell {
+  @apply px-4 py-3;
+}
+
+.filtersBox {
+  @apply flex gap-1 flex-wrap;
+}
+
+.tButton {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700 hover:text-white;
+}
+
+.filtersCell2 {
+  @apply px-4 py-3 text-right text-surface-400 text-sm tabular-nums;
+}
+
+.filtersCell3 {
+  @apply px-4 py-3 text-right text-sm tabular-nums whitespace-nowrap;
+}
+
+.assessmentsLabel {
+  @apply text-surface-300;
+}
+
+.filtersLabel2 {
+  @apply text-surface-600;
+}
+
+.previewBox {
+  @apply flex items-center justify-end gap-1;
+}
+
+.previewButton {
+  composes: btn-ghost from global;
+  @apply p-2;
+}
+
+.deleteButton {
+  composes: btn-ghost from global;
+  @apply p-2 text-red-600 hover:text-red-700 hover:bg-red-500/10;
+}
+
+.exportAsMarkdownBox {
+  @apply fixed inset-0 z-50 flex justify-end;
+}
+
+.previewDrawerBox {
+  @apply absolute inset-0 bg-black/60 backdrop-blur-sm;
+}
+
+.exportAsMarkdownAside {
+  composes: animate-slide-in from global;
+  @apply relative w-full max-w-2xl h-full bg-surface-900 border-l border-surface-800 overflow-y-auto;
+}
+
+.exportAsMarkdownBox2 {
+  @apply sticky top-0 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-6 py-4 flex items-start justify-between gap-4;
+}
+
+.title {
+  @apply text-lg font-bold text-white;
+}
+
+.difficultyBox2 {
+  @apply flex items-center gap-2 mt-1 flex-wrap text-xs text-surface-400;
+}
+
+.exportAsMarkdownBox3 {
+  @apply flex items-center gap-1;
+}
+
+.xIcon {
+  @apply w-5 h-5;
+}
+
+.statementBox {
+  @apply p-6 space-y-6;
+}
+
+.testCasesTitle {
+  @apply text-sm font-semibold text-white mb-2;
+}
+
+.previewDrawerBox2 {
+  @apply space-y-2;
+}
+
+.testBox {
+  @apply rounded-lg border border-surface-800 overflow-hidden;
+}
+
+.testBox2 {
+  @apply flex items-center justify-between px-3 py-1.5 bg-surface-800/50 text-xs;
+}
+
+.sampleLabel {
+  @apply text-emerald-600 flex items-center gap-1;
+}
+
+.hiddenLabel {
+  @apply text-surface-500 flex items-center gap-1;
+}
+
+.inputBox {
+  @apply grid grid-cols-2 divide-x divide-surface-800 text-xs font-mono;
+}
+
+.inputPre {
+  @apply p-2 text-surface-300 whitespace-pre-wrap;
+}
+
+.expectedOutputPre {
+  @apply p-2 text-emerald-700 whitespace-pre-wrap;
+}
+
+.previewDrawerText {
+  @apply text-sm text-surface-400;
+}
+
+.previewStatement {
+  @apply max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3;
+}

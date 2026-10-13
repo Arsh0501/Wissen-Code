@@ -1,5 +1,7 @@
+import styles from './UserAvatar.module.css';
+import type { UserAvatarProps } from '../../types';
 // Real accounts have no stored colour, so pick a stable one from the name
-const PALETTE = ['bg-primary-600', 'bg-emerald-600', 'bg-sky-600', 'bg-amber-600', 'bg-rose-600', 'bg-indigo-600'];
+const PALETTE = [styles.palettePrimary, styles.paletteEmerald, styles.paletteSky, styles.paletteAmber, styles.paletteRose, styles.paletteIndigo];
 
 function colorFor(name: string): string {
   let h = 0;
@@ -17,19 +19,14 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-interface UserAvatarProps {
-  user: { name: string; avatarColor?: string } | null;
-  size?: 'sm' | 'lg';
-}
-
 export default function UserAvatar({ user, size = 'sm' }: UserAvatarProps) {
   if (!user) return null;
 
-  const dimensionClasses = size === 'lg' ? 'w-16 h-16 text-xl' : 'w-8 h-8 text-xs';
+  const dimensionClasses = size === 'lg' ? styles.dimensionLg : styles.dimensionDefault;
 
   return (
     <div
-      className={`${dimensionClasses} ${user.avatarColor || colorFor(user.name)} rounded-full flex items-center justify-center font-semibold text-on-accent shrink-0`}
+      className={`${styles.box} ${dimensionClasses} ${user.avatarColor || colorFor(user.name)}`}
       aria-hidden="true"
     >
       {getInitials(user.name)}

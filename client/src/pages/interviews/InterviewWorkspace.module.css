@@ -1,0 +1,460 @@
+/* Styles for InterviewWorkspace.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.pText {
+  @apply text-sm text-red-600;
+}
+
+.label {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.label2 {
+  composes: badge from global;
+  @apply ring-1;
+}
+
+.startInterviewButton {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.playCircleIcon {
+  @apply w-4 h-4;
+}
+
+.box {
+  @apply flex gap-1 mb-6 border-b border-surface-800;
+}
+
+.lButton {
+  @apply flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px;
+}
+
+.lButtonSelected {
+  @apply border-primary-600 text-primary-700;
+}
+
+.lButtonDefault {
+  @apply border-transparent text-surface-500 hover:text-surface-300;
+}
+
+.box2 {
+  @apply grid lg:grid-cols-[18rem_1fr] gap-6 items-start;
+}
+
+.addAQuestionBox {
+  composes: card from global;
+  @apply text-center py-16 text-sm text-surface-500;
+}
+
+.addQuestionAside {
+  composes: card from global;
+  @apply p-0 overflow-hidden lg:sticky lg:top-4;
+}
+
+.planBox {
+  @apply px-4 py-3 border-b border-surface-800 flex items-center justify-between;
+}
+
+.planTitle {
+  @apply text-sm font-semibold text-white;
+}
+
+.lengthLabel {
+  @apply text-xs text-surface-500 tabular-nums;
+}
+
+.box3 {
+  @apply max-h-[60vh] overflow-y-auto;
+}
+
+.topicBox {
+  @apply px-2 py-2 border-b border-surface-800 last:border-b-0;
+}
+
+.topicText {
+  @apply px-2 py-1 text-[11px] font-semibold text-surface-500 uppercase tracking-wider flex justify-between;
+}
+
+.minutesLabel {
+  @apply tabular-nums normal-case;
+}
+
+.promptButton {
+  @apply w-full flex items-start gap-2 px-2 py-2 rounded-lg text-left text-sm;
+}
+
+.promptButtonSelected {
+  @apply bg-primary-500/10 text-primary-700;
+}
+
+.promptButtonDefault {
+  @apply text-surface-300 hover:bg-surface-800/60;
+}
+
+.checkCircleIcon {
+  @apply w-4 h-4 text-emerald-600 shrink-0 mt-0.5;
+}
+
+.circleIcon {
+  @apply w-4 h-4 text-surface-600 shrink-0 mt-0.5;
+}
+
+.promptLabel {
+  @apply line-clamp-2;
+}
+
+.noQuestionsText {
+  @apply px-2 py-1 text-xs text-surface-500;
+}
+
+.addQuestionForm {
+  @apply p-3 border-t border-surface-800 flex gap-2;
+}
+
+.addAQuestionInput {
+  composes: input from global;
+  @apply text-sm py-1.5;
+}
+
+.addQuestionButton {
+  composes: btn-outline from global;
+  @apply p-2;
+}
+
+.aiObservationsSupportBox {
+  @apply space-y-5 min-w-0;
+}
+
+.eslintDisableBox {
+  @apply flex items-center justify-between gap-3 mb-2;
+}
+
+.eslintDisableLabel {
+  @apply text-[11px] font-semibold text-surface-500 uppercase tracking-wider;
+}
+
+.eslintDisableLabel2 {
+  @apply text-xs;
+}
+
+.eslintDisableLabelError {
+  @apply text-red-600;
+}
+
+.eslintDisableLabelDefault {
+  @apply text-surface-500;
+}
+
+.questionTextarea {
+  @apply w-full bg-transparent text-lg font-semibold text-white resize-none outline-none;
+}
+
+.messageSquareTextBox {
+  @apply grid xl:grid-cols-2 gap-5;
+}
+
+.messageSquareTextBox2 {
+  composes: card from global;
+  @apply space-y-2;
+}
+
+.ansLabel {
+  @apply text-sm font-semibold text-white flex items-center gap-2;
+}
+
+.messageSquareTextIcon {
+  @apply w-4 h-4 text-primary-600;
+}
+
+.ansTextarea {
+  composes: input from global;
+  @apply min-h-[180px] text-sm;
+}
+
+.privateLabel {
+  @apply text-xs text-surface-500 font-normal;
+}
+
+.codeBox {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.codeBox2 {
+  @apply flex items-center justify-between px-4 py-2.5 border-b border-surface-800;
+}
+
+.languageBox {
+  @apply flex items-center gap-2;
+}
+
+.languageSelect {
+  composes: input from global;
+  @apply py-1 text-sm w-auto;
+}
+
+.playButton {
+  composes: btn-primary from global;
+  @apply text-sm py-1.5;
+}
+
+.eslintDisableBox2 {
+  @apply h-72;
+}
+
+.inputStdinBox {
+  @apply grid md:grid-cols-2 border-t border-surface-800;
+}
+
+.inputStdinBox2 {
+  @apply p-3 md:border-r border-surface-800;
+}
+
+.stdinTextarea {
+  composes: input from global;
+  @apply font-mono text-xs min-h-[80px] mt-1;
+}
+
+.terminalBox {
+  @apply p-3;
+}
+
+.executionResultText {
+  @apply text-[11px] font-semibold text-surface-500 uppercase tracking-wider flex items-center gap-1.5;
+}
+
+.terminalIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.eslintDisableText {
+  @apply text-sm text-red-600 mt-2;
+}
+
+.statusBox {
+  @apply mt-1 space-y-1.5;
+}
+
+.statusText {
+  @apply text-sm font-semibold;
+}
+
+.statusTextOk {
+  @apply text-emerald-600;
+}
+
+.eslintDisableLabel3 {
+  @apply text-surface-500 font-normal;
+}
+
+.stdoutPre {
+  @apply font-mono text-xs text-surface-100 bg-surface-950 rounded p-2 max-h-32 overflow-auto whitespace-pre-wrap [font-variant-ligatures:none];
+}
+
+.stderrPre {
+  @apply font-mono text-xs text-red-700 bg-red-500/5 rounded p-2 max-h-32 overflow-auto whitespace-pre-wrap [font-variant-ligatures:none];
+}
+
+.runTheCodeText {
+  @apply text-sm text-surface-500 mt-2;
+}
+
+.sparklesBox {
+  @apply flex flex-wrap items-center justify-between gap-3 mb-3;
+}
+
+.sparklesButton {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.eslintDisableText2 {
+  @apply text-sm text-red-600 mb-2;
+}
+
+.captureAnAnswerText {
+  @apply text-sm text-surface-500;
+}
+
+.aiObservationsSupportText {
+  @apply text-[11px] text-surface-500 mt-3;
+}
+
+.eslintDisableList {
+  @apply space-y-3;
+}
+
+.observationItem {
+  @apply rounded-lg border border-surface-800 p-3;
+}
+
+.observationBox {
+  @apply flex items-start gap-3;
+}
+
+.label3 {
+  @apply w-7 h-7 rounded-lg flex items-center justify-center shrink-0;
+}
+
+.observationBox2 {
+  @apply min-w-0 flex-1;
+}
+
+.observationText {
+  @apply text-sm text-surface-100;
+}
+
+.skillLabel {
+  composes: badge from global;
+  @apply bg-surface-800 text-surface-400 ring-1 ring-surface-700 mr-2;
+}
+
+.eslintDisableList2 {
+  @apply mt-2 space-y-1.5;
+}
+
+.quoteItem {
+  @apply flex items-start gap-2 text-xs;
+}
+
+.quoteIcon {
+  @apply w-3.5 h-3.5 text-surface-500 shrink-0 mt-0.5;
+}
+
+.eslintDisableLabel4 {
+  @apply min-w-0;
+}
+
+.eslintDisableLabel5 {
+  @apply font-semibold text-surface-400;
+}
+
+.quoteCode {
+  @apply text-surface-200 bg-surface-950 rounded px-1 py-0.5 break-words [font-variant-ligatures:none];
+}
+
+.overallBox {
+  @apply grid lg:grid-cols-3 gap-6 items-start;
+}
+
+.eslintDisableBox3 {
+  @apply lg:col-span-2 space-y-4;
+}
+
+.skillBox {
+  composes: card from global;
+  @apply space-y-3;
+}
+
+.skillBox2 {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.skillTitle {
+  @apply font-semibold text-white;
+}
+
+.ratingForBox {
+  @apply flex items-center gap-1;
+}
+
+.starIcon {
+  @apply w-6 h-6;
+}
+
+.starIconHigh {
+  @apply fill-amber-400 text-amber-400;
+}
+
+.starIconLow {
+  @apply text-surface-600;
+}
+
+.eslintDisableLabel6 {
+  @apply text-xs text-surface-500 w-24 text-right;
+}
+
+.evidenceForYourTextarea {
+  composes: input from global;
+  @apply text-sm min-h-[60px];
+}
+
+.sparklesDetails {
+  @apply rounded-lg bg-surface-950 border border-surface-800;
+}
+
+.lengthSummary {
+  @apply px-3 py-2 text-xs font-medium text-surface-400 cursor-pointer flex items-center gap-1.5;
+}
+
+.sparklesIcon {
+  @apply w-3.5 h-3.5 text-primary-600;
+}
+
+.eslintDisableBox4 {
+  @apply p-3 pt-0;
+}
+
+.overallBox2 {
+  composes: card from global;
+  @apply space-y-4 lg:sticky lg:top-4;
+}
+
+.averageRatingText {
+  @apply text-sm text-surface-400;
+}
+
+.eslintDisableLabel7 {
+  @apply text-white font-semibold tabular-nums;
+}
+
+.eslintDisableBox5 {
+  @apply grid grid-cols-2 gap-2;
+}
+
+.labelButton {
+  @apply px-3 py-2 rounded-lg border text-sm font-medium;
+}
+
+.labelButtonDefault {
+  @apply border-surface-700 text-surface-400 hover:border-surface-500;
+}
+
+.ivSummaryTextarea {
+  composes: input from global;
+  @apply min-h-[120px] text-sm;
+}
+
+.savedText {
+  @apply text-sm text-emerald-700;
+}
+
+.checkCircleBox {
+  @apply flex flex-col gap-2;
+}
+
+.saveDraftButton {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.strengthClassName {
+  @apply text-emerald-600 bg-emerald-500/10;
+}
+
+.noteClassName {
+  @apply text-surface-400 bg-surface-800;
+}
+
+.concernClassName {
+  @apply text-amber-600 bg-amber-500/10;
+}
+
+.candidateNameMaxWidth {
+  @apply max-w-7xl;
+}
+
+.labelButtonSelected {
+  @apply ring-1 border-transparent;
+}

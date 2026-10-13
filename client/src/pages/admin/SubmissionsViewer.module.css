@@ -1,0 +1,166 @@
+/* Styles for SubmissionsViewer.tsx — Tailwind utilities via @apply; shared classes from index.css via composes. */
+
+.assessmentsLink {
+  composes: btn-ghost from global;
+  @apply text-sm;
+}
+
+.arrowLeftIcon {
+  @apply w-4 h-4;
+}
+
+.editAssessmentLink {
+  composes: btn-outline from global;
+  @apply text-sm;
+}
+
+.downloadEveryCandidateButton {
+  composes: btn-primary from global;
+  @apply text-sm;
+}
+
+.exportErrorBox {
+  @apply mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700;
+}
+
+.errorBox {
+  composes: card from global;
+  @apply text-center py-12;
+}
+
+.errorText {
+  @apply text-red-600 mb-4;
+}
+
+.resultBox {
+  @apply space-y-6;
+}
+
+.completedFirstBox {
+  @apply grid grid-cols-2 lg:grid-cols-4 gap-4;
+}
+
+.resultBox2 {
+  @apply flex flex-wrap gap-3;
+}
+
+.searchBox {
+  @apply relative flex-1 min-w-[220px];
+}
+
+.searchIcon {
+  @apply absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500;
+}
+
+.searchByCandidateInput {
+  composes: input from global;
+  @apply pl-10;
+}
+
+.resultSelect {
+  composes: input from global;
+  @apply w-auto;
+}
+
+.candidateBox {
+  composes: card from global;
+  @apply p-0 overflow-hidden;
+}
+
+.candidateBox2 {
+  @apply overflow-x-auto;
+}
+
+.candidateTable {
+  @apply w-full text-sm;
+}
+
+.candidateRow {
+  @apply border-b border-surface-800 text-xs text-surface-500 uppercase tracking-wider;
+}
+
+.candidateTh {
+  @apply text-left font-medium px-5 py-3;
+}
+
+.submittedTh {
+  @apply text-left font-medium px-3 py-3;
+}
+
+.timeTakenTh {
+  @apply text-right font-medium px-3 py-3;
+}
+
+.completedFirstTh {
+  @apply px-5 py-3;
+}
+
+.completedFirstBody {
+  @apply divide-y divide-surface-800/60;
+}
+
+.attemptedQuestionsRow {
+  @apply hover:bg-surface-800/30;
+}
+
+.nameBox {
+  @apply flex items-center gap-3;
+}
+
+.completedFirstBox2 {
+  @apply w-8 h-8 rounded-lg bg-primary-500/15 border border-primary-500/20 flex items-center justify-center text-xs font-bold text-primary-700;
+}
+
+.nameLabel {
+  @apply font-medium text-surface-100;
+}
+
+.completedFirstCell {
+  @apply px-3 py-3 text-surface-400;
+}
+
+.completedFirstCell2 {
+  @apply px-3 py-3 text-right text-surface-400 tabular-nums;
+}
+
+.completedFirstCell3 {
+  @apply px-3 py-3 text-right text-surface-300 tabular-nums;
+}
+
+.completedFirstCell4 {
+  @apply px-3 py-3 text-right font-semibold tabular-nums;
+}
+
+.completedFirstCellDefault {
+  @apply text-surface-500;
+}
+
+.completedFirstCell5 {
+  @apply px-3 py-3;
+}
+
+.inProgressLabel {
+  composes: badge from global;
+  @apply bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 gap-1;
+}
+
+.clockIcon {
+  @apply w-3 h-3;
+}
+
+.completedFirstCell6 {
+  @apply px-5 py-3 text-right;
+}
+
+.evaluationLink {
+  composes: btn-outline from global;
+  @apply text-xs px-2.5 py-1;
+}
+
+.fileTextIcon {
+  @apply w-3.5 h-3.5;
+}
+
+.noCandidatesMatchCell {
+  @apply text-center py-8 text-surface-500;
+}

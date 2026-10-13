@@ -1,5 +1,6 @@
 import prisma from '../prisma';
 import { executeCode } from './judge0';
+import { parseQuestionIds, parseSelected } from './question-set';
 
 export interface Answer {
   questionId: number;
@@ -31,8 +32,20 @@ export async function gradeAnswer(assessmentId: number, candidateName: string, a
 
   const question = await prisma.question.findUnique({
     where: { id: answer.questionId },
-    select: { timeLimit: true, memoryLimit: true },
+    select: { timeLimit: true, memoryLimit: true, type: true, correctOptions: true },
   });
+
+  // Multiple choice: full marks only when the selected options exactly match the answer key
+  if (question?.type === 'mcq') {
+    const selected = new Set(parseSelected(answer.code));
+    const correct = new Set(parseSelected(question.correctOptions));
+    const right = selected.size > 0 && selected.size === correct.size && [...correct].every((c) => selected.has(c));
+    const updated = await prisma.submission.update({
+      where: { id: submission.id },
+      data: { status: 'graded', score: right ? 100 : 0, languageName: 'MCQ' },
+    });
+    return { ...updated, totalTestCases: 0, passedTestCases: 0, testCaseResults: [] };
+  }
   const testCases = await prisma.testCase.findMany({
     where: { questionId: answer.questionId },
     orderBy: { id: 'asc' },
@@ -105,7 +118,7 @@ export async function computeEvaluation(assessmentId: number, candidateName: str
     where: { id: assessmentId },
     include: {
       questions: {
-        include: { question: { select: { id: true, title: true, difficulty: true, tags: true } } },
+        include: { question: { select: { id: true, title: true, difficulty: true, tags: true, type: true } } },
         orderBy: { orderIndex: 'asc' },
       },
     },
@@ -132,11 +145,14 @@ export async function computeEvaluation(assessmentId: number, candidateName: str
 
   const session = await prisma.assessmentSession.findUnique({
     where: { assessmentId_candidateName: { assessmentId, candidateName } },
-    select: { startedAt: true, finishedAt: true },
+    select: { startedAt: true, finishedAt: true, questionIds: true, attempt: true },
   });
 
-  const totalMarks = assessment.questions.reduce((acc, aq) => acc + aq.marks, 0);
-  const questions = assessment.questions.map((aq) => {
+  // With a random subset, the candidate is scored only on the questions they received
+  const subset = parseQuestionIds(session?.questionIds);
+  const assessmentQuestions = subset ? assessment.questions.filter((aq) => subset.includes(aq.questionId)) : assessment.questions;
+  const totalMarks = assessmentQuestions.reduce((acc, aq) => acc + aq.marks, 0);
+  const questions = assessmentQuestions.map((aq) => {
     const sub = latestByQuestion.get(aq.questionId) || null;
     const passed = sub ? sub.testCaseResults.filter((r) => r.passed).length : 0;
     const total = sub ? sub.testCaseResults.length : 0;
@@ -148,7 +164,9 @@ export async function computeEvaluation(assessmentId: number, candidateName: str
       marks: aq.marks,
       marksObtained: Math.round((score / 100) * aq.marks * 100) / 100,
       score,
-      attempted: !!sub && sub.code.trim().length > 0,
+      // MCQ answers are stored as a JSON list of option ids; "[]" means nothing was chosen
+      attempted: !!sub && (aq.question.type === 'mcq' ? parseSelected(sub.code).length > 0 : sub.code.trim().length > 0),
+      type: aq.question.type,
       passedTestCases: passed,
       totalTestCases: total,
       submission: sub,
@@ -177,6 +195,7 @@ export async function computeEvaluation(assessmentId: number, candidateName: str
     percentage,
     passed: percentage >= assessment.passingScore,
     hasSubmissions: latestByQuestion.size > 0,
+    attempt: session?.attempt ?? 1,
     questions,
   };
 }

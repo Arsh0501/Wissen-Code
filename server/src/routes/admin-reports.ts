@@ -6,6 +6,7 @@ import { generateReportHTML } from '../templates/report-html';
 import { summarizeCandidates, aggregate } from '../services/stats';
 import { computeEvaluation } from '../services/grading';
 import { MAX_TAB_SWITCHES } from './sessions';
+import { parseQuestionIds, parseSelected } from '../services/question-set';
 
 const router = Router();
 
@@ -48,7 +49,7 @@ router.get('/submissions/:assessmentId', async (req: Request, res: Response) => 
       }),
       prisma.assessmentSession.findMany({
         where: { assessmentId },
-        select: { candidateName: true, finishedAt: true, startedAt: true },
+        select: { candidateName: true, finishedAt: true, startedAt: true, questionIds: true },
       }),
     ]);
 
@@ -112,6 +113,7 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
           candidateName: true,
           startedAt: true,
           finishedAt: true,
+          questionIds: true,
           _count: { select: { tabSwitches: true } },
           pasteEvents: { select: { charCount: true } },
         },
@@ -168,6 +170,8 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
         pastes.length,
         pastes.filter((p) => p.charCount >= LARGE_PASTE_CHARS).length,
         ...assessment.questions.map((q) => {
+          const subset = parseQuestionIds(session?.questionIds);
+          if (subset && !subset.includes(q.questionId)) return '—'; // not in this candidate's random set
           const sub = latest.get(`${c.name}|${q.questionId}`);
           return sub ? Math.round((sub.score / 100) * q.marks * 100) / 100 : 0;
         }),
@@ -313,7 +317,11 @@ async function buildReportData(candidateName: string, assessmentId: number) {
     orderBy: { createdAt: 'desc' },
   });
 
-  if (submissions.length === 0) return null;
+  // A finished attempt still has a report even if nothing was submitted (e.g. an empty retake)
+  if (submissions.length === 0) {
+    const finished = await prisma.assessmentSession.findFirst({ where: { assessmentId, candidateName, finishedAt: { not: null } }, select: { id: true } });
+    if (!finished) return null;
+  }
 
   // Deduplicate: keep only latest submission per question
   const latestByQuestion = new Map<number, typeof submissions[0]>();
@@ -381,6 +389,14 @@ async function buildReportData(candidateName: string, assessmentId: number) {
 
   const overallPercentage = totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
   const evaluation = await computeEvaluation(assessmentId, candidateName);
+  // Multiple-choice questions: options, the answer key and what the candidate picked
+  const mcqRows = await prisma.question.findMany({
+    where: { id: { in: (evaluation?.questions ?? []).filter((q) => q.type === 'mcq').map((q) => q.questionId) } },
+    select: { id: true, statement: true, options: true, correctOptions: true },
+  });
+  const mcqById = new Map(mcqRows.map((m) => [m.id, { statement: m.statement, options: JSON.parse(m.options || '[]') as { id: string; text: string }[], correct: parseSelected(m.correctOptions) }]));
+  const history = await prisma.attemptHistory.findMany({ where: { assessmentId, candidateName }, orderBy: { attempt: 'asc' } });
+
   // Titles for every question in the assessment, including ones the candidate didn't submit
   const questionTitles = new Map<number, string>(evaluation?.questions.map((q) => [q.questionId, q.title]) ?? []);
 
@@ -413,10 +429,20 @@ async function buildReportData(candidateName: string, assessmentId: number) {
       questions_attempted: evaluation?.questions.filter((q) => q.attempted).length ?? questions.length,
       questions_total: evaluation?.questions.length ?? questions.length,
     },
-    // Every question in the assessment (in assessment order); unanswered ones are flagged, not dropped
+    attempt: evaluation?.attempt ?? 1,
+    previous_attempts: history.map((h) => ({
+      attempt: h.attempt,
+      percentage: h.percentage,
+      passed: h.passed,
+      finished_at: h.finishedAt?.toISOString() ?? null,
+    })),
+    // Every question the candidate received (in assessment order); unanswered ones are flagged, not dropped
     questions: (evaluation?.questions ?? []).map((eq) => {
       const q = questions.find((x) => x.question_id === eq.questionId);
+      const mcq = mcqById.get(eq.questionId);
       return {
+        type: (eq.type === 'mcq' ? 'mcq' : 'coding') as 'mcq' | 'coding',
+        mcq: mcq ? { statement: mcq.statement, options: mcq.options, correct: mcq.correct, selected: q ? parseSelected(q.code) : [] } : null,
         question_id: eq.questionId,
         title: eq.title,
         language: q?.language ?? '—',
@@ -474,7 +500,7 @@ async function buildCohort(assessmentId: number, candidateName: string) {
     }),
     prisma.assessmentSession.findMany({
       where: { assessmentId },
-      select: { candidateName: true, startedAt: true, finishedAt: true },
+      select: { candidateName: true, startedAt: true, finishedAt: true, questionIds: true },
     }),
   ]);
 

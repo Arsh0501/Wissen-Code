@@ -5,10 +5,10 @@ import {
   StatCard, Spinner, EmptyState, PassFailBadge, formatDate, formatDuration, formatPercent, scoreTextClass,
 } from '../../components/ui';
 import { getAssessmentSubmissions, downloadAssessmentCsv, apiError } from '../../services/api';
-import type { AssessmentSubmissionsResponse } from '../../services/api';
 import { Users, Target, Award, Search, FileText, Clock, ArrowLeft, Edit, FileSpreadsheet } from 'lucide-react';
-
-type SortKey = 'score' | 'name' | 'submitted';
+import styles from './SubmissionsViewer.module.css';
+import type { SubmissionSortKey, AssessmentSubmissionsResponse } from '../../types';
+import { COMMON_MESSAGES, SUBMISSIONS_VIEWER_MESSAGES as MSG } from '../../constants';
 
 export default function SubmissionsViewer() {
   const { assessmentId } = useParams();
@@ -17,7 +17,7 @@ export default function SubmissionsViewer() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [result, setResult] = useState<'all' | 'passed' | 'failed' | 'in-progress'>('all');
-  const [sort, setSort] = useState<SortKey>('score');
+  const [sort, setSort] = useState<SubmissionSortKey>('score');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
@@ -37,7 +37,7 @@ export default function SubmissionsViewer() {
       // Revoking immediately can cancel the download in some browsers (e.g. Safari)
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
-      setExportError(apiError(err, 'Failed to export results'));
+      setExportError(apiError(err, MSG.failedExportResults));
     } finally {
       setExporting(false);
     }
@@ -53,7 +53,7 @@ export default function SubmissionsViewer() {
       setError('');
       setData(await getAssessmentSubmissions(parseInt(assessmentId!)));
     } catch (err: any) {
-      setError(err?.response?.status === 403 ? 'Access denied. Admin role required.' : apiError(err, 'Failed to load submissions.'));
+      setError(err?.response?.status === 403 ? COMMON_MESSAGES.accessDeniedAdminRole : apiError(err, MSG.failedLoadSubmissions));
     } finally {
       setLoading(false);
     }
@@ -85,110 +85,110 @@ export default function SubmissionsViewer() {
       subtitle={data && `${data.assessment.timeLimitMinutes} min · pass at ${data.assessment.passingScore}%`}
       actions={
         <>
-          <Link to="/admin/assessments" className="btn-ghost text-sm"><ArrowLeft className="w-4 h-4" /> Assessments</Link>
-          <Link to={`/admin/assessments/${assessmentId}/edit`} className="btn-outline text-sm"><Edit className="w-4 h-4" /> Edit assessment</Link>
+          <Link to="/admin/assessments" className={styles.assessmentsLink}><ArrowLeft className={styles.arrowLeftIcon} /> Assessments</Link>
+          <Link to={`/admin/assessments/${assessmentId}/edit`} className={styles.editAssessmentLink}><Edit className={styles.arrowLeftIcon} /> Edit assessment</Link>
           <button
             type="button"
             onClick={handleExport}
             disabled={exporting || !data || data.candidates.length === 0}
-            className="btn-primary text-sm"
-            title="Download every candidate's result as a spreadsheet"
+            className={styles.downloadEveryCandidateButton}
+            title={MSG.downloadEveryCandidatesResult}
           >
-            <FileSpreadsheet className="w-4 h-4" /> {exporting ? 'Exporting...' : 'Export CSV'}
+            <FileSpreadsheet className={styles.arrowLeftIcon} /> {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </>
       }
     >
       {exportError && (
-        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{exportError}</div>
+        <div className={styles.exportErrorBox}>{exportError}</div>
       )}
       {loading ? (
         <Spinner label="Loading submissions..." />
       ) : error ? (
-        <div className="card text-center py-12">
-          <p className="text-red-600 mb-4">{error}</p>
+        <div className={styles.errorBox}>
+          <p className={styles.errorText}>{error}</p>
           <button onClick={loadData} className="btn-outline">Retry</button>
         </div>
       ) : !data || data.candidates.length === 0 ? (
-        <EmptyState icon={Users} title="No submissions yet" body="No candidates have taken this assessment." />
+        <EmptyState icon={Users} title="No submissions yet" body={MSG.noCandidatesHaveTaken} />
       ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={styles.resultBox}>
+          <div className={styles.completedFirstBox}>
             <StatCard label="Completed" icon={Users} value={data.stats.candidatesCompleted} hint={`${data.stats.inProgress} in progress`} />
             <StatCard label="Average score" icon={Target} value={formatPercent(data.stats.averageScore)} />
             <StatCard label="Pass rate" icon={Award} value={formatPercent(data.stats.passRate, 0)} />
             <StatCard label="Highest score" icon={Award} value={formatPercent(data.stats.highestScore, 0)} />
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
-              <input className="input pl-10" placeholder="Search by candidate name..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          <div className={styles.resultBox2}>
+            <div className={styles.searchBox}>
+              <Search className={styles.searchIcon} />
+              <input className={styles.searchByCandidateInput} placeholder={MSG.searchCandidateName} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <select className="input w-auto" value={result} onChange={(e) => setResult(e.target.value as typeof result)} aria-label="Result">
+            <select className={styles.resultSelect} value={result} onChange={(e) => setResult(e.target.value as typeof result)} aria-label="Result">
               <option value="all">All results</option>
               <option value="passed">Passed</option>
               <option value="failed">Failed</option>
               <option value="in-progress">In progress</option>
             </select>
-            <select className="input w-auto" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Sort by">
+            <select className={styles.resultSelect} value={sort} onChange={(e) => setSort(e.target.value as SubmissionSortKey)} aria-label="Sort by">
               <option value="score">Sort: score</option>
               <option value="submitted">Sort: most recent</option>
               <option value="name">Sort: name</option>
             </select>
           </div>
 
-          <div className="card p-0 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+          <div className={styles.candidateBox}>
+            <div className={styles.candidateBox2}>
+              <table className={styles.candidateTable}>
                 <thead>
-                  <tr className="border-b border-surface-800 text-xs text-surface-500 uppercase tracking-wider">
-                    <th className="text-left font-medium px-5 py-3">Candidate</th>
-                    <th className="text-left font-medium px-3 py-3">Submitted</th>
-                    <th className="text-right font-medium px-3 py-3">Time taken</th>
-                    <th className="text-right font-medium px-3 py-3">Attempted</th>
-                    <th className="text-right font-medium px-3 py-3">Marks</th>
-                    <th className="text-right font-medium px-3 py-3">Score</th>
-                    <th className="text-left font-medium px-3 py-3">Result</th>
-                    <th className="px-5 py-3" />
+                  <tr className={styles.candidateRow}>
+                    <th className={styles.candidateTh}>Candidate</th>
+                    <th className={styles.submittedTh}>Submitted</th>
+                    <th className={styles.timeTakenTh}>Time taken</th>
+                    <th className={styles.timeTakenTh}>Attempted</th>
+                    <th className={styles.timeTakenTh}>Marks</th>
+                    <th className={styles.timeTakenTh}>Score</th>
+                    <th className={styles.submittedTh}>Result</th>
+                    <th className={styles.completedFirstTh} />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-surface-800/60">
+                <tbody className={styles.completedFirstBody}>
                   {candidates.map((c) => (
-                    <tr key={c.name} className="hover:bg-surface-800/30">
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-primary-500/15 border border-primary-500/20 flex items-center justify-center text-xs font-bold text-primary-700">
+                    <tr key={c.name} className={styles.attemptedQuestionsRow}>
+                      <td className={styles.completedFirstTh}>
+                        <div className={styles.nameBox}>
+                          <div className={styles.completedFirstBox2}>
                             {c.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-surface-100">{c.name}</span>
+                          <span className={styles.nameLabel}>{c.name}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-3 text-surface-400">{c.status === 'completed' ? formatDate(c.submittedAt) : `Started ${formatDate(c.startedAt)}`}</td>
-                      <td className="px-3 py-3 text-right text-surface-400 tabular-nums">{formatDuration(timeTaken(c))}</td>
-                      <td className="px-3 py-3 text-right text-surface-400 tabular-nums">{c.attemptedQuestions}/{c.totalQuestions}</td>
-                      <td className="px-3 py-3 text-right text-surface-300 tabular-nums">{c.status === 'completed' ? `${c.marksObtained}/${c.totalMarks}` : '—'}</td>
-                      <td className={`px-3 py-3 text-right font-semibold tabular-nums ${c.status === 'completed' ? scoreTextClass(c.overallScore) : 'text-surface-500'}`}>
+                      <td className={styles.completedFirstCell}>{c.status === 'completed' ? formatDate(c.submittedAt) : `Started ${formatDate(c.startedAt)}`}</td>
+                      <td className={styles.completedFirstCell2}>{formatDuration(timeTaken(c))}</td>
+                      <td className={styles.completedFirstCell2}>{c.attemptedQuestions}/{c.totalQuestions}</td>
+                      <td className={styles.completedFirstCell3}>{c.status === 'completed' ? `${c.marksObtained}/${c.totalMarks}` : '—'}</td>
+                      <td className={`${styles.completedFirstCell4} ${c.status === 'completed' ? scoreTextClass(c.overallScore) : styles.completedFirstCellDefault}`}>
                         {c.status === 'completed' ? `${c.overallScore.toFixed(1)}%` : '—'}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className={styles.completedFirstCell5}>
                         {c.status === 'completed' ? (
                           <PassFailBadge passed={c.passed} />
                         ) : (
-                          <span className="badge bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 gap-1"><Clock className="w-3 h-3" /> In progress</span>
+                          <span className={styles.inProgressLabel}><Clock className={styles.clockIcon} /> In progress</span>
                         )}
                       </td>
-                      <td className="px-5 py-3 text-right">
+                      <td className={styles.completedFirstCell6}>
                         {c.status === 'completed' && (
-                          <Link to={`/admin/reports/${encodeURIComponent(c.name)}/${assessmentId}`} className="btn-outline text-xs px-2.5 py-1">
-                            <FileText className="w-3.5 h-3.5" /> Evaluation
+                          <Link to={`/admin/reports/${encodeURIComponent(c.name)}/${assessmentId}`} className={styles.evaluationLink}>
+                            <FileText className={styles.fileTextIcon} /> Evaluation
                           </Link>
                         )}
                       </td>
                     </tr>
                   ))}
                   {candidates.length === 0 && (
-                    <tr><td colSpan={8} className="text-center py-8 text-surface-500">No candidates match these filters.</td></tr>
+                    <tr><td colSpan={8} className={styles.noCandidatesMatchCell}>{MSG.noCandidatesMatchThese}</td></tr>
                   )}
                 </tbody>
               </table>

@@ -1,15 +1,16 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import styles from './AppShell.module.css';
 
 // Shared application shell: persistent side navigation + topbar wrapping every authenticated page.
 export default function AppShell() {
   return (
-    <div className="min-h-screen bg-surface-950 flex">
+    <div className={styles.box}>
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className={styles.box2}>
         <Topbar />
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className={styles.main}>
           <Outlet />
         </main>
       </div>
