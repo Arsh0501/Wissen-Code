@@ -189,9 +189,154 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/auth/me — Return the current authenticated user
-router.get('/me', authenticate, (req: Request, res: Response) => {
-  res.json({ user: req.user });
-});
+// ─────────────────────────────────────────────────────────────────
+// Profile & Password Handlers
+// ─────────────────────────────────────────────────────────────────
+
+// GET profile — Returns fresh user details directly from database
+const handleGetProfile = async (req: Request, res: Response) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isGuest: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Failed to fetch user' });
+  }
+};
+
+// PUT/PATCH profile — Update profile (email is immutable, only name can be changed)
+const handleUpdateProfile = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { name, email } = req.body;
+
+    // Fetch existing user to verify email
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Explicitly disallow changing the email address
+    if (email !== undefined && email.trim().toLowerCase() !== currentUser.email.toLowerCase()) {
+      return res.status(400).json({ error: 'Email address cannot be changed' });
+    }
+
+    if (!name?.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { name: name.trim() },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isGuest: true,
+        createdAt: true,
+      },
+    });
+
+
+    // Re-sign access token with updated profile information
+    const authUser = {
+      id: updatedUser.id,
+      email: updatedUser.email,
+      name: updatedUser.name,
+      role: updatedUser.role as 'admin' | 'candidate',
+      sessionId: req.user!.sessionId,
+    };
+
+    const token = signToken(authUser);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: updatedUser,
+      token,
+      accessToken: token,
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+// PUT/PATCH password — Update user password
+const handleUpdatePassword = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: passwordHash },
+    });
+
+    res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+};
+
+// GET Profile routes
+router.get('/me', authenticate, handleGetProfile);
+router.get('/profile', authenticate, handleGetProfile);
+router.get('/', authenticate, handleGetProfile);
+
+// PUT/PATCH Profile routes
+router.put('/me', authenticate, handleUpdateProfile);
+router.patch('/me', authenticate, handleUpdateProfile);
+router.put('/profile', authenticate, handleUpdateProfile);
+router.patch('/profile', authenticate, handleUpdateProfile);
+router.put('/', authenticate, handleUpdateProfile);
+router.patch('/', authenticate, handleUpdateProfile);
+
+// Password routes
+router.put('/password', authenticate, handleUpdatePassword);
+router.put('/change-password', authenticate, handleUpdatePassword);
 
 export default router;
+

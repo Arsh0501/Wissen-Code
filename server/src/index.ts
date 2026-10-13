@@ -1,3 +1,4 @@
+import http from 'http';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -12,13 +13,19 @@ import adminQuestionRoutes from './routes/admin-questions';
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
 import agentsRoutes from './routes/agents';
+import interviewRoutes, { handleJoinRoom } from './routes/interviews';
+import { initSocketServer } from './socket';
 import { authenticate } from './middleware/auth';
 import { isMockMode } from './services/judge0';
 
 dotenv.config();
 
 const app = express();
+const httpServer = http.createServer(app);
 const PORT = process.env.PORT || 4000;
+
+// Initialize Socket.IO server on the HTTP server
+initSocketServer(httpServer);
 
 // Middleware
 app.use(cors({
@@ -29,14 +36,21 @@ app.use(express.json({ limit: '10mb' }));
 
 // Health check (public)
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    judgeMode: isMockMode() ? 'mock' : 'live',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Auth routes (register/login are public; /me requires a token internally)
+// Auth & Profile routes (register/login are public; /me & /profile require a token internally)
 app.use('/api/auth', authRoutes);
+app.use('/api/profile', authRoutes);
 
-// Invite links: anyone with a link can view it and join without an account
+// Public Candidate routes (no account required)
 app.use('/api/public/invite', publicInviteRoutes);
+app.get('/api/public/interview/:roomToken', handleJoinRoom);
+app.get('/api/interviews/room/:roomToken', handleJoinRoom);
 
 // Everything below requires a valid Bearer token
 app.use('/api', authenticate);
@@ -52,12 +66,9 @@ app.use('/api/admin/reports', adminReportRoutes);
 app.use('/api/admin/questions', adminQuestionRoutes);
 app.use('/api/invites', adminInviteRoutes);
 app.use('/api/agents', agentsRoutes);
+app.use('/api/interviews', interviewRoutes);
 
-// Health check
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', judgeMode: isMockMode() ? 'mock' : 'live', timestamp: new Date().toISOString() });
-});
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`\n🚀 Wissen-Code server running on http://localhost:${PORT}`);
   console.log(
     isMockMode()
@@ -68,4 +79,5 @@ app.listen(PORT, () => {
 });
 
 export default app;
+
 

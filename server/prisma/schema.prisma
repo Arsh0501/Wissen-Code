@@ -21,6 +21,9 @@ model User {
 
   inviteRedemptions InviteRedemption[]
   sessions          UserSession[]
+  interviewedInterviews Interview[] @relation("InterviewerInterviews")
+  candidateInterviews   Interview[] @relation("CandidateInterviews")
+  interviewNotes        InterviewNote[]
 }
 
 model UserSession {
@@ -48,6 +51,9 @@ model Question {
   testCases    TestCase[]
   assessments  AssessmentQuestion[]
   submissions  Submission[]
+  interviewQuestions InterviewQuestion[]
+  interviewSubmissions InterviewSubmission[]
+  activeInInterviews   Interview[]
 }
 
 model StarterCode {
@@ -226,3 +232,120 @@ model InviteRedemption {
 
   @@unique([inviteId, userId])
 }
+
+// ─── INTERVIEW SYSTEM ──────────────────────────────────────────
+
+model Interview {
+  id                 Int                   @id @default(autoincrement())
+  title              String
+  description        String                @default("")
+  interviewerId      Int
+  candidateName      String
+  candidateEmail     String
+  candidateId        Int?                  // Optional link to existing User
+  roomToken          String                @unique // Random secure access token for candidate
+  status             String                @default("scheduled") // "scheduled" | "in_progress" | "completed" | "cancelled"
+  scheduledAt        DateTime?
+  startedAt          DateTime?
+  endedAt            DateTime?
+  currentQuestionId  Int?
+  currentCode        String                @default("")
+  currentLanguageId  Int                   @default(71) // Default: Python (71)
+  timeLimitMinutes   Int                   @default(60)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  interviewer        User                  @relation("InterviewerInterviews", fields: [interviewerId], references: [id])
+  candidate          User?                 @relation("CandidateInterviews", fields: [candidateId], references: [id])
+  currentQuestion    Question?             @relation(fields: [currentQuestionId], references: [id])
+
+  questions          InterviewQuestion[]
+  sessions           InterviewSession[]
+  submissions        InterviewSubmission[]
+  notes              InterviewNote[]
+  events             InterviewEvent[]
+
+  @@index([interviewerId])
+  @@index([roomToken])
+  @@index([status])
+}
+
+model InterviewQuestion {
+  id             Int        @id @default(autoincrement())
+  interviewId    Int
+  questionId     Int
+  orderIndex     Int        @default(0)
+  status         String     @default("pending") // "pending" | "active" | "completed"
+  notes          String     @default("")
+
+  interview      Interview  @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  question       Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, questionId])
+}
+
+model InterviewSession {
+  id              Int        @id @default(autoincrement())
+  interviewId     Int
+  participantRole String     // "interviewer" | "candidate"
+  participantName String
+  socketId        String?
+  ipAddress       String?
+  userAgent       String?
+  connectedAt     DateTime   @default(now())
+  disconnectedAt  DateTime?
+
+  interview       Interview  @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+}
+
+model InterviewSubmission {
+  id             Int        @id @default(autoincrement())
+  interviewId    Int
+  questionId     Int
+  submittedBy    String     // "candidate" | "interviewer"
+  languageId     Int
+  languageName   String
+  code           String
+  score          Float      @default(0) // Percentage of test cases passed (0-100)
+  status         String     @default("submitted") // "submitted" | "graded"
+  results        String     @default("[]") // Serialized JSON test case results
+  createdAt      DateTime   @default(now())
+
+  interview      Interview  @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  question       Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId, questionId])
+}
+
+model InterviewNote {
+  id           Int        @id @default(autoincrement())
+  interviewId  Int
+  authorId     Int
+  category     String     @default("general") // "technical" | "communication" | "problem_solving" | "general"
+  rating       Int?       // Optional rating 1-5
+  content      String
+  isPrivate    Boolean    @default(true) // Hidden from candidate
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  interview    Interview  @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  author       User       @relation(fields: [authorId], references: [id])
+
+  @@index([interviewId])
+}
+
+model InterviewEvent {
+  id           Int        @id @default(autoincrement())
+  interviewId  Int
+  eventType    String     // "CANDIDATE_JOINED", "CODE_CHANGED", "CODE_EXECUTED", etc.
+  actorRole    String     // "interviewer" | "candidate" | "system"
+  payload      String     @default("{}") // JSON string payload
+  createdAt    DateTime   @default(now())
+
+  interview    Interview  @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId, eventType])
+}
+
