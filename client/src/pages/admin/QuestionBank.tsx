@@ -1,41 +1,60 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { filterQuestions } from '../../components/questions/QuestionPicker';
+import AssessmentSelection from '../../components/questions/AssessmentSelection';
 import AdminLayout from '../../components/AdminLayout';
 import { Spinner, EmptyState, parseJsonArray } from '../../components/ui';
-import { getQuestions, getQuestion, deleteQuestion, importQuestionFromMd, getExportMdUrl, apiError } from '../../services/api';
+import {
+  getQuestions,
+  getQuestion,
+  deleteQuestion,
+  importQuestionFromMd,
+  getExportMdUrl,
+  apiError,
+} from '../../services/api';
 import type { Question } from '../../types';
 import {
-  Plus, Edit, Trash2, FileText, Search, ChevronDown, Upload, Eye, X, Download, EyeOff,
+  Plus,
+  Edit,
+  Trash2,
+  FileText,
+  Search,
+  ChevronDown,
+  Upload,
+  Eye,
+  X,
+  Download,
+  EyeOff,
 } from 'lucide-react';
 
 export default function QuestionBank() {
   const navigate = useNavigate();
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const client = useQueryClient();
+  const bank = useQuery({
+    queryKey: ['question-bank'],
+    queryFn: () => getQuestions(),
+  });
+  const questions = bank.data ?? [];
+  const loading = bank.isLoading;
+  const [actionError, setError] = useState('');
+  const error =
+    actionError ||
+    (bank.error ? apiError(bank.error, 'Failed to load questions') : '');
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [questionType, setQuestionType] = useState('');
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
+  const [previewId, setPreviewId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [tag, setTag] = useState('');
   const [showNewDropdown, setShowNewDropdown] = useState(false);
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<Question | null>(null);
+  const previewRequest = React.useRef(0);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    loadQuestions();
-  }, []);
-
-  async function loadQuestions() {
-    try {
-      setLoading(true);
-      setQuestions(await getQuestions());
-    } catch (err) {
-      setError(apiError(err, 'Failed to load questions'));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function handleDelete(q: Question) {
     const used = q._count?.assessments ?? 0;
@@ -45,7 +64,8 @@ export default function QuestionBank() {
     if (!confirm(msg)) return;
     try {
       await deleteQuestion(q.id);
-      setQuestions((prev) => prev.filter((x) => x.id !== q.id));
+      await client.invalidateQueries({ queryKey: ['question-bank'] });
+      setSelectedIds((ids) => ids.filter((id) => id !== q.id));
       if (preview?.id === q.id) setPreview(null);
     } catch (err) {
       setError(apiError(err, 'Failed to delete question'));
@@ -53,30 +73,87 @@ export default function QuestionBank() {
   }
 
   async function openPreview(id: number) {
+    const request = ++previewRequest.current;
+    setPreviewId(id);
+    setPreview(null);
+    setPreviewLoading(true);
+    setPreviewError('');
     try {
-      setPreview(await getQuestion(id));
+      const question = await client.fetchQuery({
+        queryKey: ['question', id],
+        queryFn: () => getQuestion(id),
+      });
+      if (request === previewRequest.current) setPreview(question);
     } catch (err) {
-      setError(apiError(err, 'Failed to load question'));
+      if (request === previewRequest.current)
+        setPreviewError(apiError(err, 'Failed to load question'));
+    } finally {
+      if (request === previewRequest.current) setPreviewLoading(false);
     }
   }
 
-  const allTags = useMemo(() => Array.from(new Set(questions.flatMap((q) => parseJsonArray(q.tags)))).sort(), [questions]);
+  useEffect(() => {
+    if (!preview) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = document.querySelector<HTMLElement>(
+      '[aria-label="Question preview"]',
+    );
+    dialog?.querySelector<HTMLElement>('button, a')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        previewRequest.current++;
+        setPreview(null);
+        setPreviewId(null);
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const nodes = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled)',
+        ),
+      );
+      const first = nodes[0],
+        last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => {
+      document.removeEventListener('keydown', keydown);
+      previous?.focus();
+    };
+  }, [preview?.id]);
+
+  const allTags = useMemo(
+    () =>
+      Array.from(
+        new Set(questions.flatMap((q) => parseJsonArray(q.tags))),
+      ).sort(),
+    [questions],
+  );
   const counts = useMemo(
     () => ({
       easy: questions.filter((q) => q.difficulty === 'easy').length,
       medium: questions.filter((q) => q.difficulty === 'medium').length,
       hard: questions.filter((q) => q.difficulty === 'hard').length,
     }),
-    [questions]
+    [questions],
   );
 
-  const filteredQuestions = questions.filter(
-    (q) =>
-      q.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (!difficulty || q.difficulty === difficulty) &&
-      (!tag || parseJsonArray(q.tags).includes(tag))
-  );
-
+  const filteredQuestions = filterQuestions(questions, {
+    search: searchTerm,
+    difficulty,
+    topic: tag,
+    type: questionType,
+  });
+  const allVisibleSelected =
+    filteredQuestions.length > 0 &&
+    filteredQuestions.every((q) => selectedIds.includes(q.id));
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -114,17 +191,27 @@ export default function QuestionBank() {
       subtitle={`${questions.length} questions · ${counts.easy} easy · ${counts.medium} medium · ${counts.hard} hard`}
       actions={
         <div className="relative">
-          <button onClick={() => setShowNewDropdown(!showNewDropdown)} disabled={importing} className="btn-primary text-sm">
+          <button
+            onClick={() => setShowNewDropdown(!showNewDropdown)}
+            disabled={importing}
+            className="btn-primary text-sm"
+          >
             <Plus className="w-4 h-4" />
             {importing ? 'Importing...' : 'New Question'}
             <ChevronDown className="w-4 h-4 ml-1" />
           </button>
           {showNewDropdown && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowNewDropdown(false)} />
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowNewDropdown(false)}
+              />
               <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-surface-800 ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
                 <div className="py-1">
-                  <Link to="/admin/questions/new" className="block px-4 py-2 text-sm text-surface-200 hover:bg-surface-700">
+                  <Link
+                    to="/admin/questions/new"
+                    className="block px-4 py-2 text-sm text-surface-200 hover:bg-surface-700"
+                  >
                     Manual
                   </Link>
                   <button
@@ -138,11 +225,21 @@ export default function QuestionBank() {
               </div>
             </>
           )}
-          <input type="file" ref={fileInputRef} className="hidden" accept=".md,text/markdown" onChange={handleFileUpload} />
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".md,text/markdown"
+            onChange={handleFileUpload}
+          />
         </div>
       }
     >
-      {error && <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">{error}</div>}
+      {error && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -151,28 +248,85 @@ export default function QuestionBank() {
           <input
             type="text"
             className="input pl-10"
-            placeholder="Search questions by title..."
+            aria-label="Search questions"
+            placeholder="Search titles, statements and tags…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <select className="input w-auto" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} aria-label="Difficulty">
+        <select
+          className="input w-auto"
+          value={difficulty}
+          onChange={(e) => setDifficulty(e.target.value)}
+          aria-label="Difficulty"
+        >
           <option value="">All difficulties</option>
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>
           <option value="hard">Hard</option>
         </select>
-        <select className="input w-auto" value={tag} onChange={(e) => setTag(e.target.value)} aria-label="Topic">
+        <select
+          className="input w-auto"
+          value={tag}
+          onChange={(e) => setTag(e.target.value)}
+          aria-label="Topic"
+        >
           <option value="">All topics</option>
-          {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
+          {allTags.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
         </select>
-        {(searchTerm || difficulty || tag) && (
-          <button onClick={() => { setSearchTerm(''); setDifficulty(''); setTag(''); }} className="btn-ghost text-sm">
+        <select
+          className="input w-auto"
+          value={questionType}
+          onChange={(e) => setQuestionType(e.target.value)}
+          aria-label="Question type"
+        >
+          <option value="">All question types</option>
+          <option value="coding">Coding</option>
+          <option value="debugging">Debugging</option>{['mcq', 'sql', 'written', 'project'].map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+        </select>
+        {(searchTerm || difficulty || tag || questionType) && (
+          <button
+            onClick={() => {
+              setSearchTerm('');
+              setDifficulty('');
+              setTag('');
+              setQuestionType('');
+            }}
+            className="btn-ghost text-sm"
+          >
             <X className="w-4 h-4" /> Clear
           </button>
         )}
       </div>
 
+      <div className="mb-6">
+        <AssessmentSelection
+          questions={questions}
+          selectedIds={selectedIds}
+          onAdded={() => setSelectedIds([])}
+        />
+      </div>
+      <div className="flex flex-wrap items-center justify-between mb-4 gap-3 text-sm">
+        <span>
+          {selectedIds.length} selected · {filteredQuestions.length} shown
+        </span>
+        <button
+          className="btn-ghost"
+          disabled={!selectedIds.length}
+          onClick={() => setSelectedIds([])}
+        >
+          Deselect all
+        </button>
+      </div>
+      {bank.error && (
+        <button className="btn-outline mb-4" onClick={() => bank.refetch()}>
+          Retry loading questions
+        </button>
+      )}
       {loading ? (
         <Spinner label="Loading questions..." />
       ) : questions.length === 0 ? (
@@ -180,17 +334,54 @@ export default function QuestionBank() {
           icon={FileText}
           title="No questions yet"
           body="Create your first question to get started."
-          action={<Link to="/admin/questions/new" className="btn-primary"><Plus className="w-4 h-4" /> Create Question</Link>}
+          action={
+            <Link to="/admin/questions/new" className="btn-primary">
+              <Plus className="w-4 h-4" /> Create Question
+            </Link>
+          }
         />
       ) : filteredQuestions.length === 0 ? (
-        <p className="text-center text-surface-500 py-16">No questions match these filters.</p>
+        <p className="text-center text-surface-500 py-16">
+          No questions match these filters.
+        </p>
       ) : (
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[680px]">
               <thead>
                 <tr className="border-b border-surface-800 text-xs font-medium text-surface-500 uppercase tracking-wider whitespace-nowrap">
+                  <th className="px-4 py-3">
+                    <input
+                      aria-label="Select all visible questions"
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      ref={(node) => {
+                        if (node)
+                          node.indeterminate =
+                            !allVisibleSelected &&
+                            filteredQuestions.some((q) =>
+                              selectedIds.includes(q.id),
+                            );
+                      }}
+                      onChange={(e) =>
+                        setSelectedIds((ids) =>
+                          e.target.checked
+                            ? [
+                                ...new Set([
+                                  ...ids,
+                                  ...filteredQuestions.map((q) => q.id),
+                                ]),
+                              ]
+                            : ids.filter(
+                                (id) =>
+                                  !filteredQuestions.some((q) => q.id === id),
+                              ),
+                        )
+                      }
+                    />
+                  </th>
                   <th className="text-left px-6 py-3">Title</th>
+                  <th className="text-left px-4 py-3">Type</th>
                   <th className="text-left px-4 py-3">Difficulty</th>
                   <th className="text-left px-4 py-3">Topics</th>
                   <th className="text-right px-4 py-3">Test cases</th>
@@ -201,13 +392,40 @@ export default function QuestionBank() {
               </thead>
               <tbody className="divide-y divide-surface-800/50">
                 {filteredQuestions.map((q) => (
-                  <tr key={q.id} className="hover:bg-surface-800/30 transition-colors">
+                  <tr
+                    key={q.id}
+                    className="hover:bg-surface-800/30 transition-colors"
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${q.title}`}
+                        checked={selectedIds.includes(q.id)}
+                        onChange={(e) =>
+                          setSelectedIds((ids) =>
+                            e.target.checked
+                              ? [...ids, q.id]
+                              : ids.filter((id) => id !== q.id),
+                          )
+                        }
+                      />
+                    </td>
                     <td className="px-6 py-3">
-                      <button onClick={() => openPreview(q.id)} className="font-medium text-surface-100 hover:text-primary-700 text-left">
+                      <button
+                        onClick={() => openPreview(q.id)}
+                        className="font-medium text-surface-100 hover:text-primary-700 text-left"
+                      >
                         {q.title}
                       </button>
                     </td>
-                    <td className="px-4 py-3"><span className={`badge-${q.difficulty}`}>{q.difficulty}</span></td>
+                    <td className="px-4 py-3 text-sm capitalize">
+                      {q.questionType || 'coding'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`badge-${q.difficulty}`}>
+                        {q.difficulty}
+                      </span>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1 flex-wrap">
                         {parseJsonArray(q.tags).map((t) => (
@@ -221,21 +439,36 @@ export default function QuestionBank() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q._count?.testCases ?? 0}</td>
-                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">{q._count?.starterCodes ?? 0}</td>
+                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">
+                      {q._count?.testCases ?? 0}
+                    </td>
+                    <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">
+                      {q._count?.starterCodes ?? 0}
+                    </td>
                     <td className="px-4 py-3 text-right text-sm tabular-nums whitespace-nowrap">
                       {q._count?.assessments ? (
-                        <span className="text-surface-300">{q._count.assessments} assessment{q._count.assessments === 1 ? '' : 's'}</span>
+                        <span className="text-surface-300">
+                          {q._count.assessments} assessment
+                          {q._count.assessments === 1 ? '' : 's'}
+                        </span>
                       ) : (
                         <span className="text-surface-600">—</span>
                       )}
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openPreview(q.id)} className="btn-ghost p-2" title="Preview">
+                        <button
+                          onClick={() => openPreview(q.id)}
+                          className="btn-ghost p-2"
+                          title="Preview"
+                        >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <Link to={`/admin/questions/${q.id}/edit`} className="btn-ghost p-2" title="Edit">
+                        <Link
+                          to={`/admin/questions/${q.id}/edit`}
+                          className="btn-ghost p-2"
+                          title="Edit"
+                        >
                           <Edit className="w-4 h-4" />
                         </Link>
                         <button
@@ -255,70 +488,175 @@ export default function QuestionBank() {
         </div>
       )}
 
+      {previewId && !preview && (
+        <div className="card mb-4" role={previewError ? 'alert' : 'status'}>
+          {previewLoading ? 'Loading question preview…' : previewError}
+          <button
+            className="btn-outline ml-3"
+            disabled={previewLoading}
+            onClick={() => openPreview(previewId)}
+          >
+            Retry preview
+          </button>
+          <button className="btn-ghost ml-2" onClick={() => setPreviewId(null)}>
+            Close preview
+          </button>
+        </div>
+      )}
       {/* Preview drawer */}
       {preview && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setPreview(null)} />
-          <aside className="relative w-full max-w-2xl h-full bg-surface-900 border-l border-surface-800 overflow-y-auto animate-slide-in">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              previewRequest.current++;
+              setPreview(null);
+              setPreviewId(null);
+            }}
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Question preview"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                previewRequest.current++;
+                setPreview(null);
+                setPreviewId(null);
+              }
+            }}
+            className="relative w-full max-w-2xl h-full bg-surface-900 border-l border-surface-800 overflow-y-auto animate-slide-in"
+          >
             <div className="sticky top-0 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-6 py-4 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-bold text-white">{preview.title}</h2>
+                <h2 className="text-lg font-bold text-white">
+                  {preview.title}
+                </h2>
                 <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-surface-400">
-                  <span className={`badge-${preview.difficulty}`}>{preview.difficulty}</span>
-                  {parseJsonArray(preview.tags).map((t) => <span key={t}>#{t}</span>)}
-                  <span>· {preview.timeLimit}s · {Math.round(preview.memoryLimit / 1024)} MB</span>
+                  <span className={`badge-${preview.difficulty}`}>
+                    {preview.difficulty}
+                  </span>
+                  {parseJsonArray(preview.tags).map((t) => (
+                    <span key={t}>#{t}</span>
+                  ))}
+                  <span>
+                    · {preview.timeLimit}s ·{' '}
+                    {Math.round(preview.memoryLimit / 1024)} MB
+                  </span>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <button onClick={() => {
-                  const token = localStorage.getItem('wissen-token');
-                  fetch(getExportMdUrl(preview.id), { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } })
-                    .then(res => res.blob())
-                    .then(blob => {
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `question-${preview.id}.md`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }).catch(err => {
-                      console.error(err);
-                      alert('Failed to export markdown');
-                    });
-                }} className="btn-ghost p-2" title="Export as Markdown"><Download className="w-4 h-4" /></button>
-                <Link to={`/admin/questions/${preview.id}/edit`} className="btn-ghost p-2" title="Edit"><Edit className="w-4 h-4" /></Link>
-                <button onClick={() => setPreview(null)} className="btn-ghost p-2" aria-label="Close"><X className="w-5 h-5" /></button>
+                <button
+                  onClick={() => {
+                    const token = localStorage.getItem('wissen-token');
+                    fetch(getExportMdUrl(preview.id), {
+                      headers: {
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                      },
+                    })
+                      .then((res) => res.blob())
+                      .then((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `question-${preview.id}.md`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      })
+                      .catch((err) => {
+                        console.error(err);
+                        alert('Failed to export markdown');
+                      });
+                  }}
+                  className="btn-ghost p-2"
+                  title="Export as Markdown"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                <Link
+                  to={`/admin/questions/${preview.id}/edit`}
+                  className="btn-ghost p-2"
+                  title="Edit"
+                >
+                  <Edit className="w-4 h-4" />
+                </Link>
+                <button
+                  onClick={() => {
+                    previewRequest.current++;
+                    setPreview(null);
+                    setPreviewId(null);
+                  }}
+                  className="btn-ghost p-2"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
             <div className="p-6 space-y-6">
+              <button
+                className="btn-outline"
+                onClick={() =>
+                  setSelectedIds((ids) =>
+                    ids.includes(preview.id)
+                      ? ids.filter((id) => id !== preview.id)
+                      : [...ids, preview.id],
+                  )
+                }
+              >
+                {selectedIds.includes(preview.id)
+                  ? 'Deselect question'
+                  : 'Select question'}
+              </button>
               <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
                 <ReactMarkdown>{preview.statement}</ReactMarkdown>
+                {preview.settings?.options && <ul className="space-y-2 mt-4">{preview.settings.options.map(o => <li className="sample-box" key={o.id}>{o.text}{preview.settings?.correctOptionIds?.includes(o.id) && <span className="text-emerald-600 ml-3">Correct answer</span>}</li>)}</ul>}
+                {preview.settings?.rubric && <div className="sample-box mt-4 whitespace-pre-wrap">Scoring rubric: {preview.settings.rubric}</div>}
+                {preview.settings?.sqlSchema && <pre className="sample-box mt-4">{preview.settings.sqlSchema}</pre>}
+                {preview.settings?.files?.map(f => <details key={f.path} className="mt-3"><summary>{f.path}</summary><pre className="sample-box whitespace-pre-wrap">{f.content}</pre></details>)}
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-white mb-2">Test cases ({preview.testCases?.length ?? 0})</h3>
+                <h3 className="text-sm font-semibold text-white mb-2">
+                  Test cases ({preview.testCases?.length ?? 0})
+                </h3>
                 <div className="space-y-2">
                   {preview.testCases?.map((tc, i) => (
-                    <div key={tc.id} className="rounded-lg border border-surface-800 overflow-hidden">
+                    <div
+                      key={tc.id}
+                      className="rounded-lg border border-surface-800 overflow-hidden"
+                    >
                       <div className="flex items-center justify-between px-3 py-1.5 bg-surface-800/50 text-xs">
                         <span className="text-surface-300">Test {i + 1}</span>
                         {tc.isSample ? (
-                          <span className="text-emerald-600 flex items-center gap-1"><Eye className="w-3 h-3" /> Sample</span>
+                          <span className="text-emerald-600 flex items-center gap-1">
+                            <Eye className="w-3 h-3" /> Sample
+                          </span>
                         ) : (
-                          <span className="text-surface-500 flex items-center gap-1"><EyeOff className="w-3 h-3" /> Hidden</span>
+                          <span className="text-surface-500 flex items-center gap-1">
+                            <EyeOff className="w-3 h-3" /> Hidden
+                          </span>
                         )}
                       </div>
                       <div className="grid grid-cols-2 divide-x divide-surface-800 text-xs font-mono">
-                        <pre className="p-2 text-surface-300 whitespace-pre-wrap">{tc.input}</pre>
-                        <pre className="p-2 text-emerald-700 whitespace-pre-wrap">{tc.expectedOutput}</pre>
+                        <pre className="p-2 text-surface-300 whitespace-pre-wrap">
+                          {tc.input}
+                        </pre>
+                        <pre className="p-2 text-emerald-700 whitespace-pre-wrap">
+                          {tc.expectedOutput}
+                        </pre>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-semibold text-white mb-2">Starter code</h3>
+                <h3 className="text-sm font-semibold text-white mb-2">
+                  Starter code
+                </h3>
                 <p className="text-sm text-surface-400">
-                  {preview.starterCodes?.length ? preview.starterCodes.map((s) => s.languageName).join(', ') : 'None'}
+                  {preview.starterCodes?.length
+                    ? preview.starterCodes.map((s) => s.languageName).join(', ')
+                    : 'None'}
                 </p>
               </div>
             </div>

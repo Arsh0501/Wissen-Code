@@ -1,6 +1,13 @@
 import type { LucideIcon } from 'lucide-react';
-import { LayoutDashboard, ClipboardList, FileText, UserCircle } from 'lucide-react';
-import type { Role } from '../../data/mockUsers';
+import {
+  LayoutDashboard,
+  ClipboardList,
+  FileText,
+  UserCircle,
+  Sparkles,
+  MessagesSquare,
+} from 'lucide-react';
+import type { Role } from '../../context/AuthContext';
 
 export interface NavItem {
   to: string;
@@ -12,12 +19,48 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'candidate'], end: true },
-  { to: '/admin/questions', label: 'Question Bank', icon: FileText, roles: ['admin'], end: false },
-  { to: '/admin/assessments', label: 'Assessments', icon: ClipboardList, roles: ['admin'] },
-  { to: '/profile', label: 'Profile', icon: UserCircle, roles: ['admin', 'candidate'] },
+  {
+    to: '/',
+    label: 'Dashboard',
+    icon: LayoutDashboard,
+    roles: ['admin', 'candidate'],
+    end: true,
+  },
+  {
+    to: '/admin/questions',
+    label: 'Question Bank',
+    icon: FileText,
+    roles: ['admin'],
+    end: false,
+  },
+  {
+    to: '/admin/assessments',
+    label: 'Assessments',
+    icon: ClipboardList,
+    roles: ['admin'],
+  },
+  {
+    to: '/admin/ai-questions',
+    label: 'AI Questions',
+    icon: Sparkles,
+    roles: ['admin'],
+  },
+  {
+    to: '/admin/interviews',
+    label: 'Interviews',
+    icon: MessagesSquare,
+    roles: ['admin'],
+  },
+  { to: '/admin/team', label: 'Team Access', icon: UserCircle, roles: ['admin'] },
+  { to: '/admin/operations', label: 'Hiring Operations', icon: ClipboardList, roles: ['admin'] },
+  {
+    to: '/profile',
+    label: 'Profile',
+    icon: UserCircle,
+    roles: ['admin', 'candidate'],
+  },
 ];
 
-export function getNavItemsForRole(role: Role): NavItem[] {
-  return NAV_ITEMS.filter((item) => item.roles.includes(role));
+export function getNavItemsForRole(role: Role, accessRole?: string): NavItem[] {
+  return NAV_ITEMS.filter((item) => item.roles.includes(role) && (accessRole !== 'interviewer' || ['/', '/admin/interviews', '/profile'].includes(item.to)) && (accessRole !== 'recruiter' || !['/admin/team', '/admin/ai-questions'].includes(item.to)));
 }

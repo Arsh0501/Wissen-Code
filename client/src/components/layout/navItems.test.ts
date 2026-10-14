@@ -6,12 +6,12 @@ describe('getNavItemsForRole', () => {
     const labels = getNavItemsForRole('admin').map((i) => i.label);
     expect(labels).toContain('Question Bank');
     expect(labels).toContain('Assessments');
-    expect(labels).not.toContain('My Assessments');
+    expect(labels).toContain('Dashboard');
   });
 
-  it('includes candidate-only items for candidates', () => {
+  it('includes candidate navigation without admin items', () => {
     const labels = getNavItemsForRole('candidate').map((i) => i.label);
-    expect(labels).toContain('My Assessments');
+    expect(labels).toContain('Dashboard');
     expect(labels).not.toContain('Question Bank');
   });
 

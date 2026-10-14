@@ -1,25 +1,41 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import jwt from 'jsonwebtoken';
 import prisma from '../prisma';
-import { AuthUser } from '../middleware/auth';
+import { verifyAccessToken } from '../middleware/auth';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { redisConnection } from '../ai/queue';
+import { subscribeAIResults } from '../ai/realtime';
 import { registerInterviewHandlers } from './interview-handler';
 import { SocketUser } from './types';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 
 let io: Server | null = null;
 
 export function initSocketServer(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     cors: {
-      origin: ['http://localhost:5173', 'http://localhost:3000'],
+      origin: (
+        process.env.CORS_ORIGINS ||
+        'http://localhost:5173,http://localhost:3000'
+      )
+        .split(',')
+        .map((v) => v.trim()),
       methods: ['GET', 'POST'],
       credentials: true,
     },
+    maxHttpBufferSize: 150000,
     pingTimeout: 30000,
     pingInterval: 10000,
   });
+
+  if (process.env.REDIS_URL) {
+    const pub = redisConnection(true);
+    const sub = pub.duplicate();
+    void Promise.all([pub.connect(), sub.connect()])
+      .then(() => io!.adapter(createAdapter(pub, sub)))
+      .catch((error) => console.error('Socket Redis adapter:', error.message));
+  }
+
+  subscribeAIResults(io);
 
   // Authentication Middleware
   io.use(async (socket: Socket, next) => {
@@ -47,7 +63,8 @@ export function initSocketServer(httpServer: HttpServer): Server {
         null;
 
       // 3. Extract Interview ID & Candidate Name
-      const rawInterviewId = auth.interviewId || query.interviewId || headers['x-interview-id'];
+      const rawInterviewId =
+        auth.interviewId || query.interviewId || headers['x-interview-id'];
       const interviewId = rawInterviewId ? Number(rawInterviewId) : undefined;
       const rawCandidateName =
         (auth.candidateName as string) ||
@@ -58,7 +75,20 @@ export function initSocketServer(httpServer: HttpServer): Server {
       // Case A: Authenticated JWT User (Interviewer or logged-in Candidate)
       if (token) {
         try {
-          const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
+          const decoded = await verifyAccessToken(token);
+          socket.data.accessToken = token;
+          socket.data.authSessionId = decoded.sessionId;
+          if (
+            decoded.sessionId &&
+            !(await prisma.userSession.findFirst({
+              where: {
+                id: decoded.sessionId,
+                userId: decoded.id,
+                expiresAt: { gt: new Date() },
+              },
+            }))
+          )
+            throw new Error('Session expired');
           const user: SocketUser = {
             role: decoded.role === 'admin' ? 'interviewer' : 'candidate',
             name: decoded.name,
@@ -95,14 +125,9 @@ export function initSocketServer(httpServer: HttpServer): Server {
         }
       }
 
-      // Case C: Fallback socket (authenticates later in JOIN_INTERVIEW event)
-      socket.data.user = {
-        role: 'candidate',
-        name: rawCandidateName || 'Candidate',
-        interviewId: interviewId || 0,
-        roomToken: roomToken || undefined,
-      };
-      next();
+      return next(
+        new Error('A valid access token or interview room token is required'),
+      );
     } catch (err: any) {
       console.error('[Socket] Auth middleware error:', err);
       next(new Error('Socket authentication error'));
@@ -111,11 +136,23 @@ export function initSocketServer(httpServer: HttpServer): Server {
 
   io.on('connection', (socket: Socket) => {
     const user = socket.data.user;
-    if (user && user.interviewId > 0) {
-      const room = `room:interview:${user.interviewId}`;
-      socket.join(room);
-      console.log(`[Socket] Auto-joined ${user.name} (${user.role}) to ${room} on connection`);
-    }
+    // Joining an interview room requires ownership checks in JOIN_INTERVIEW.
+    socket.use(async (_packet, next) => {
+      if (!socket.data.accessToken) return next();
+      try {
+        await verifyAccessToken(socket.data.accessToken);
+        next();
+      } catch {
+        next(new Error('Session expired or revoked'));
+        socket.disconnect(true);
+      }
+    });
+    if (socket.data.user?.userId)
+      socket.join(`auth:user:${socket.data.user.userId}`);
+    if (socket.data.authSessionId)
+      socket.join(`auth:session:${socket.data.authSessionId}`);
+    if (user?.role === 'interviewer')
+      socket.join(`private:user:${user.userId}`);
     registerInterviewHandlers(io!, socket);
   });
 
@@ -125,7 +162,9 @@ export function initSocketServer(httpServer: HttpServer): Server {
 
 export function getIO(): Server {
   if (!io) {
-    throw new Error('Socket.IO has not been initialized. Call initSocketServer first.');
+    throw new Error(
+      'Socket.IO has not been initialized. Call initSocketServer first.',
+    );
   }
   return io;
 }
