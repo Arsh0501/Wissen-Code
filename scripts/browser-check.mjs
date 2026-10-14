@@ -87,7 +87,7 @@ try {
       process.env.CHROME_PATH ||
       (process.platform === 'darwin'
         ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-        : puppeteer.executablePath()),
+        : await puppeteer.executablePath()),
     headless: true,
     args: [
       '--use-fake-ui-for-media-stream',
