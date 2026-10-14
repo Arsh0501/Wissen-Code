@@ -17,7 +17,7 @@ const browser = await puppeteer.launch({
     process.env.CHROME_PATH ||
     (process.platform === 'darwin'
       ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-      : '/usr/bin/google-chrome'),
+      : puppeteer.executablePath()),
   headless: true,
   args: [
     '--use-fake-ui-for-media-stream',

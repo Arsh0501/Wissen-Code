@@ -25,7 +25,6 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci-only-secret-at-least-thirty-two-characters
       JUDGE_MODE: mock
-      PUPPETEER_SKIP_DOWNLOAD: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
