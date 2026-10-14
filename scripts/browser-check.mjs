@@ -12,19 +12,8 @@ const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 const origin = process.env.BROWSER_TEST_URL || 'http://localhost:3000';
-const browser = await puppeteer.launch({
-  executablePath:
-    process.env.CHROME_PATH ||
-    (process.platform === 'darwin'
-      ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-      : puppeteer.executablePath()),
-  headless: true,
-  args: [
-    '--use-fake-ui-for-media-stream',
-    '--use-fake-device-for-media-stream',
-    ...(process.env.CI ? ['--no-sandbox'] : []),
-  ],
-});
+let browser;
+let stage = 'launch Chrome';
 const stamp = crypto.randomUUID();
 const userIds = [];
 const assessmentIds = [];
@@ -93,6 +82,20 @@ const pageFor = async (auth) => {
   return page;
 };
 try {
+  browser = await puppeteer.launch({
+    executablePath:
+      process.env.CHROME_PATH ||
+      (process.platform === 'darwin'
+        ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        : puppeteer.executablePath()),
+    headless: true,
+    args: [
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+      ...(process.env.CI ? ['--no-sandbox'] : []),
+    ],
+  });
+  stage = 'create test fixtures';
   const admin = await identity('admin'),
     candidate = await identity('candidate');
   const mcq = await prisma.question.create({
@@ -122,6 +125,7 @@ try {
   });
   assessmentIds.push(assessment.id);
   const adminPage = await pageFor(admin);
+  stage = 'load hiring operations';
   await adminPage.goto(`${origin}/admin/operations`, {
     waitUntil: 'networkidle0',
   });
@@ -136,6 +140,7 @@ try {
   await click(adminPage, '^System readiness$');
   await waitText(adminPage, 'Real code execution');
   const candidatePage = await pageFor(candidate);
+  stage = 'candidate assessment and grading';
   await candidatePage.goto(`${origin}/exam/${assessment.id}`, {
     waitUntil: 'networkidle0',
   });
@@ -181,6 +186,7 @@ try {
   assert.equal(reportCheck.signature, '%PDF');
   assert.ok(reportCheck.bytes > 1000);
 
+  stage = 'create live interview';
   const coding = await prisma.question.create({
     data: {
       title: `Browser code ${stamp}`,
@@ -216,14 +222,17 @@ try {
     },
   });
   interviewId = interview.id;
+  stage = 'load interviewer room';
   await adminPage.goto(`${origin}/admin/interviews/${interview.id}?tab=live`, {
     waitUntil: 'networkidle0',
   });
   await waitText(adminPage, 'Live Interview Room');
   const room = await pageFor();
+  stage = 'load candidate interview room';
   await room.goto(`${origin}/interview/${interview.roomToken}`, {
     waitUntil: 'networkidle0',
   });
+  stage = 'load Monaco editor';
   await room.waitForSelector('.monaco-editor textarea.inputarea', {
     timeout: 60000,
   });
@@ -250,12 +259,14 @@ try {
       ),
     { timeout: 10000 },
   );
+  stage = 'synchronize interview chat';
   await adminPage.type(
     'input[aria-label="Chat message"]',
     'Browser chat evidence',
   );
   await click(adminPage, '^Send$');
   await waitText(room, 'Browser chat evidence');
+  stage = 'synchronize interview whiteboard';
   await click(adminPage, '^Whiteboard$');
   const board = await adminPage.$(
     'svg[aria-label="Shared drawing whiteboard"]',
@@ -270,6 +281,7 @@ try {
   await room.waitForSelector(
     'svg[aria-label="Shared drawing whiteboard"] polyline',
   );
+  stage = 'connect interview video';
   await click(adminPage, '^Video$');
   await click(room, '^Video$');
   await click(adminPage, '^Start video call$');
@@ -292,6 +304,7 @@ try {
     socketIds.length,
     'Room synchronization must not duplicate join events',
   );
+  stage = 'load interview replay';
   await adminPage.goto(
     `${origin}/admin/interviews/${interview.id}?tab=replay`,
     { waitUntil: 'networkidle0' },
@@ -309,11 +322,13 @@ try {
     'PASS: browser operations, readiness, MCQ grading, JSON/PDF reports, local Monaco, shared code, persisted chat, whiteboard, loopback video with simulated media, and replay.',
   );
 } catch (error) {
-  console.error('Browser validation failed:', error.message);
+  const detail = error instanceof Error ? error.message : String(error);
+  console.log(`::error title=Browser workflow failed at ${stage}::${detail.replace(/\r?\n/g, ' ')}`);
+  console.error(`Browser validation failed at ${stage}:`, detail);
   console.error('Page errors:', errors);
   throw error;
 } finally {
-  await browser.close();
+  await browser?.close();
   if (interviewId)
     await prisma.interview.deleteMany({ where: { id: interviewId } });
   await prisma.auditEvent.deleteMany({ where: { actorId: { in: userIds } } });
