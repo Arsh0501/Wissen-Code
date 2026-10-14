@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
 const require = createRequire(
   new URL('../server/package.json', import.meta.url),
 );
@@ -314,7 +316,7 @@ try {
   await adminPage.screenshot({
     path:
       process.env.BROWSER_SCREENSHOT ||
-      '/private/tmp/wissen-advanced-replay.png',
+      path.join(os.tmpdir(), 'wissen-advanced-replay.png'),
     fullPage: true,
   });
   assert.deepEqual(errors, []);
