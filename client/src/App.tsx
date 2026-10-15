@@ -1,21 +1,38 @@
+import { lazy, Suspense } from 'react';
+const TeamPage = lazy(() => import('./pages/admin/TeamPage'));
+const OperationsPage = lazy(() => import('./pages/admin/OperationsPage'));
+const AccountAction = lazy(() => import('./pages/AccountAction'));
 import type { ReactElement } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppShell from './components/layout/AppShell';
-import LoginPage from './pages/LoginPage';
-import InvitePage from './pages/InvitePage';
-import AssessmentDashboard from './pages/admin/AssessmentDashboard';
-import QuestionBank from './pages/admin/QuestionBank';
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const InvitePage = lazy(() => import('./pages/InvitePage'));
+const AssessmentDashboard = lazy(
+  () => import('./pages/admin/AssessmentDashboard'),
+);
+const QuestionBank = lazy(() => import('./pages/admin/QuestionBank'));
 
-import ProfilePage from './pages/ProfilePage';
-import QuestionForm from './pages/admin/QuestionForm';
-import AssessmentManager from './pages/admin/AssessmentManager';
-import AssessmentForm from './pages/admin/AssessmentForm';
-import SubmissionsViewer from './pages/admin/SubmissionsViewer';
-import CandidateReport from './pages/admin/CandidateReport';
-import ExamDashboard from './pages/candidate/ExamDashboard';
-import AssessmentView from './pages/candidate/AssessmentView';
-import SubmissionResult from './pages/candidate/SubmissionResult';
+const AIQuestions = lazy(() => import('./pages/admin/AIQuestions'));
+const InterviewsPage = lazy(() => import('./pages/admin/InterviewsPage'));
+const InterviewWorkspace = lazy(
+  () => import('./pages/admin/InterviewWorkspace'),
+);
+const CandidateInterview = lazy(
+  () => import('./pages/candidate/CandidateInterview'),
+);
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const QuestionForm = lazy(() => import('./pages/admin/QuestionForm'));
+const AssessmentManager = lazy(() => import('./pages/admin/AssessmentManager'));
+const AssessmentForm = lazy(() => import('./pages/admin/AssessmentForm'));
+const SubmissionsViewer = lazy(() => import('./pages/admin/SubmissionsViewer'));
+const CandidateReport = lazy(() => import('./pages/admin/CandidateReport'));
+const ExamDashboard = lazy(() => import('./pages/candidate/ExamDashboard'));
+const AssessmentView = lazy(() => import('./pages/candidate/AssessmentView'));
+const SubmissionResult = lazy(
+  () => import('./pages/candidate/SubmissionResult'),
+);
 
 function RequireAuth({ children }: { children: ReactElement }) {
   const { isLoggedIn } = useAuth();
@@ -28,7 +45,9 @@ function RequireAdmin({ children }: { children: ReactElement }) {
 }
 
 function RootDashboard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
+  if (user?.accessRole === 'interviewer')
+    return <Navigate to="/admin/interviews" replace />;
   return role === 'admin' ? <AssessmentDashboard /> : <ExamDashboard />;
 }
 
@@ -37,7 +56,12 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/" element={isLoggedIn ? <AppShell /> : <LandingPage />}><Route index element={<RootDashboard />} /></Route>
+      <Route path="/account/:action" element={<AccountAction />} />
+      <Route
+        path="/login"
+        element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />}
+      />
       {/* Public: anyone with a shared link can open it */}
       <Route path="/invite/:token" element={<InvitePage />} />
 
@@ -48,23 +72,134 @@ function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<RootDashboard />} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/profile" element={<ProfilePage />} />
 
+        <Route
+          path="/admin/team"
+          element={
+            <RequireAdmin>
+              <TeamPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/operations"
+          element={
+            <RequireAdmin>
+              <OperationsPage />
+            </RequireAdmin>
+          }
+        />
         {/* Admin feature pages */}
-        <Route path="/admin/questions" element={<RequireAdmin><QuestionBank /></RequireAdmin>} />
-        <Route path="/admin/questions/new" element={<RequireAdmin><QuestionForm /></RequireAdmin>} />
-        <Route path="/admin/questions/:id/edit" element={<RequireAdmin><QuestionForm /></RequireAdmin>} />
-        <Route path="/admin/assessments" element={<RequireAdmin><AssessmentManager /></RequireAdmin>} />
-        <Route path="/admin/assessments/new" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
-        <Route path="/admin/assessments/:id/edit" element={<RequireAdmin><AssessmentForm /></RequireAdmin>} />
-        <Route path="/admin/submissions/:assessmentId" element={<RequireAdmin><SubmissionsViewer /></RequireAdmin>} />
-        <Route path="/admin/reports/:candidateName/:assessmentId" element={<RequireAdmin><CandidateReport /></RequireAdmin>} />
+        <Route
+          path="/admin/ai-questions"
+          element={
+            <RequireAdmin>
+              <AIQuestions />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/interviews"
+          element={
+            <RequireAdmin>
+              <InterviewsPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/interviews/:id"
+          element={
+            <RequireAdmin>
+              <InterviewWorkspace />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/questions"
+          element={
+            <RequireAdmin>
+              <QuestionBank />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/questions/new"
+          element={
+            <RequireAdmin>
+              <QuestionForm />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/questions/:id/edit"
+          element={
+            <RequireAdmin>
+              <QuestionForm />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/assessments"
+          element={
+            <RequireAdmin>
+              <AssessmentManager />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/assessments/new"
+          element={
+            <RequireAdmin>
+              <AssessmentForm />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/assessments/:id/edit"
+          element={
+            <RequireAdmin>
+              <AssessmentForm />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/submissions/:assessmentId"
+          element={
+            <RequireAdmin>
+              <SubmissionsViewer />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/reports/:candidateName/:assessmentId"
+          element={
+            <RequireAdmin>
+              <CandidateReport />
+            </RequireAdmin>
+          }
+        />
       </Route>
 
+      <Route path="/interview/:token" element={<CandidateInterview />} />
       {/* Candidate full-screen feature pages */}
-      <Route path="/exam/:assessmentId" element={<RequireAuth><AssessmentView /></RequireAuth>} />
-      <Route path="/exam/:assessmentId/result" element={<RequireAuth><SubmissionResult /></RequireAuth>} />
+      <Route
+        path="/exam/:assessmentId"
+        element={
+          <RequireAuth>
+            <AssessmentView />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/exam/:assessmentId/result"
+        element={
+          <RequireAuth>
+            <SubmissionResult />
+          </RequireAuth>
+        }
+      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -75,10 +210,16 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <Suspense
+          fallback={
+            <p role="status" className="p-8">
+              Loading workspace…
+            </p>
+          }
+        >
+          <AppRoutes />
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   );
 }
-
-

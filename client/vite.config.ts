@@ -1,14 +1,17 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '');
+  return {
   plugins: [react()],
   server: {
     port: 3000,
     proxy: {
+      '/socket.io': { target: env.API_PROXY_TARGET || 'http://localhost:4001', ws: true },
       '/api': {
-        target: 'http://localhost:4000',
+        target: env.API_PROXY_TARGET || 'http://localhost:4001',
         changeOrigin: true,
       },
     },
@@ -19,4 +22,5 @@ export default defineConfig({
     globals: false,
     css: true,
   },
+  };
 });

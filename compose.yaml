@@ -1,0 +1,62 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wissen
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: wissen_code
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U wissen -d wissen_code]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  migrate:
+    build: ./server
+    command: [npx, prisma, migrate, deploy]
+    environment:
+      DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code
+    depends_on:
+      postgres:
+        condition: service_healthy
+  api:
+    build: ./server
+    ports:
+      - '127.0.0.1:4001:4001'
+    environment: &backend-env
+      DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 characters}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      JUDGE_MODE: ${JUDGE_MODE:-mock}
+      JUDGE0_API_URL: ${JUDGE0_API_URL:-https://ce.judge0.com}
+      PORT: '4001'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+  worker:
+    build: ./server
+    command: [node, dist/ai/worker.js]
+    environment: *backend-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+volumes:
+  postgres-data:
+  redis-data:

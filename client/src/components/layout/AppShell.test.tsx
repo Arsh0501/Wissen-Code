@@ -12,10 +12,10 @@ describe('AppShell', () => {
           <Route path="/" element={<div>Nested Page Content</div>} />
         </Route>
       </Routes>,
-      { loggedInAs: candidateUser }
+      { loggedInAs: candidateUser },
     );
 
-    expect(screen.getByText('WissenCode')).toBeInTheDocument();
+    expect(screen.getByText('Wissen Code')).toBeInTheDocument();
     expect(screen.getByText(candidateUser.name)).toBeInTheDocument();
     expect(screen.getByText('Nested Page Content')).toBeInTheDocument();
   });

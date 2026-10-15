@@ -1,0 +1,74 @@
+services:
+  api:
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      APP_URL: https://${APP_HOST:?Set APP_HOST}
+      CORS_ORIGINS: https://${APP_HOST}
+      JUDGE_MODE: live
+      ASYNC_GRADING: '1'
+      JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
+      TRUST_PROXY: '1'
+      MONITORING_TOKEN: ${MONITORING_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      WEBRTC_ICE_SERVERS: ${WEBRTC_ICE_SERVERS:-[]}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      ATS_WEBHOOK_URL: ${ATS_WEBHOOK_URL:-}
+      ATS_WEBHOOK_SECRET: ${ATS_WEBHOOK_SECRET:-}
+  worker:
+    restart: unless-stopped
+    environment:
+      JUDGE_MODE: live
+      JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
+  grading-worker:
+    build: ./server
+    command: [node, dist/platform/grading-worker.js]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code
+      REDIS_URL: redis://redis:6379
+      JUDGE_MODE: live
+      JUDGE0_API_URL: ${JUDGE0_API_URL:-https://ce.judge0.com}
+      JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
+      ATS_WEBHOOK_URL: ${ATS_WEBHOOK_URL:-}
+      ATS_WEBHOOK_SECRET: ${ATS_WEBHOOK_SECRET:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+  mail-worker:
+    build: ./server
+    command: [node, dist/platform/worker.js]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code
+      APP_URL: https://${APP_HOST}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      ATS_WEBHOOK_URL: ${ATS_WEBHOOK_URL:-}
+      ATS_WEBHOOK_SECRET: ${ATS_WEBHOOK_SECRET:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  frontend:
+    build: ./client
+    restart: unless-stopped
+    depends_on: [api]
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    environment:
+      APP_HOST: ${APP_HOST}
+    volumes:
+      - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [frontend]
+volumes:
+  caddy-data:
+  caddy-config:

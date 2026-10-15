@@ -4,6 +4,8 @@ export interface Question {
   id: number;
   title: string;
   statement: string;
+  questionType?: 'coding' | 'debugging' | 'mcq' | 'sql' | 'written' | 'project';
+  settings?: { options?: { id: string; text: string }[]; correctOptionIds?: string[]; multiple?: boolean; explanation?: string; rubric?: string; sqlSchema?: string; files?: { path: string; content: string }[] };
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string; // JSON string
   timeLimit: number;
@@ -49,6 +51,9 @@ export interface AssessmentStats {
 }
 
 export interface CandidateSummary {
+  candidateUserId?: number | null;
+  sessionId?: number | null;
+  isProvisional?: boolean;
   name: string;
   status: 'in-progress' | 'completed';
   startedAt: string | null;
@@ -62,6 +67,19 @@ export interface CandidateSummary {
 }
 
 export interface Assessment {
+  questionsLocked?: boolean;
+  questionCount?: number;
+  difficulty?: 'mixed' | 'easy' | 'medium' | 'hard';
+  questionTypes?: string;
+  topics?: string;
+  requiredSkills?: string;
+  allowedEmails?: string;
+  allowedDomains?: string;
+  maxAttempts?: number;
+  attemptsUsed?: number;
+  canRetake?: boolean;
+  candidateCount?: number;
+
   id: number;
   name: string;
   description: string;
@@ -109,6 +127,15 @@ export interface AssessmentQuestion {
 
 // Payload for creating/updating an assessment
 export interface AssessmentInput {
+  questionCount?: number;
+  difficulty?: 'mixed' | 'easy' | 'medium' | 'hard';
+  questionTypes?: string[];
+  topics?: string[];
+  requiredSkills?: string[];
+  allowedEmails?: string[];
+  allowedDomains?: string[];
+  maxAttempts?: number;
+
   name: string;
   description: string;
   instructions: string;
@@ -133,6 +160,7 @@ export interface DashboardData {
   assessments: Assessment[];
   scoreDistribution: { range: string; count: number }[];
   recentActivity: {
+    candidateUserId?: number | null;
     candidateName: string;
     assessmentId: number;
     assessmentName: string;
@@ -152,7 +180,7 @@ export interface Submission {
   languageId: number;
   languageName: string;
   code: string;
-  status: 'submitted' | 'grading' | 'graded';
+  status: 'submitted' | 'grading' | 'graded' | 'pending_review' | 'execution_failed';
   score: number;
   createdAt: string;
   question?: { id: number; title: string };
@@ -220,6 +248,7 @@ export interface QuestionEvaluation {
 }
 
 export interface Evaluation {
+  pendingReview?: boolean;
   assessment: {
     id: number;
     name: string;
@@ -239,6 +268,9 @@ export interface Evaluation {
 }
 
 export interface SubmissionResult {
+  sessionId?: number;
+  resultsPending?: boolean;
+  gradingFailed?: boolean;
   assessmentId: number;
   candidateName: string;
   resultsHidden?: boolean;

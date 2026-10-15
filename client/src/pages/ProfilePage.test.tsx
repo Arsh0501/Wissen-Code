@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ProfilePage from './ProfilePage';
+import api from '../services/api';
 import { renderWithProviders, candidateUser } from '../test/test-utils';
 
 describe('ProfilePage', () => {
@@ -23,19 +24,23 @@ describe('ProfilePage', () => {
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     expect(await screen.findByRole('button', { name: /saved/i })).toBeInTheDocument();
+    expect(api.put).toHaveBeenCalledWith('/profile', { name: 'Updated Name' });
     expect(JSON.parse(localStorage.getItem('wissen-user') ?? '{}').name).toBe('Updated Name');
   });
 
-  it('rejects an invalid email and does not persist the change', async () => {
+  it('keeps email read-only', () => {
+    renderWithProviders(<ProfilePage />, { loggedInAs: candidateUser });
+    expect(screen.getByLabelText(/^email/i)).toHaveAttribute('readonly');
+  });
+
+  it('shows backend errors without persisting changes', async () => {
+    vi.mocked(api.put).mockRejectedValueOnce({ response: { data: { error: 'This name is already in use' } } });
     const user = userEvent.setup();
     renderWithProviders(<ProfilePage />, { loggedInAs: candidateUser });
-
-    const emailInput = screen.getByLabelText(/^email/i);
-    await user.clear(emailInput);
-    await user.type(emailInput, 'not-an-email');
+    await user.clear(screen.getByLabelText(/full name/i));
+    await user.type(screen.getByLabelText(/full name/i), 'Duplicate Name');
     await user.click(screen.getByRole('button', { name: /save changes/i }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(/valid email/i);
-    expect(JSON.parse(localStorage.getItem('wissen-user') ?? '{}').email).toBe(candidateUser.email);
+    expect(await screen.findByRole('alert')).toHaveTextContent('This name is already in use');
+    expect(JSON.parse(localStorage.getItem('wissen-user') || '{}').name).toBe(candidateUser.name);
   });
 });

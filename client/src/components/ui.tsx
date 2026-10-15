@@ -2,11 +2,19 @@ import React from 'react';
 import type { Availability } from '../types';
 import { CheckCircle, XCircle } from 'lucide-react';
 
-export function formatDate(value: string | null | undefined, withTime = true): string {
+export function formatDate(
+  value: string | null | undefined,
+  withTime = true,
+): string {
   if (!value) return '—';
   const d = new Date(value);
   if (isNaN(d.getTime())) return value;
-  return d.toLocaleString('en-IN', withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' });
+  return d.toLocaleString(
+    'en-IN',
+    withTime
+      ? { dateStyle: 'medium', timeStyle: 'short' }
+      : { dateStyle: 'medium' },
+  );
 }
 
 export function formatDuration(seconds: number | null | undefined): string {
@@ -19,8 +27,13 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${s}s`;
 }
 
-export function formatPercent(value: number | null | undefined, digits = 1): string {
-  return value === null || value === undefined ? '—' : `${value.toFixed(digits)}%`;
+export function formatPercent(
+  value: number | null | undefined,
+  digits = 1,
+): string {
+  return value === null || value === undefined
+    ? '—'
+    : `${value.toFixed(digits)}%`;
 }
 
 export function scoreTextClass(pct: number): string {
@@ -37,7 +50,9 @@ export function toLocalInputValue(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function parseJsonArray<T = string>(value: string | null | undefined): T[] {
+export function parseJsonArray<T = string>(
+  value: string | null | undefined,
+): T[] {
   try {
     const parsed = JSON.parse(value || '[]');
     return Array.isArray(parsed) ? parsed : [];
@@ -46,19 +61,39 @@ export function parseJsonArray<T = string>(value: string | null | undefined): T[
   }
 }
 
-const AVAILABILITY_STYLES: Record<Availability, { label: string; className: string }> = {
-  open: { label: 'Live', className: 'bg-emerald-500/15 text-emerald-600 ring-emerald-500/25' },
-  upcoming: { label: 'Scheduled', className: 'bg-sky-500/15 text-sky-600 ring-sky-500/25' },
-  closed: { label: 'Closed', className: 'bg-surface-700/50 text-surface-300 ring-surface-600' },
-  draft: { label: 'Draft', className: 'bg-amber-500/15 text-amber-600 ring-amber-500/25' },
-  archived: { label: 'Archived', className: 'bg-surface-800 text-surface-500 ring-surface-700' },
+const AVAILABILITY_STYLES: Record<
+  Availability,
+  { label: string; className: string }
+> = {
+  open: {
+    label: 'Live',
+    className: 'bg-emerald-500/15 text-emerald-600 ring-emerald-500/25',
+  },
+  upcoming: {
+    label: 'Scheduled',
+    className: 'bg-sky-500/15 text-sky-600 ring-sky-500/25',
+  },
+  closed: {
+    label: 'Closed',
+    className: 'bg-surface-700/50 text-surface-300 ring-surface-600',
+  },
+  draft: {
+    label: 'Draft',
+    className: 'bg-amber-500/15 text-amber-600 ring-amber-500/25',
+  },
+  archived: {
+    label: 'Archived',
+    className: 'bg-surface-800 text-surface-500 ring-surface-700',
+  },
 };
 
 export function AvailabilityBadge({ value }: { value?: Availability }) {
   const style = AVAILABILITY_STYLES[value || 'draft'];
   return (
     <span className={`badge ring-1 ${style.className}`}>
-      {value === 'open' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse-dot" />}
+      {value === 'open' && (
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5 animate-pulse-dot" />
+      )}
       {style.label}
     </span>
   );
@@ -91,26 +126,40 @@ export function StatCard({
   tone?: string;
 }) {
   return (
-    <div className="card p-5 transition-shadow hover:shadow-md hover:shadow-surface-700/30">
+    <div className="stat-card card p-5 relative overflow-hidden transition-shadow hover:shadow-md hover:shadow-surface-700/30">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider">{label}</p>
-          <p className="text-3xl font-bold text-white mt-2 tabular-nums tracking-tight">{value}</p>
+          <p className="text-xs min-h-[2.5em] font-medium text-surface-500 uppercase tracking-wider">
+            {label}
+          </p>
+          <p className="text-3xl font-bold text-white mt-2 tabular-nums tracking-tight">
+            {value}
+          </p>
         </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
+        <div
+          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone}`}
+        >
           <Icon className="w-5 h-5" />
         </div>
       </div>
-      {hint && <p className="text-xs text-surface-500 mt-3 pt-3 border-t border-surface-800">{hint}</p>}
+      {hint && (
+        <p className="text-xs text-surface-500 mt-3 pt-3 border-t border-surface-800">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
 
 export function Spinner({ label }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-surface-500">
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex flex-col items-center justify-center py-20 text-surface-500"
+    >
       <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mb-3" />
-      {label && <p className="text-sm">{label}</p>}
+      <p className="text-sm">{label || 'Loading…'}</p>
     </div>
   );
 }
@@ -127,9 +176,11 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="text-center py-16">
-      <Icon className="w-14 h-14 text-surface-700 mx-auto mb-4" />
-      <h3 className="text-lg font-medium text-surface-300 mb-1">{title}</h3>
+    <div className="text-center py-14 px-5 max-w-lg mx-auto">
+      <div className="w-16 h-16 rounded-2xl bg-primary-500/5 border border-primary-500/10 flex items-center justify-center mx-auto mb-5">
+        <Icon className="w-7 h-7 text-primary-600" />
+      </div>
+      <h3 className="text-lg font-semibold text-surface-200 mb-2">{title}</h3>
       {body && <p className="text-surface-500 text-sm mb-6">{body}</p>}
       {action}
     </div>

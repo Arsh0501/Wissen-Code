@@ -13,78 +13,92 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 7;
  * Helper to generate a refresh token and create a session.
  * Enforces one-device policy: Invalidates any previous sessions for this user.
  */
-async function createSessionForUser(userId: number, email: string, name: string, role: string) {
-  // 1. Detect Existing Session
-  const existingSessions = await prisma.userSession.findMany({
-    where: { userId }
-  });
-  
-  if (existingSessions.length > 0) {
-    const activeSession = existingSessions.find(s => new Date() < s.expiresAt);
-    if (activeSession && role !== 'admin') {
-      console.log(`[Session] Active session detected for user ${email}. Rejecting new login.`);
-      return { error: 'Active session detected on another device. Please log out from that device first.' };
-    } else {
-      // Clean up expired sessions
-      await prisma.userSession.deleteMany({
-        where: { 
-          userId,
-          expiresAt: { lt: new Date() }
-        }
-      });
+export async function createSessionForUser(
+  userId: number,
+  email: string,
+  name: string,
+  role: string,
+  guest = false,
+) {
+  return prisma.$transaction(async (tx) => {
+    // Serialize logins for the same account, including concurrent requests on different servers.
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+    await tx.userSession.deleteMany({
+      where: { userId, expiresAt: { lte: new Date() } },
+    });
+    if (
+      role === 'candidate' &&
+      (await tx.userSession.findFirst({ where: { userId } }))
+    ) {
+      return {
+        error:
+          'Active session detected on another device. Please log out from that device first.',
+      };
     }
-  }
-
-  // 3. Create Session (Bind Active Session)
-  const refreshToken = crypto.randomBytes(40).toString('hex');
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
-
-  const session = await prisma.userSession.create({
-    data: {
-      userId,
-      refreshToken,
-      expiresAt
-    }
+    const refreshToken = crypto.randomBytes(40).toString('hex');
+    const session = await tx.userSession.create({
+      data: {
+        userId,
+        refreshToken: hashRefreshToken(refreshToken),
+        expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 86400000),
+      },
+    });
+    const authUser = {
+      id: userId,
+      email,
+      name,
+      role: (role === 'candidate' ? 'candidate' : 'admin') as
+        'admin' | 'candidate',
+      accessRole: role as import('../platform/permissions').AccessRole,
+      sessionId: session.id,
+      guest,
+    };
+    const accessToken = signToken(authUser);
+    return { token: accessToken, accessToken, refreshToken, user: authUser };
   });
-
-  const authUser = { 
-    id: userId, 
-    email, 
-    name, 
-    role: role as 'admin' | 'candidate',
-    sessionId: session.id 
-  };
-  
-  const accessToken = signToken(authUser);
-  
-  // Return 'token' for backward compatibility with the existing frontend
-  return { token: accessToken, accessToken, refreshToken, user: authUser };
+}
+export function hashRefreshToken(token: string) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 // POST /api/auth/register — Create a new account (candidate by default)
 router.post('/register', async (req: Request, res: Response) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
-    if (!name?.trim() || !email?.trim() || !password) {
-      return res.status(400).json({ error: 'name, email and password are required' });
+    if (
+      typeof name !== 'string' ||
+      typeof email !== 'string' ||
+      typeof password !== 'string' ||
+      !name.trim() ||
+      !email.trim() ||
+      !password
+    ) {
+      return res
+        .status(400)
+        .json({ error: 'name, email and password are required' });
     }
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
     if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return res
+        .status(400)
+        .json({ error: 'Password must be at least 8 characters' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    const existing = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
     if (existing) {
-      return res.status(409).json({ error: 'An account with this email already exists' });
+      return res
+        .status(409)
+        .json({ error: 'An account with this email already exists' });
     }
 
-    const finalRole = role === 'admin' ? 'admin' : 'candidate';
+    const finalRole = 'candidate';
     const passwordHash = await bcrypt.hash(password, 10);
-    
+
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
@@ -94,7 +108,12 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
-    const sessionData = await createSessionForUser(user.id, user.email, user.name, user.role);
+    const sessionData = await createSessionForUser(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
     if ('error' in sessionData) {
       return res.status(403).json({ error: sessionData.error });
     }
@@ -109,12 +128,19 @@ router.post('/register', async (req: Request, res: Response) => {
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    if (!email?.trim() || !password) {
+    if (
+      typeof email !== 'string' ||
+      typeof password !== 'string' ||
+      !email.trim() ||
+      !password
+    ) {
       return res.status(400).json({ error: 'email and password are required' });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (!user) {
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+    if (!user || user.isGuest) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -123,7 +149,12 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const sessionData = await createSessionForUser(user.id, user.email, user.name, user.role);
+    const sessionData = await createSessionForUser(
+      user.id,
+      user.email,
+      user.name,
+      user.role,
+    );
     if ('error' in sessionData) {
       return res.status(403).json({ error: sessionData.error });
     }
@@ -138,13 +169,16 @@ router.post('/login', async (req: Request, res: Response) => {
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
-    if (!refreshToken) {
+    if (
+      typeof refreshToken !== 'string' ||
+      !/^[a-f0-9]{80}$/.test(refreshToken)
+    ) {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
     const session = await prisma.userSession.findUnique({
-      where: { refreshToken },
-      include: { user: true }
+      where: { refreshToken: hashRefreshToken(refreshToken) },
+      include: { user: true },
     });
 
     if (!session) {
@@ -153,7 +187,9 @@ router.post('/refresh', async (req: Request, res: Response) => {
 
     if (new Date() > session.expiresAt) {
       await prisma.userSession.delete({ where: { id: session.id } });
-      return res.status(401).json({ error: 'Refresh token expired. Please log in again.' });
+      return res
+        .status(401)
+        .json({ error: 'Refresh token expired. Please log in again.' });
     }
 
     // Optional: Token Rotation - Delete old session, issue new one
@@ -162,8 +198,11 @@ router.post('/refresh', async (req: Request, res: Response) => {
       id: session.user.id,
       email: session.user.email,
       name: session.user.name,
-      role: session.user.role as 'admin' | 'candidate',
-      sessionId: session.id
+      role: (session.user.role === 'candidate' ? 'candidate' : 'admin') as
+        'admin' | 'candidate',
+      accessRole: session.user
+        .role as import('../platform/permissions').AccessRole,
+      sessionId: session.id,
     };
 
     const newAccessToken = signToken(authUser);
@@ -178,9 +217,15 @@ router.post('/refresh', async (req: Request, res: Response) => {
 router.post('/logout', authenticate, async (req: Request, res: Response) => {
   try {
     if (req.user?.sessionId) {
-      await prisma.userSession.delete({
-        where: { id: req.user.sessionId }
+      await prisma.userSession.deleteMany({
+        where: { id: req.user.sessionId, userId: req.user.id },
       });
+      try {
+        (await import('../socket'))
+          .getIO()
+          .in(`auth:session:${req.user.sessionId}`)
+          .disconnectSockets(true);
+      } catch {}
     }
     res.json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
@@ -189,9 +234,7 @@ router.post('/logout', authenticate, async (req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────────
 // Profile & Password Handlers
-// ─────────────────────────────────────────────────────────────────
 
 // GET profile — Returns fresh user details directly from database
 const handleGetProfile = async (req: Request, res: Response) => {
@@ -212,7 +255,14 @@ const handleGetProfile = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user });
+    res.json({
+      user: {
+        ...user,
+        role: user.role === 'candidate' ? 'candidate' : 'admin',
+        accessRole: user.role,
+        guest: user.isGuest,
+      },
+    });
   } catch (error) {
     console.error('Error fetching profile:', error);
     res.status(500).json({ error: 'Failed to fetch user' });
@@ -235,35 +285,62 @@ const handleUpdateProfile = async (req: Request, res: Response) => {
     }
 
     // Explicitly disallow changing the email address
-    if (email !== undefined && email.trim().toLowerCase() !== currentUser.email.toLowerCase()) {
+    if (
+      email !== undefined &&
+      (typeof email !== 'string' ||
+        email.trim().toLowerCase() !== currentUser.email.toLowerCase())
+    ) {
       return res.status(400).json({ error: 'Email address cannot be changed' });
     }
 
-    if (!name?.trim()) {
+    if (typeof name !== 'string' || !name.trim() || name.length > 200) {
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: { name: name.trim() },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        isGuest: true,
-        createdAt: true,
-      },
+    const conflict = await prisma.user.findFirst({
+      where: { name: name.trim(), NOT: { id: userId } },
+      select: { id: true },
     });
+    if (conflict)
+      return res.status(409).json({ error: 'This name is already in use' });
 
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      // Assessment records currently use display names as their candidate key.
+      await tx.assessmentSession.updateMany({
+        where: {
+          candidateUserId: userId,
+        },
+        data: { candidateName: name.trim() },
+      });
+      await tx.submission.updateMany({
+        where: { session: { candidateUserId: userId } },
+        data: { candidateName: name.trim() },
+      });
+      return tx.user.update({
+        where: { id: userId },
+        data: { name: name.trim() },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isGuest: true,
+          createdAt: true,
+        },
+      });
+    });
 
     // Re-sign access token with updated profile information
     const authUser = {
       id: updatedUser.id,
       email: updatedUser.email,
       name: updatedUser.name,
-      role: updatedUser.role as 'admin' | 'candidate',
+      role: (updatedUser.role === 'candidate' ? 'candidate' : 'admin') as
+        'admin' | 'candidate',
+      accessRole:
+        updatedUser.role as import('../platform/permissions').AccessRole,
       sessionId: req.user!.sessionId,
+      guest: updatedUser.isGuest,
     };
 
     const token = signToken(authUser);
@@ -271,7 +348,12 @@ const handleUpdateProfile = async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      user: updatedUser,
+      user: {
+        ...updatedUser,
+        role: updatedUser.role === 'candidate' ? 'candidate' : 'admin',
+        accessRole: updatedUser.role,
+        guest: updatedUser.isGuest,
+      },
       token,
       accessToken: token,
     });
@@ -287,12 +369,21 @@ const handleUpdatePassword = async (req: Request, res: Response) => {
     const userId = req.user!.id;
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'currentPassword and newPassword are required' });
+    if (
+      typeof currentPassword !== 'string' ||
+      typeof newPassword !== 'string' ||
+      !currentPassword ||
+      !newPassword
+    ) {
+      return res
+        .status(400)
+        .json({ error: 'currentPassword and newPassword are required' });
     }
 
     if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'New password must be at least 8 characters' });
+      return res
+        .status(400)
+        .json({ error: 'New password must be at least 8 characters' });
     }
 
     const user = await prisma.user.findUnique({
@@ -313,8 +404,14 @@ const handleUpdatePassword = async (req: Request, res: Response) => {
       where: { id: userId },
       data: { password: passwordHash },
     });
-
-    res.json({ success: true, message: 'Password updated successfully' });
+    await prisma.userSession.deleteMany({ where: { userId } });
+    try {
+      (await import('../socket'))
+        .getIO()
+        .in(`auth:user:${userId}`)
+        .disconnectSockets(true);
+    } catch {}
+    res.json({ success: true, message: 'Password updated. Sign in again.' });
   } catch (error) {
     console.error('Error changing password:', error);
     res.status(500).json({ error: 'Failed to change password' });
@@ -339,4 +436,3 @@ router.put('/password', authenticate, handleUpdatePassword);
 router.put('/change-password', authenticate, handleUpdatePassword);
 
 export default router;
-

@@ -2,19 +2,22 @@ import { useState, type FormEvent } from 'react';
 import { useAuth } from '../context/AuthContext';
 import UserAvatar from '../components/layout/UserAvatar';
 import { Save, Check } from 'lucide-react';
+import api, { apiError } from '../services/api';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ProfilePage() {
   const { user, role, updateProfile } = useAuth();
+  const [verification, setVerification] = useState('');
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   if (!user) return null;
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaved(false);
 
@@ -28,24 +31,35 @@ export default function ProfilePage() {
     }
 
     setFormError(null);
-    updateProfile({ name: name.trim(), email: email.trim() });
-    setSaved(true);
+    setSaving(true);
+    try {
+      await updateProfile({ name: name.trim() });
+      setSaved(true);
+    } catch (error) {
+      setFormError(apiError(error, 'Failed to save profile'));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="animate-fade-in max-w-2xl">
-      <div className="mb-8">
+    <div className="animate-fade-in max-w-2xl mx-auto">
+      <div className="page-heading">
+        <p className="eyebrow mb-2">Account settings</p>
         <h2 className="text-2xl font-bold text-white">Profile</h2>
-        <p className="text-surface-400 text-sm mt-1">Manage your account information.</p>
+        <p className="text-surface-400 text-sm mt-1">
+          Manage your account information.
+        </p>
       </div>
 
+      <div className="card mb-5"><h3 className="font-semibold mb-3">Email verification</h3><button className="btn-outline" disabled={!!user.guest} onClick={async () => { try { const { data } = await api.post('/auth/request-verification'); setVerification(data.message); } catch (error) { setVerification(apiError(error)); } }}>Request verification email</button>{verification && <p role="status" className="mt-3 text-sm">{verification}</p>}</div>
       <div className="card">
         <div className="flex items-center gap-4 mb-6">
           <UserAvatar user={user} size="lg" />
           <div>
             <p className="text-lg font-semibold text-white">{user.name}</p>
             <span className="badge bg-primary-500/15 text-primary-600 ring-1 ring-primary-500/25 capitalize">
-              {role}
+              {user.accessRole ?? role}
             </span>
           </div>
         </div>
@@ -75,6 +89,7 @@ export default function ProfilePage() {
               type="email"
               className="input"
               value={email}
+              readOnly
               onChange={(e) => {
                 setEmail(e.target.value);
                 setSaved(false);
@@ -86,18 +101,31 @@ export default function ProfilePage() {
             <label className="label" htmlFor="profile-role">
               Role
             </label>
-            <input id="profile-role" className="input opacity-60 cursor-not-allowed" value={role} disabled readOnly />
+            <input
+              id="profile-role"
+              className="input opacity-60 cursor-not-allowed"
+              value={role}
+              disabled
+              readOnly
+            />
           </div>
 
           {formError && (
-            <p role="alert" className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+            <p
+              role="alert"
+              className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2"
+            >
               {formError}
             </p>
           )}
 
-          <button type="submit" className="btn-primary">
-            {saved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-            {saved ? 'Saved' : 'Save Changes'}
+          <button type="submit" className="btn-primary" disabled={saving}>
+            {saved ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            {saving ? 'Saving…' : saved ? 'Saved' : 'Save Changes'}
           </button>
         </form>
       </div>

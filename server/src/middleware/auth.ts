@@ -1,14 +1,21 @@
+import { accessRoles, type AccessRole } from '../platform/permissions';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
+export function validateAuthConfiguration() {
+  const value = process.env.JWT_SECRET;
+  if (!value || value.length < 32)
+    throw new Error('JWT_SECRET must contain at least 32 characters');
+  return value;
+}
 
 export interface AuthUser {
   id: number;
   email: string;
   name: string;
   role: 'admin' | 'candidate';
+  accessRole?: AccessRole;
   guest?: boolean; // joined through an invite link — limited to invited assessments
   sessionId?: number; // Added for one-device enforcement
 }
@@ -22,35 +29,55 @@ declare global {
 }
 
 export function signToken(user: AuthUser): string {
-  return jwt.sign(user, JWT_SECRET, { expiresIn: '12h' });
+  return jwt.sign(user, validateAuthConfiguration(), {
+    expiresIn: user.guest ? '12h' : '15m',
+    algorithm: 'HS256',
+  });
 }
 
-// Verifies the Bearer token and attaches the decoded user to req.user
-export async function authenticate(req: Request, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
+export async function verifyAccessToken(token: string): Promise<AuthUser> {
+  const decoded = jwt.verify(token, validateAuthConfiguration(), {
+    algorithms: ['HS256'],
+  }) as AuthUser;
+  if (!Number.isInteger(decoded.id) || !Number.isInteger(decoded.sessionId))
+    throw new Error('Invalid session claims');
+  const session = await prisma.userSession.findFirst({
+    where: {
+      id: decoded.sessionId,
+      userId: decoded.id,
+      expiresAt: { gt: new Date() },
+    },
+    include: { user: true },
+  });
+  if (!session || !accessRoles.includes(session.user.role as AccessRole))
+    throw new Error('Session invalidated');
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    role: session.user.role === 'candidate' ? 'candidate' : 'admin',
+    accessRole: session.user.role as AccessRole,
+    guest: session.user.isGuest,
+    sessionId: session.id,
+  };
+}
 
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required' });
-  }
-
+export async function authenticate(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  const token = req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.slice(7)
+    : null;
+  if (!token) return res.status(401).json({ error: 'Authentication required' });
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthUser;
-    
-    // Enforce one-device session check for candidates (or all) if sessionId is present
-    if (decoded.sessionId) {
-      const activeSession = await prisma.userSession.findUnique({
-        where: { id: decoded.sessionId }
-      });
-      if (!activeSession) {
-        return res.status(401).json({ error: 'Session invalidated. Please log in again.' });
-      }
-    }
-    
-    req.user = decoded;
+    req.user = await verifyAccessToken(token);
     next();
   } catch {
-    return res.status(401).json({ error: 'Invalid or expired token' });
+    return res
+      .status(401)
+      .json({ error: 'Invalid, expired or revoked session' });
   }
 }
 

@@ -1,5 +1,4 @@
 // Wissen-Code Prisma Schema
-// Using SQLite for prototype — swap to PostgreSQL by changing provider + DATABASE_URL
 
 generator client {
   provider = "prisma-client-js"
@@ -15,7 +14,8 @@ model User {
   name      String
   email     String   @unique
   password  String   // bcrypt hash
-  role      String   @default("candidate") // "admin" | "candidate"
+  role      String   @default("candidate") // "admin" | "recruiter" | "interviewer" | "candidate"
+  emailVerifiedAt DateTime?
   isGuest   Boolean  @default(false) // joined through an invite link; no usable password
   createdAt DateTime @default(now())
 
@@ -39,9 +39,11 @@ model UserSession {
 model Question {
   id           Int       @id @default(autoincrement())
   title        String
+  questionType String @default("coding")
+  settings     Json      @default("{}")
   statement    String    // Markdown text for problem statement
   difficulty   String    // "easy" | "medium" | "hard"
-  tags         String    @default("[]") // JSON array stored as string (SQLite compat)
+  tags         String    @default("[]") // JSON array
   timeLimit    Float     @default(2) // CPU time limit in seconds
   memoryLimit  Int       @default(256000) // Memory limit in KB
   createdAt    DateTime  @default(now())
@@ -91,6 +93,14 @@ model Assessment {
   endAt            DateTime? // Candidates can start only before this (null = no deadline)
   shuffleQuestions Boolean   @default(false)
   allowedLanguages String    @default("[]") // JSON array of Judge0 language IDs; empty = all
+  questionCount    Int?
+  difficulty       String    @default("mixed")
+  questionTypes    String    @default("[\"coding\"]")
+  topics           String    @default("[]")
+  requiredSkills   String    @default("[]")
+  allowedEmails    String    @default("[]")
+  allowedDomains   String    @default("[]")
+  maxAttempts      Int       @default(1)
   showResults      Boolean   @default(true) // Show score breakdown to the candidate after submit
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -119,6 +129,8 @@ model Submission {
   assessmentId  Int
   questionId    Int
   candidateName String
+  sessionId     Int?
+  session       AssessmentSession? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   languageId    Int
   languageName  String
   code          String
@@ -149,8 +161,14 @@ model AssessmentSession {
   id              Int       @id @default(autoincrement())
   assessmentId    Int
   candidateName   String
+  candidateUserId Int?
+  durationMinutes Int?
+  attemptNumber   Int @default(1)
+  submissions     Submission[]
   startedAt       DateTime  @default(now())
   finishedAt      DateTime? // null = in progress, set on final submit
+  gradingStatus String @default("pending")
+  gradingStartedAt DateTime?
 
   assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   drafts          DraftAnswer[]
@@ -158,6 +176,7 @@ model AssessmentSession {
   pasteEvents     PasteEvent[]
 
   @@index([assessmentId, candidateName])
+  @@unique([assessmentId, candidateUserId, attemptNumber])
 }
 
 // One row each time the candidate leaves the exam tab/window during a session
@@ -249,6 +268,7 @@ model Interview {
   startedAt          DateTime?
   endedAt            DateTime?
   currentQuestionId  Int?
+  codeRevision       Int                   @default(0)
   currentCode        String                @default("")
   currentLanguageId  Int                   @default(71) // Default: Python (71)
   timeLimitMinutes   Int                   @default(60)
@@ -264,6 +284,8 @@ model Interview {
   submissions        InterviewSubmission[]
   notes              InterviewNote[]
   events             InterviewEvent[]
+  plan               InterviewPlan?
+  evaluations        InterviewEvaluation[]
 
   @@index([interviewerId])
   @@index([roomToken])
@@ -275,6 +297,7 @@ model InterviewQuestion {
   interviewId    Int
   questionId     Int
   orderIndex     Int        @default(0)
+  candidateAnswer String @default("")
   status         String     @default("pending") // "pending" | "active" | "completed"
   notes          String     @default("")
 
@@ -349,3 +372,140 @@ model InterviewEvent {
   @@index([interviewId, eventType])
 }
 
+
+model AIQuestionDraft {
+  id Int @id @default(autoincrement())
+  authorId Int
+  content Json
+  revision Int @default(1)
+  status String @default("draft")
+  validation Json?
+  validatedRevision Int?
+  approvedBy Int?
+  approvedAt DateTime?
+  questionId Int? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model InterviewPlan {
+  id Int @id @default(autoincrement())
+  interviewId Int @unique
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  jobRequirements String
+  candidateExperience String
+  requiredSkills Json
+  durationMinutes Int
+  sections Json
+  updatedAt DateTime @updatedAt
+}
+
+model InterviewEvaluation {
+  id Int @id @default(autoincrement())
+  interviewId Int
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  questionId Int
+  authorId Int
+  candidateAnswer String @default("")
+  candidateCode String @default("")
+  executionResults Json
+  notes String @default("")
+  skills Json
+  observations Json
+  status String @default("draft")
+  revision Int @default(1)
+  updatedAt DateTime @updatedAt
+  @@unique([interviewId, questionId, authorId])
+}
+
+model AIJob {
+  id String @id @default(uuid())
+  authorId Int
+  interviewId Int?
+  kind String
+  status String @default("queued")
+  input Json
+  output Json?
+  error String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([authorId, createdAt])
+  @@index([interviewId, kind])
+}
+
+model AccountToken {
+  id String @id @default(uuid())
+  userId Int
+  purpose String
+  tokenHash String @unique
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, purpose])
+}
+
+model OutboundMessage {
+  id String @id @default(uuid())
+  authorId Int?
+  recipient String
+  subject String
+  body String
+  kind String @default("email")
+  status String @default("pending")
+  attempts Int @default(0)
+  scheduledAt DateTime @default(now())
+  lockedAt DateTime?
+  deliveredAt DateTime?
+  providerId String?
+  error String?
+  createdAt DateTime @default(now())
+  @@index([status, scheduledAt])
+}
+
+model AuditEvent {
+  id Int @id @default(autoincrement())
+  actorId Int?
+  action String
+  resource String
+  resourceId String
+  detail Json @default("{}")
+  createdAt DateTime @default(now())
+  @@index([resource, resourceId, createdAt])
+}
+
+model IntegrityReview {
+  id Int @id @default(autoincrement())
+  assessmentId Int
+  submissionId Int
+  comparedSubmissionId Int
+  reviewerId Int
+  decision String
+  notes String
+  updatedAt DateTime @updatedAt
+  @@unique([submissionId, comparedSubmissionId])
+}
+
+model AssessmentAccommodation {
+  id Int @id @default(autoincrement())
+  assessmentId Int
+  candidateUserId Int
+  extraMinutes Int @default(0)
+  reason String
+  authorId Int
+  @@unique([assessmentId, candidateUserId])
+}
+
+model OIDCRequest {
+  stateHash String @id
+  verifier String
+  nonce String
+  expiresAt DateTime
+}
+
+model OIDCIdentity {
+  id Int @id @default(autoincrement())
+  issuer String
+  subject String
+  userId Int
+  @@unique([issuer, subject])
+}
