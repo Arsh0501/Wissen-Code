@@ -41,11 +41,11 @@ function mockDraft(status: string, configured = true) {
   }));
 }
 describe('AI question approval workflow', () => {
-  it('disables generation when OpenAI is unconfigured', async () => {
+  it('disables generation when AI is unconfigured', async () => {
     mockDraft('draft', false);
     renderWithProviders(<AIQuestions />, { loggedInAs: adminUser });
     expect(
-      await screen.findByText(/requires an OpenAI API key/i),
+      await screen.findByText(/requires a Groq or OpenAI API key/i),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^generate$/i })).toBeDisabled();
   });

@@ -1,3 +1,4 @@
+import { aiConfigured, aiConfig } from '../ai/config';
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import prisma from '../prisma';
@@ -35,8 +36,9 @@ export function createAIWorkflowRouter(
 
   router.get('/status', (_req, res) =>
     res.json({
-      configured: !!process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+      configured: aiConfigured(),
+      provider: aiConfig().provider,
+      model: aiConfig().model,
       canVerify: !mockMode(),
     }),
   );

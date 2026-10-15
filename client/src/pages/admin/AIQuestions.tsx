@@ -59,7 +59,7 @@ export default function AIQuestions() {
     >
       {!status.isLoading && !status.data?.configured && (
         <p className="card mb-4 text-amber-700">
-          AI generation requires an OpenAI API key configured on the backend.
+          AI generation requires a Groq or OpenAI API key configured on the backend.
           You can still inspect existing drafts.
         </p>
       )}

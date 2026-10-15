@@ -1,3 +1,4 @@
+import { aiConfigured } from '../ai/config';
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { latestUIResults } from '../ai/results';
@@ -75,7 +76,7 @@ export function createInterviewWorkflowRouter(
       res.json({
         results: await latestUIResults(interview.id, req.user!.id),
         jobs,
-        configured: !!process.env.OPENAI_API_KEY && !!process.env.REDIS_URL,
+        configured: aiConfigured() && !!process.env.REDIS_URL,
       });
     }),
   );

@@ -38,6 +38,9 @@ services:
       DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET to at least 32 characters}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-20b}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       JUDGE_MODE: ${JUDGE_MODE:-mock}

@@ -66,3 +66,15 @@ The Hiring Operations page includes candidate comparison, question analytics, ma
 The question bank supports coding, debugging, MCQ, SQL, written responses, and multi-file projects. Written and project answers require human scoring; projects do not run hosted build environments.
 
 Run `npm run worker:mail` for queued email and ATS delivery. Production uses `npm run worker:grading` and `ASYNC_GRADING=1` for durable assessment grading. See [production setup](docs/production.md) for HTTPS deployment, email, SSO, TURN, monitoring, backup/restore, and the remaining product boundaries.
+
+## Groq free-tier AI
+
+Create a private key at https://console.groq.com/keys and set these in `server/.env`:
+
+```env
+AI_PROVIDER=groq
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=openai/gpt-oss-20b
+```
+
+Restart the backend and AI worker (`npm run worker` from `server`). Groq is different from xAI Grok. Free-plan quotas apply; see https://console.groq.com/docs/rate-limits. No OpenAI key is needed in Groq mode. For Docker, set the same variables in the Compose environment. On Render, set them on the API and sync the Blueprint so the AI worker receives them. Set `AI_PROVIDER=openai` to switch back.

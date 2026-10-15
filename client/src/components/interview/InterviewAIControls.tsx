@@ -61,7 +61,7 @@ export default function InterviewAIControls({
       )}
       {query.data && !query.data.configured && (
         <p className="text-sm text-amber-700">
-          AI is unavailable until the backend has OpenAI and Redis configured.
+          AI is unavailable until the backend has an AI provider and Redis configured.
         </p>
       )}
       <div className="flex flex-wrap gap-2">

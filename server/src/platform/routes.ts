@@ -1,3 +1,4 @@
+import { aiConfigured } from '../ai/config';
 import { Router, Request, Response, NextFunction } from 'express';
 import crypto from 'node:crypto';
 import { z } from 'zod';
@@ -81,10 +82,10 @@ router.get(
       },
       {
         name: 'AI',
-        ready: !!process.env.OPENAI_API_KEY,
-        detail: process.env.OPENAI_API_KEY
+        ready: aiConfigured(),
+        detail: aiConfigured()
           ? 'API key configured; verify generation with your worker'
-          : 'OPENAI_API_KEY missing',
+          : 'AI provider API key missing',
       },
       {
         name: 'Email',

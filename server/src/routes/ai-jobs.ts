@@ -1,3 +1,4 @@
+import { aiConfigured } from '../ai/config';
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../prisma';
@@ -17,10 +18,10 @@ const wrap = (fn: any) => (req: any, res: any, next: any) =>
 router.post(
   '/',
   wrap(async (req: any, res: any) => {
-    if (!process.env.OPENAI_API_KEY || !process.env.REDIS_URL)
+    if (!aiConfigured() || !process.env.REDIS_URL)
       return res
         .status(503)
-        .json({ error: 'OpenAI and Redis must be configured to run AI jobs' });
+        .json({ error: 'An AI provider and Redis must be configured to run AI jobs' });
     const body = z
       .object({
         kind: z.enum(agentKinds),
