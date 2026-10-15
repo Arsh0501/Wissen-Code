@@ -14,6 +14,9 @@ import {
   Target, Calendar, Shuffle, Code2, MoreHorizontal, Sparkles, Link2,
 } from 'lucide-react';
 
+import { useLanguages } from '../../hooks/useLanguages';
+import LanguageLogo from '../../components/LanguageLogo';
+
 const FILTERS: { key: 'all' | Availability; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'open', label: 'Live' },
@@ -27,6 +30,13 @@ const LANGUAGE_NAMES: Record<number, string> = { 71: 'Python', 62: 'Java', 54: '
 
 export default function AssessmentManager() {
   const navigate = useNavigate();
+  const { languages: allJudgeLanguages } = useLanguages();
+  const langMap = React.useMemo(() => {
+    const map: Record<number, string> = { ...LANGUAGE_NAMES };
+    allJudgeLanguages.forEach((l) => { map[l.id] = l.name; });
+    return map;
+  }, [allJudgeLanguages]);
+
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [shareFor, setShareFor] = useState<Assessment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -155,7 +165,15 @@ export default function AssessmentManager() {
                       )}
                       {a.shuffleQuestions && <span className="flex items-center gap-1"><Shuffle className="w-3.5 h-3.5" /> Shuffled</span>}
                       {langs.length > 0 && (
-                        <span className="flex items-center gap-1"><Code2 className="w-3.5 h-3.5" /> {langs.map((l) => LANGUAGE_NAMES[l]).join(', ')}</span>
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <Code2 className="w-3.5 h-3.5 text-surface-400" />
+                          {langs.map((l) => (
+                            <span key={l} className="inline-flex items-center gap-1">
+                              <LanguageLogo languageId={l} name={langMap[l]} className="w-3 h-3 shrink-0" />
+                              <span>{langMap[l] || `Lang #${l}`}</span>
+                            </span>
+                          ))}
+                        </span>
                       )}
                       {!a.showResults && <span className="flex items-center gap-1"><EyeOff className="w-3.5 h-3.5" /> Results hidden</span>}
                     </div>

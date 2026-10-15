@@ -74,6 +74,7 @@ export interface Assessment {
   shuffleQuestions: boolean;
   allowedLanguages: string; // JSON array of language IDs; empty = all
   showResults: boolean;
+  isPractice?: boolean;
   createdAt: string;
   updatedAt: string;
   questions: AssessmentQuestion[];
@@ -226,6 +227,7 @@ export interface Evaluation {
     timeLimitMinutes: number;
     passingScore: number;
     showResults: boolean;
+    isPractice?: boolean;
   };
   candidateName: string;
   startedAt?: string | null;
@@ -248,10 +250,10 @@ export interface SubmissionResult {
 }
 
 export interface Language {
-  key: string;
   id: number;
   name: string;
-  monacoLang: string;
+  key?: string;
+  monacoLang?: string;
 }
 
 // Per-question state during exam

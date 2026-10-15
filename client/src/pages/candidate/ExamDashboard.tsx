@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getAssessments, apiError } from '../../services/api';
+import { getAssessments, startPracticeTest, apiError } from '../../services/api';
 import { formatDate, formatDuration, Spinner } from '../../components/ui';
 import type { Assessment } from '../../types';
 import {
   Clock, FileText, ChevronRight, Zap, Target, Calendar, CheckCircle, PlayCircle, Lock,
   ShieldCheck, Sparkles, Trophy, Timer, TrendingUp, EyeOff, ClipboardPaste, Save, XCircle,
+  RotateCcw,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -60,6 +61,7 @@ export default function ExamDashboard() {
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startingPractice, setStartingPractice] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -68,6 +70,19 @@ export default function ExamDashboard() {
       .catch((err) => setError(apiError(err, 'Failed to load assessments')))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleStartPractice() {
+    try {
+      setStartingPractice(true);
+      setError('');
+      const data = await startPracticeTest();
+      navigate(`/exam/${data.assessmentId}`);
+    } catch (err: any) {
+      setError(apiError(err, 'Failed to generate practice test. Please try again.'));
+    } finally {
+      setStartingPractice(false);
+    }
+  }
 
   const data = useMemo(() => {
     // Actionable tests first: in progress, then open (soonest deadline first), then scheduled, then closed
@@ -151,6 +166,51 @@ export default function ExamDashboard() {
       {/* ═══ MAIN GRID ═══ */}
       <div className="grid lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6 min-w-0">
+          {/* Practice Test Banner */}
+          <section className="relative overflow-hidden rounded-xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-surface-900 to-indigo-950/30 p-5 shadow-lg">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/30 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white">Practice Arena</h3>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/30">
+                      Unlimited Attempts
+                    </span>
+                  </div>
+                  <p className="text-xs text-surface-400 mt-1 max-w-lg">
+                    Test your coding skills under real exam conditions. Every practice test draws 4 new random questions from the bank with a 90-minute timer.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-surface-400">
+                    <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-purple-400" /> 90 min timer</span>
+                    <span className="flex items-center gap-1"><FileText className="w-3.5 h-3.5 text-purple-400" /> 4 random questions</span>
+                    <span className="flex items-center gap-1"><RotateCcw className="w-3.5 h-3.5 text-purple-400" /> Infinite retakes</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleStartPractice}
+                disabled={startingPractice}
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 transition-all shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {startingPractice ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Generating Test...
+                  </>
+                ) : (
+                  <>
+                    <PlayCircle className="w-4 h-4" />
+                    Start Practice Test
+                  </>
+                )}
+              </button>
+            </div>
+          </section>
+
           {/* Up next */}
           <section>
             <SectionHeader title="Up next" count={data.upNext.length} />
@@ -279,6 +339,11 @@ function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-white group-hover:text-primary-700 transition-colors">{a.name}</h3>
+            {a.isPractice && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/25">
+                <Sparkles className="w-2.5 h-2.5" /> Practice Test
+              </span>
+            )}
             <span className={`badge ring-1 ${status.pill}`}>{status.label}</span>
           </div>
           {a.description && <p className="text-sm text-surface-500 mt-1 line-clamp-1">{a.description}</p>}
@@ -307,7 +372,14 @@ function CompletedRow({ a }: { a: Assessment }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4">
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">{a.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-white truncate">{a.name}</p>
+          {a.isPractice && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/25">
+              <Sparkles className="w-2.5 h-2.5" /> Practice Test
+            </span>
+          )}
+        </div>
         <p className="text-xs text-surface-500 mt-0.5">
           Submitted {formatDate(a.finishedAt || a.startedAt, false)}
           {r?.timeTakenSeconds ? ` · ${formatDuration(r.timeTakenSeconds)}` : ''}

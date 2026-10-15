@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getSubmissionResults } from '../../services/api';
+import { getSubmissionResults, startPracticeTest } from '../../services/api';
 import { formatDate, formatDuration, scoreTextClass, PassFailBadge, Spinner } from '../../components/ui';
 import type { SubmissionResult as SubmissionResultType, QuestionEvaluation } from '../../types';
 import {
-  Code2, CheckCircle, XCircle, Trophy, ArrowLeft, Clock, Award, Target, EyeOff, ChevronDown, MinusCircle,
+  Code2, CheckCircle, XCircle, Trophy, ArrowLeft, Clock, Award, Target, EyeOff, ChevronDown, MinusCircle, Sparkles, RefreshCw,
 } from 'lucide-react';
 
 function QuestionResult({ q, index }: { q: QuestionEvaluation; index: number }) {
@@ -93,6 +93,7 @@ export default function SubmissionResult() {
   const [result, setResult] = useState<SubmissionResultType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retaking, setRetaking] = useState(false);
 
   useEffect(() => {
     if (!assessmentId || !candidateName) return;
@@ -108,6 +109,18 @@ export default function SubmissionResult() {
       setError('Results not found yet. If you just submitted, they may still be processing.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRetakePractice() {
+    try {
+      setRetaking(true);
+      const data = await startPracticeTest();
+      navigate(`/exam/${data.assessmentId}`);
+    } catch (err) {
+      console.error('Failed to start new practice test', err);
+    } finally {
+      setRetaking(false);
     }
   }
 
@@ -145,6 +158,13 @@ export default function SubmissionResult() {
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/15 flex items-center justify-center">
               <CheckCircle className="w-9 h-9 text-emerald-600" />
             </div>
+            {e.assessment.isPractice && (
+              <div className="mb-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-400 ring-1 ring-purple-500/30">
+                  <Sparkles className="w-3.5 h-3.5" /> Practice Test
+                </span>
+              </div>
+            )}
             <h2 className="text-2xl font-bold text-white mb-2">{e.assessment.name}</h2>
             <p className="text-surface-400">
               Thank you, <span className="text-white font-medium">{e.candidateName}</span>. Your answers have been submitted
@@ -157,7 +177,14 @@ export default function SubmissionResult() {
         ) : (
           <div className="space-y-6 animate-fade-in">
             {/* Headline */}
-            <div className="card text-center">
+            <div className="card text-center overflow-hidden">
+              {e.assessment.isPractice && (
+                <div className="mb-3 flex justify-center">
+                  <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/30">
+                    <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Practice Test Result
+                  </span>
+                </div>
+              )}
               <p className="text-sm text-surface-400 mb-1">{e.assessment.name}</p>
               <div className="flex items-center justify-center gap-3 mb-4">
                 <h2 className="text-2xl font-bold text-white">Your result</h2>
@@ -191,6 +218,36 @@ export default function SubmissionResult() {
                   <p className="text-[11px] text-surface-500 uppercase tracking-wider">of {e.assessment.timeLimitMinutes} min</p>
                 </div>
               </div>
+
+              {/* Practice Test Retake Action */}
+              {e.assessment.isPractice && (
+                <div className="mt-6 pt-5 border-t border-surface-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+                  <div>
+                    <p className="text-sm font-semibold text-white flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-purple-400" /> Keep Practicing
+                    </p>
+                    <p className="text-xs text-surface-400 mt-0.5">
+                      Ready for more? Launch another practice test with 4 new random questions.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleRetakePractice}
+                    disabled={retaking}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-600/30 transition-all shrink-0 disabled:opacity-50 cursor-pointer"
+                  >
+                    {retaking ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Generating Test...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" /> Retake Practice Test
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">

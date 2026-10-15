@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { executeCode, LANGUAGE_MAP } from '../services/judge0';
+import { executeCode, LANGUAGE_MAP, getActiveLanguages } from '../services/judge0';
 import prisma from '../prisma';
 
 const router = Router();
@@ -145,14 +145,14 @@ router.post('/run-tests', async (req: Request, res: Response) => {
 });
 
 // GET /api/judge/languages — Get supported languages
-router.get('/languages', (_req: Request, res: Response) => {
-  const languages = Object.entries(LANGUAGE_MAP).map(([key, value]) => ({
-    key,
-    id: value.id,
-    name: value.name,
-    monacoLang: value.monacoLang,
-  }));
-  res.json(languages);
+router.get('/languages', async (_req: Request, res: Response) => {
+  try {
+    const languages = await getActiveLanguages();
+    res.json(languages);
+  } catch (error: any) {
+    console.error('Judge0 languages error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 export default router;

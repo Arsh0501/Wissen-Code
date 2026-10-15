@@ -143,6 +143,17 @@ export async function duplicateAssessment(id: number): Promise<Assessment> {
   return data;
 }
 
+export async function startPracticeTest(): Promise<{
+  assessmentId: number;
+  name: string;
+  timeLimitMinutes: number;
+  isPractice: boolean;
+  questionCount: number;
+}> {
+  const { data } = await api.post('/assessments/practice');
+  return data;
+}
+
 export async function getDashboard(): Promise<DashboardData> {
   const { data } = await api.get('/assessments/dashboard');
   return data;
