@@ -17,3 +17,19 @@ export function adminOnly(req: Request, res: Response, next: NextFunction) {
 
   next();
 }
+
+/**
+ * Express middleware that allows both admin and interviewer roles.
+ */
+export function adminOrInterviewer(req: Request, res: Response, next: NextFunction) {
+  const role = req.user?.accessRole ?? req.user?.role;
+
+  if (role !== 'admin' && role !== 'interviewer') {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'This endpoint is restricted to administrators and interviewers.',
+    });
+  }
+
+  next();
+}

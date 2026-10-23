@@ -1,0 +1,3 @@
+ALTER TABLE "Interview"
+ADD COLUMN "feedbackCriteria" JSONB NOT NULL DEFAULT '[]',
+ADD COLUMN "feedbackRevision" INTEGER NOT NULL DEFAULT 0;

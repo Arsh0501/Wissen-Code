@@ -5,13 +5,22 @@ import prisma from '../prisma';
 
 export async function guestAssessmentIds(userId: number): Promise<number[]> {
   const rows = await prisma.inviteRedemption.findMany({
-    where: { userId },
+    where: {
+      userId,
+      invite: {
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    },
     select: { invite: { select: { assessmentId: true } } },
   });
   return Array.from(new Set(rows.map((r) => r.invite.assessmentId)));
 }
 
-export async function canAccessAssessment(req: Request, assessmentId: number): Promise<boolean> {
+export async function canAccessAssessment(
+  req: Request,
+  assessmentId: number,
+): Promise<boolean> {
   if (!req.user?.guest) return true;
   const ids = await guestAssessmentIds(req.user.id);
   return ids.includes(assessmentId);

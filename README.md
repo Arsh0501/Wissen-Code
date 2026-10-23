@@ -1,187 +1,86 @@
-# WissenCode — In-House Coding Assessment Platform
+# Wissen Code
 
-A fully working end-to-end demo of a proctored coding assessment platform with **real code compilation** via Judge0 CE.
+A coding assessment and interview platform built with React, TypeScript, Express, PostgreSQL and Prisma. The UI includes a question bank, assessment creation, candidate assessments, live interviews, reports and AI-assisted workflows.
 
-## Tech Stack
+## Local setup
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + TypeScript + Tailwind CSS v3 |
-| Code Editor | Monaco Editor (`@monaco-editor/react`) |
-| Backend | Node.js + Express |
-| Database | SQLite via Prisma ORM (PostgreSQL-portable) |
-| Code Execution | Judge0 CE (public API) |
-| Languages | Python, Java, C++, JavaScript |
+Requires Node.js 22, PostgreSQL and Redis.
 
-## Quick Start
-
-### Prerequisites
-- Node.js 18+ installed
-- npm 9+
-
-### 1. Install Dependencies
-
-```bash
-# From the project root
-cd server && npm install
-cd ../client && npm install
+```sh
+npm install
+npm run install:all
+cp server/.env.example server/.env
+cp client/.env.example client/.env.local
 ```
 
-### 2. Configure & Set Up Database
+Set `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters in `server/.env`. Set `REDIS_URL` for background jobs and realtime delivery. The example configuration uses backend port 4001.
 
-Create `server/.env`:
-
-```bash
-DATABASE_URL="file:./wissen.db"
-PORT=4000
-JUDGE0_API_URL=https://ce.judge0.com
-# mock = simulated verdicts, no Judge0 calls (good for demos); live = real Judge0 execution
-JUDGE_MODE=mock
-```
-
-```bash
+```sh
 cd server
-npx prisma migrate dev
-```
-
-### 3. Seed Mock Data (Optional)
-
-Creates 13 questions across topics (arrays, strings, stacks, DP, graphs, heaps), 5 assessments in
-different states (live, scheduled/draft, closed, results-hidden) and ~23 mock candidates with graded results:
-
-```bash
-cd server
-npm run db:seed          # resets the database
-npm run db:verify-mock   # checks every mock test case against its Python reference solution
-```
-
-**Mock judge:** with `JUDGE_MODE=mock`, code is never executed. Unbalanced brackets → compile/runtime
-error, untouched starter code (`pass`, `TODO`) → wrong answer, anything else → accepted. The admin header
-shows a "Mock judge" badge while this mode is on.
-
-### 4. Start Development Servers
-
-**Terminal 1 — Backend (port 4000):**
-```bash
-cd server
+npm run db:generate
+npx prisma migrate deploy
+npm run db:seed-users
+cd ..
 npm run dev
 ```
 
-**Terminal 2 — Frontend (port 3000):**
-```bash
-cd client
-npm run dev
+Open http://localhost:3000. The seeded local administrator account is `admin@wissen.dev` / `Admin@123`. Demo accounts are for local development only.
+
+To load sample questions and assessment results, run `npm run db:seed` from `server`. This command replaces the development assessment data; it is optional.
+
+Run `npm run worker` in a second terminal from `server` to process queued AI jobs when Redis is configured. Without `REDIS_URL`, manually requested AI jobs run directly through the API. Set an AI provider key to enable generation. The key stays on the backend. See [AI agent UI locations](docs/ai-agents-ui.md).
+
+`JUDGE_MODE=mock` simulates execution for development. Use `JUDGE_MODE=live` and a working `JUDGE0_API_URL` for real code execution. AI-generated questions require real reference-solution verification and human approval before entering the question bank.
+
+## Checks
+
+Run `npm test` and `npm run build` from the project root. Backend tests require a local PostgreSQL database and Redis and create temporary test records.
+
+## Docker
+
+Set `POSTGRES_PASSWORD` and `JWT_SECRET`, then run:
+
+```sh
+docker compose up --build
 ```
 
-Open **http://localhost:3000** in your browser.
+Compose runs PostgreSQL, Redis, migrations, the API and the AI worker. Run the frontend separately with `npm run dev:client`; its development proxy points to port 4001.
 
-## How to Use
+## Project structure
 
-### Admin Flow
-1. Go to http://localhost:3000, enter your name, select **Admin**
-2. **Dashboard** (`/admin`) — KPIs, score distribution, recent activity, per-assessment stats
-3. **Question Bank** (`/admin/questions`) — filter by difficulty/topic, preview, create/edit/import questions
-4. **Assessments** → **New Assessment** — a 4-step flow:
-   - **Details**: name, description, Markdown instructions
-   - **Questions**: pick from the bank, reorder, set marks per question
-   - **Configuration**: duration, passing score, open/close window, shuffle order, allowed languages, show/hide results
-   - **Review**: then **Save draft** or **Publish**
-5. From the list: publish/unpublish, duplicate, archive, delete, or open **Results** for per-candidate marks and pass/fail
+- `client/src/pages`: administrator and candidate screens.
+- `client/src/components`: shared UI and workflow components.
+- `client/src/services`: API clients and workflow types.
+- `client/src/test`: test setup and fixtures.
+- `server/src/routes`: authenticated REST APIs.
+- `server/src/ai`: OpenAI gateway, tools, workflows and background worker.
+- `server/src/socket`: live interview events.
+- `server/prisma`: database schema and migrations.
 
-### Candidate Flow
-1. Go to http://localhost:3000
-2. Enter your name, select **Candidate**, click "Continue"
-3. Click **Start** on an assessment
-4. You'll see the full coding exam UI:
-   - Left panel: problem statement + sample I/O
-   - Right panel: Monaco code editor + language selector
-5. Write your solution, click **Run code** → see real compilation output
-6. Click **Confirm** to mark your answer (green pill)
-7. Use **Flag** to bookmark questions (orange pill)
-8. Navigate between questions — your code is preserved
-9. Click **Submit Test** when done → graded against ALL test cases
+See [docs/api.md](docs/api.md) for the main API routes and realtime contract.
 
-### Verify Grading
-After submission, the evaluation screen shows:
-- Score as a percentage of total marks, marks obtained, and pass/fail against the passing score
-- Time taken, questions fully solved, tests passed
-- Per-question marks with a test case breakdown (hidden test outputs are never revealed)
-- If the admin turned off "Show results", candidates only see a submission confirmation
+## Team and interview workflows
 
-The timer starts only when the candidate clicks **Start Assessment**, is enforced on the server
-(drafts are rejected 30s after time is up), shows warnings at 5 and 1 minute, and auto-submits at zero.
+### Bulk assessment invitations
 
-## Project Structure
+In **Assessments**, publish an assessment and click **Bulk invite candidates**. Upload CSV or Excel `.xlsx` (up to 5 MB / 5,000 candidate rows per sheet), choose a worksheet if needed, and confirm the name/email header mapping. Column order does not matter; other columns are ignored. Ambiguous headers require manual mapping. Invalid/duplicate rows are flagged and cannot be selected. Older `.xls` files must first be saved as `.xlsx`.
 
-```
-Wissen-Code/
-├── server/                 # Express + Prisma backend
-│   ├── prisma/
-│   │   └── schema.prisma   # Database schema (7 models)
-│   ├── src/
-│   │   ├── index.ts        # Express server entry
-│   │   ├── prisma.ts       # Prisma client singleton
-│   │   ├── seed.ts         # Database seed script
-│   │   ├── routes/
-│   │   │   ├── questions.ts    # Question CRUD + test cases + starter code
-│   │   │   ├── assessments.ts  # Assessment CRUD
-│   │   │   ├── judge.ts        # Code execution via Judge0
-│   │   │   └── submissions.ts  # Submit + grade against all test cases
-│   │   └── services/
-│   │       └── judge0.ts       # Judge0 CE API integration
-│   └── .env
-│
-├── client/                 # React + Vite + Tailwind frontend
-│   ├── src/
-│   │   ├── pages/
-│   │   │   ├── LoginPage.tsx           # Role switcher
-│   │   │   ├── admin/
-│   │   │   │   ├── AdminDashboard.tsx  # Question bank table
-│   │   │   │   ├── QuestionForm.tsx    # Create/edit questions
-│   │   │   │   └── AssessmentManager.tsx # Assessment CRUD
-│   │   │   └── candidate/
-│   │   │       ├── ExamDashboard.tsx   # Available assessments
-│   │   │       ├── AssessmentView.tsx  # THE exam page (split panel)
-│   │   │       └── SubmissionResult.tsx # Post-submission scores
-│   │   ├── context/AuthContext.tsx     # Mock auth
-│   │   ├── services/api.ts            # Axios API client
-│   │   └── types/index.ts             # TypeScript interfaces
-│   └── vite.config.ts
-│
-└── README.md
+Select imported candidates and optionally use **Add candidates from database** to search and combine existing candidates. Review selections before clicking **Send assessment invitations**. Up to 500 unique email addresses are accepted per batch. Each recipient gets a personalized email with a single-use assessment invitation link; imported recipients are not automatically created as accounts. Repeating the same request does not enqueue duplicate invitations. Status in the dialog reflects queued/sent/failed processing; sent means the provider accepted the email, not confirmed inbox delivery.
+
+Configure `RESEND_API_KEY`, `MAIL_FROM`, and the public frontend `APP_URL` in the backend, then run `npm run worker:mail` from `server`. The database outbox is reused; no new database migration is required. Only administrators can submit bulk invitation batches.
+
+Team Access manages administrator and interviewer permissions. Interviews include shared editing, chat, a whiteboard, browser calls, live transcription and reviewed-transcript follow-ups. Hiring Operations and its dedicated APIs and database tables have been removed. Core assessment reports and invitation links remain available. Written/project assessment answers remain provisional without an automatic scoring implementation.
+
+Run `npm run worker:mail` for queued email and ATS delivery. Production uses `npm run worker:grading` and `ASYNC_GRADING=1` for durable assessment grading. See [production setup](docs/production.md) for HTTPS deployment, email, SSO, TURN, monitoring, backup/restore, and the remaining product boundaries.
+
+## Groq free-tier AI
+
+Create a private key at https://console.groq.com/keys and set these in `server/.env`:
+
+```env
+AI_PROVIDER=groq
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=openai/gpt-oss-20b
 ```
 
-## API Endpoints
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/questions` | GET, POST | List/create questions |
-| `/api/questions/:id` | GET, PUT, DELETE | Read/update/delete question |
-| `/api/questions/:id/testcases` | POST | Add test cases |
-| `/api/questions/:id/starter-code` | POST | Add/update starter code |
-| `/api/assessments` | GET, POST | List (admin: with stats; candidate: published + own status) / create |
-| `/api/assessments/dashboard` | GET | Admin dashboard totals, score distribution, recent activity |
-| `/api/assessments/:id` | GET, PUT, DELETE | Read/update/delete assessment |
-| `/api/assessments/:id/duplicate` | POST | Copy an assessment as a draft |
-| `/api/sessions/status/:assessmentId` | GET | Candidate's existing session (never starts the timer) |
-| `/api/judge/run` | POST | Run code (Judge0 CE) |
-| `/api/judge/languages` | GET | Supported languages |
-| `/api/submissions` | POST | Submit & grade assessment |
-| `/api/submissions/:assessmentId/:name` | GET | Get results |
-
-## Database Schema
-
-7 Prisma models designed for PostgreSQL portability:
-- **Question** — title, statement, difficulty, tags, limits
-- **StarterCode** — per-language templates (linked to Question)
-- **TestCase** — input/output with sample vs hidden flag
-- **Assessment** — named exam with time limit
-- **AssessmentQuestion** — join table with ordering
-- **Submission** — per-question answer with code + score
-- **TestCaseResult** — per-test-case pass/fail
-
-## Notes
-
-- **Judge0 CE Rate Limits**: The public API has ~100 requests/day. For heavier use, switch to RapidAPI's free tier (add `X-RapidAPI-Key` header in `server/src/services/judge0.ts`).
-- **PostgreSQL Migration**: Change `provider = "sqlite"` to `provider = "postgresql"` in `schema.prisma`, update `DATABASE_URL`, run `npx prisma migrate dev`.
-- **No real auth**: Uses mock role headers (`x-role`, `x-candidate-name`). Replace with a real auth provider for production.
+Restart the backend and AI worker (`npm run worker` from `server`). Groq is different from xAI Grok. Free-plan quotas apply; see https://console.groq.com/docs/rate-limits. No OpenAI key is needed in Groq mode. For Docker, set the same variables in the Compose environment. On Render, set them on the API and sync the Blueprint so the AI worker receives them. Set `AI_PROVIDER=openai` to switch back.

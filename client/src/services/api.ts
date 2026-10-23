@@ -13,11 +13,64 @@ import type {
 } from '../types';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+let refreshRequest: Promise<string> | null = null;
+export function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem('wissen-refresh-token');
+  if (!refreshToken) return Promise.reject(new Error('Please sign in again'));
+  refreshRequest ??= axios
+    .post(`${api.defaults.baseURL}/auth/refresh`, { refreshToken })
+    .then(({ data }) => {
+      localStorage.setItem('wissen-token', data.accessToken);
+      localStorage.setItem('wissen-user', JSON.stringify(data.user));
+      return data.accessToken as string;
+    })
+    .finally(() => {
+      refreshRequest = null;
+    });
+  return refreshRequest;
+}
+export async function socketAccessToken(): Promise<string> {
+  const token = localStorage.getItem('wissen-token');
+  if (!token) throw new Error('Please sign in again');
+  try {
+    const claims = JSON.parse(
+      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
+    );
+    if (claims.exp * 1000 <= Date.now() + 30000) return refreshAccessToken();
+  } catch {
+    /* The server validates the token. */
+  }
+  return token;
+}
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const request = error.config;
+    if (
+      error.response?.status !== 401 ||
+      !request ||
+      request._retried ||
+      !localStorage.getItem('wissen-refresh-token') ||
+      [
+        '/auth/login',
+        '/auth/register',
+        '/auth/refresh',
+        '/auth/logout',
+      ].includes(request.url)
+    )
+      return Promise.reject(error);
+    request._retried = true;
+    const token = await refreshAccessToken();
+    request.headers.Authorization = `Bearer ${token}`;
+    return api(request);
+  },
+);
 
 // Inject JWT token from localStorage
 api.interceptors.request.use((config) => {
@@ -49,20 +102,27 @@ export interface QuestionInput {
   title?: string;
   statement?: string;
   difficulty?: Question['difficulty'];
+  questionType?: Question['questionType'];
+  settings?: Question['settings'];
   tags?: string[];
   timeLimit?: number;
   memoryLimit?: number;
 }
 
-export async function createQuestion(question: QuestionInput & {
-  starterCodes?: { languageId: number; languageName: string; code: string }[];
-  testCases?: { input: string; expectedOutput: string; isSample: boolean }[];
-}): Promise<Question> {
+export async function createQuestion(
+  question: QuestionInput & {
+    starterCodes?: { languageId: number; languageName: string; code: string }[];
+    testCases?: { input: string; expectedOutput: string; isSample: boolean }[];
+  },
+): Promise<Question> {
   const { data } = await api.post('/questions', question);
   return data;
 }
 
-export async function updateQuestion(id: number, question: QuestionInput): Promise<Question> {
+export async function updateQuestion(
+  id: number,
+  question: QuestionInput,
+): Promise<Question> {
   const { data } = await api.put(`/questions/${id}`, question);
   return data;
 }
@@ -71,8 +131,12 @@ export async function deleteQuestion(id: number): Promise<void> {
   await api.delete(`/questions/${id}`);
 }
 
-export async function importQuestionFromMd(markdownContent: string): Promise<any> {
-  const { data } = await api.post('/admin/questions/import-md', { markdownContent });
+export async function importQuestionFromMd(
+  markdownContent: string,
+): Promise<any> {
+  const { data } = await api.post('/admin/questions/import-md', {
+    markdownContent,
+  });
   return data;
 }
 
@@ -84,14 +148,14 @@ export function getExportMdUrl(id: number): string {
 
 export async function addTestCases(
   questionId: number,
-  testCases: { input: string; expectedOutput: string; isSample: boolean }[]
+  testCases: { input: string; expectedOutput: string; isSample: boolean }[],
 ): Promise<void> {
   await api.post(`/questions/${questionId}/testcases`, { testCases });
 }
 
 export async function updateTestCase(
   tcId: number,
-  data: { input?: string; expectedOutput?: string; isSample?: boolean }
+  data: { input?: string; expectedOutput?: string; isSample?: boolean },
 ): Promise<void> {
   await api.put(`/questions/testcases/${tcId}`, data);
 }
@@ -104,7 +168,7 @@ export async function deleteTestCase(tcId: number): Promise<void> {
 
 export async function saveStarterCode(
   questionId: number,
-  starterCode: { languageId: number; languageName: string; code: string }
+  starterCode: { languageId: number; languageName: string; code: string },
 ): Promise<void> {
   await api.post(`/questions/${questionId}/starter-code`, starterCode);
 }
@@ -121,14 +185,16 @@ export async function getAssessment(id: number): Promise<Assessment> {
   return data;
 }
 
-export async function createAssessment(assessment: AssessmentInput): Promise<Assessment> {
+export async function createAssessment(
+  assessment: AssessmentInput,
+): Promise<Assessment> {
   const { data } = await api.post('/assessments', assessment);
   return data;
 }
 
 export async function updateAssessment(
   id: number,
-  assessment: Partial<AssessmentInput>
+  assessment: Partial<AssessmentInput>,
 ): Promise<Assessment> {
   const { data } = await api.put(`/assessments/${id}`, assessment);
   return data;
@@ -196,9 +262,11 @@ export async function submitAssessment(params: {
 
 export async function getSubmissionResults(
   assessmentId: number,
-  candidateName: string
+  candidateName: string,
 ): Promise<SubmissionResult> {
-  const { data } = await api.get(`/submissions/${assessmentId}/${encodeURIComponent(candidateName)}`);
+  const { data } = await api.get(
+    `/submissions/${assessmentId}/${encodeURIComponent(candidateName)}`,
+  );
   return data;
 }
 
@@ -227,14 +295,19 @@ export interface SessionResponse {
 
 // Existing session for the current candidate; never creates one (so the timer doesn't start)
 export async function getSessionStatus(
-  assessmentId: number
+  assessmentId: number,
 ): Promise<({ exists: true } & SessionResponse) | { exists: false }> {
   const { data } = await api.get(`/attempts/status/${assessmentId}`);
   return data;
 }
 
-export async function startSession(assessmentId: number): Promise<SessionResponse> {
-  const { data } = await api.post(`/assessments/${assessmentId}/start`);
+export async function startSession(
+  assessmentId: number,
+  retake = false,
+): Promise<SessionResponse> {
+  const { data } = await api.post(`/assessments/${assessmentId}/start`, {
+    retake,
+  });
   return data;
 }
 
@@ -252,7 +325,7 @@ export async function saveDraft(
     code: string;
     isFlagged?: boolean;
     isAnswered?: boolean;
-  }
+  },
 ): Promise<void> {
   await api.put(`/attempts/${sessionId}/answer`, draft);
 }
@@ -266,14 +339,14 @@ export async function saveAllDrafts(
     code: string;
     isFlagged?: boolean;
     isAnswered?: boolean;
-  }[]
+  }[],
 ): Promise<void> {
   await api.post(`/attempts/${sessionId}/save-all-drafts`, { drafts });
 }
 
 export async function recordTabSwitch(
   sessionId: number,
-  event: { leftAt: string; durationMs: number }
+  event: { leftAt: string; durationMs: number },
 ): Promise<{ count: number; limit: number; autoSubmitted: boolean }> {
   const { data } = await api.post(`/attempts/${sessionId}/tab-switch`, event);
   return data;
@@ -281,7 +354,7 @@ export async function recordTabSwitch(
 
 export async function recordPaste(
   sessionId: number,
-  event: { questionId: number; charCount: number; lineCount: number }
+  event: { questionId: number; charCount: number; lineCount: number },
 ): Promise<void> {
   await api.post(`/attempts/${sessionId}/paste`, event);
 }
@@ -298,13 +371,18 @@ export interface CandidateSubmissionSummary extends CandidateSummary {
 }
 
 export interface AssessmentSubmissionsResponse {
-  assessment: { id: number; name: string; timeLimitMinutes: number; passingScore: number };
+  assessment: {
+    id: number;
+    name: string;
+    timeLimitMinutes: number;
+    passingScore: number;
+  };
   candidates: CandidateSubmissionSummary[];
   stats: AssessmentStats;
 }
 
 export async function getAssessmentSubmissions(
-  assessmentId: number
+  assessmentId: number,
 ): Promise<AssessmentSubmissionsResponse> {
   const { data } = await api.get(`/assessments/${assessmentId}/candidates`);
   return data;
@@ -312,27 +390,43 @@ export async function getAssessmentSubmissions(
 
 export async function getReportData(
   candidateName: string,
-  assessmentId: number
+  assessmentId: number,
 ): Promise<any> {
   const { data } = await api.get(
-    `/candidates/${encodeURIComponent(candidateName)}/report`, { params: { assessmentId } }
+    `/candidates/${encodeURIComponent(candidateName)}/report`,
+    { params: { assessmentId } },
   );
   return data;
 }
 
 // Fetches the PDF through the shared client so the admin's auth token is attached
-export async function downloadReportPdf(candidateName: string, assessmentId: number): Promise<Blob> {
-  const { data } = await api.get(`/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/download`, {
-    responseType: 'blob',
-  });
+export async function downloadReportPdf(
+  candidateName: string,
+  assessmentId: number,
+): Promise<Blob> {
+  const { data } = await api.get(
+    `/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/download`,
+    {
+      responseType: 'blob',
+    },
+  );
   return data;
 }
 
 // Every candidate's result for an assessment as a CSV (opens in Excel)
-export async function downloadAssessmentCsv(assessmentId: number): Promise<{ blob: Blob; filename: string }> {
-  const res = await api.get(`/admin/reports/export/${assessmentId}`, { responseType: 'blob' });
-  const match = /filename="([^"]+)"/.exec(res.headers['content-disposition'] || '');
-  return { blob: res.data, filename: match?.[1] || `results-assessment-${assessmentId}.csv` };
+export async function downloadAssessmentCsv(
+  assessmentId: number,
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await api.get(`/admin/reports/export/${assessmentId}`, {
+    responseType: 'blob',
+  });
+  const match = /filename="([^"]+)"/.exec(
+    res.headers['content-disposition'] || '',
+  );
+  return {
+    blob: res.data,
+    filename: match?.[1] || `results-assessment-${assessmentId}.csv`,
+  };
 }
 
 // ---- AI assessment generation ----
@@ -388,7 +482,9 @@ export async function generateAssessmentFromResume(input: {
   focus?: string;
 }): Promise<AIGenerationPreview> {
   // Generation reads the resume and writes several problems — it can take a few minutes
-  const { data } = await api.post('/ai/generate', input, { timeout: 11 * 60 * 1000 });
+  const { data } = await api.post('/ai/generate', input, {
+    timeout: 11 * 60 * 1000,
+  });
   return data;
 }
 
@@ -397,7 +493,10 @@ export async function createAIAssessment(input: {
   description?: string;
   timeLimitMinutes: number;
   passingScore: number;
-  questions: Omit<AIGeneratedQuestion, 'verification' | 'rationale' | 'reference_solution_python'>[];
+  questions: Omit<
+    AIGeneratedQuestion,
+    'verification' | 'rationale' | 'reference_solution_python'
+  >[];
 }): Promise<{ id: number; name: string }> {
   const { data } = await api.post('/ai/create-assessment', input);
   return data;
@@ -443,7 +542,12 @@ export async function listInvites(assessmentId: number): Promise<InviteLink[]> {
   return data;
 }
 
-export async function createInvite(input: { assessmentId: number; label?: string; maxUses?: number | null; expiresAt?: string | null }): Promise<InviteLink> {
+export async function createInvite(input: {
+  assessmentId: number;
+  label?: string;
+  maxUses?: number | null;
+  expiresAt?: string | null;
+}): Promise<InviteLink> {
   const { data } = await api.post('/invites', input);
   return data;
 }
@@ -457,17 +561,49 @@ export async function getPublicInvite(token: string): Promise<PublicInvite> {
   return data;
 }
 
-export async function joinInvite(token: string, input: { name: string; email: string }): Promise<{
+export async function joinInvite(
+  token: string,
+  input: { name: string; email: string },
+): Promise<{
   token: string;
-  user: { id: number; email: string; name: string; role: 'candidate'; guest: true };
+  user: {
+    id: number;
+    email: string;
+    name: string;
+    role: 'candidate';
+    guest: true;
+  };
   assessmentId: number;
 }> {
-  const { data } = await api.post(`/public/invite/${encodeURIComponent(token)}/join`, input);
+  const { data } = await api.post(
+    `/public/invite/${encodeURIComponent(token)}/join`,
+    input,
+  );
   return data;
 }
 
-export function getReportDownloadUrl(candidateName: string, assessmentId: number): string {
-  return `/api/admin/reports/${encodeURIComponent(candidateName)}/${assessmentId}/pdf`;
+export interface CandidateInterviewSummary {
+  id: number;
+  title: string;
+  description: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'expired';
+  scheduledAt: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  timeLimitMinutes: number;
+  roomToken: string;
+  candidateJoinUrl: string;
+  interviewer: {
+    name: string;
+    email: string;
+  };
+  questionCount: number;
+  createdAt: string;
+}
+
+export async function getCandidateInterviews(): Promise<CandidateInterviewSummary[]> {
+  const { data } = await api.get('/interviews/my-interviews');
+  return data;
 }
 
 export default api;

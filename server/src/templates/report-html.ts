@@ -24,8 +24,14 @@ interface ReportQuestion {
 }
 
 export interface ReportData {
+  provisional?: boolean;
   candidate: { id: string; name: string; email: string | null };
-  assessment: { id: number; title: string; duration_minutes: number; submitted_at: string };
+  assessment: {
+    id: number;
+    title: string;
+    duration_minutes: number;
+    submitted_at: string;
+  };
   overall_score: { passed: number; total: number; percentage: number };
   marks: {
     obtained: number;
@@ -58,7 +64,13 @@ export interface ReportData {
     total_chars: number;
     large_count: number;
     large_threshold: number;
-    events: { question_id: number; question_title: string; char_count: number; line_count: number; occurred_at: string }[];
+    events: {
+      question_id: number;
+      question_title: string;
+      char_count: number;
+      line_count: number;
+      occurred_at: string;
+    }[];
   };
 }
 
@@ -69,7 +81,11 @@ const MAX_CODE_LINES = 60;
 
 function ordinal(n: number): string {
   const v = n % 100;
-  const suffix = v >= 11 && v <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] || 'th';
+  const suffix =
+    v >= 11 && v <= 13
+      ? 'th'
+      : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ||
+        'th';
   return `${n}${suffix}`;
 }
 
@@ -80,7 +96,7 @@ const C = {
   faint: '#94a3b8',
   border: '#e2e8f0',
   soft: '#f8fafc',
-  brand: '#6d28d9',
+  brand: '#2563eb',
   brandSoft: '#f5f3ff',
   green: '#047857',
   greenSoft: '#ecfdf5',
@@ -101,7 +117,10 @@ function escapeHtml(str: string): string {
 
 function formatDate(dateStr: string): string {
   try {
-    return new Date(dateStr).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(dateStr).toLocaleString('en-IN', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
   } catch {
     return dateStr;
   }
@@ -109,7 +128,11 @@ function formatDate(dateStr: string): string {
 
 function formatTime(dateStr: string): string {
   try {
-    return new Date(dateStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return new Date(dateStr).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   } catch {
     return dateStr;
   }
@@ -161,10 +184,16 @@ function codeBlock(code: string, language: string): string {
 }
 
 // Horizontal 0–100% track showing the candidate against the pass mark and the cohort average
-function cohortBar(score: number, passing: number, average: number | null, resultColor: string): string {
+function cohortBar(
+  score: number,
+  passing: number,
+  average: number | null,
+  resultColor: string,
+): string {
   const clamp = (n: number) => Math.max(0, Math.min(100, n));
   // Near either end, anchor the label to that side so it stays inside the page
-  const edge = (n: number) => (n < 12 ? 'edge-left' : n > 88 ? 'edge-right' : '');
+  const edge = (n: number) =>
+    n < 12 ? 'edge-left' : n > 88 ? 'edge-right' : '';
   return `
     <div class="bar">
       <div class="bar-fill" style="width:${clamp(score)}%;background:${resultColor};"></div>
@@ -174,40 +203,75 @@ function cohortBar(score: number, passing: number, average: number | null, resul
 }
 
 export function generateReportHTML(data: ReportData): string {
-  const { candidate, assessment, overall_score, marks, questions, cohort, tab_switches, paste_events } = data;
+  const {
+    candidate,
+    assessment,
+    overall_score,
+    marks,
+    questions,
+    cohort,
+    tab_switches,
+    paste_events,
+  } = data;
   const resultColor = marks.passed ? C.green : C.red;
   const resultBg = marks.passed ? C.greenSoft : C.redSoft;
 
-  // ── Integrity verdict: tab-switch limit reached, or any large paste, warrants a review ──
+  // Integrity verdict: tab-switch limit reached, or any large paste, warrants a review
   const concerns: string[] = [];
-  if (tab_switches.limit_exceeded) concerns.push(`Tab-switch limit reached (${tab_switches.count}/${tab_switches.limit}) — test auto-submitted`);
-  else if (tab_switches.count > 0) concerns.push(`${tab_switches.count} tab switch${tab_switches.count === 1 ? '' : 'es'}`);
-  if (paste_events.large_count > 0) concerns.push(`${paste_events.large_count} large paste${paste_events.large_count === 1 ? '' : 's'} (${paste_events.large_threshold}+ characters)`);
-  const needsReview = tab_switches.limit_exceeded || paste_events.large_count > 0;
-  const integrityColor = needsReview ? C.red : concerns.length ? C.amber : C.green;
-  const integrityBg = needsReview ? C.redSoft : concerns.length ? C.amberSoft : C.greenSoft;
-  const integrityLabel = needsReview ? 'Review recommended' : concerns.length ? 'Minor activity' : 'No concerns';
+  if (tab_switches.limit_exceeded)
+    concerns.push(
+      `Tab-switch limit reached (${tab_switches.count}/${tab_switches.limit}) — test auto-submitted`,
+    );
+  else if (tab_switches.count > 0)
+    concerns.push(
+      `${tab_switches.count} tab switch${tab_switches.count === 1 ? '' : 'es'}`,
+    );
+  if (paste_events.large_count > 0)
+    concerns.push(
+      `${paste_events.large_count} large paste${paste_events.large_count === 1 ? '' : 's'} (${paste_events.large_threshold}+ characters)`,
+    );
+  const needsReview =
+    tab_switches.limit_exceeded || paste_events.large_count > 0;
+  const integrityColor = needsReview
+    ? C.red
+    : concerns.length
+      ? C.amber
+      : C.green;
+  const integrityBg = needsReview
+    ? C.redSoft
+    : concerns.length
+      ? C.amberSoft
+      : C.greenSoft;
+  const integrityLabel = needsReview
+    ? 'Review recommended'
+    : concerns.length
+      ? 'Minor activity'
+      : 'No concerns';
 
-  // ── Question summary table ──
+  // Question summary table
   const summaryRows = questions
-    .map((q, i) => q.attempted ? `
+    .map((q, i) =>
+      q.attempted
+        ? `
       <tr>
         <td class="num">${i + 1}</td>
         <td><div class="strong">${escapeHtml(q.title)}</div><div class="muted small">${escapeHtml(q.language)}</div></td>
         <td class="right">${q.testcases_passed}/${q.testcases_total}</td>
         <td class="right">${q.marks_obtained.toFixed(q.marks_obtained % 1 ? 1 : 0)} / ${q.marks}</td>
         <td class="right strong" style="color:${scoreColor(q.score)};">${q.score.toFixed(0)}%</td>
-      </tr>` : `
+      </tr>`
+        : `
       <tr>
         <td class="num">${i + 1}</td>
         <td><div class="strong">${escapeHtml(q.title)}</div><div class="muted small">Not attempted</div></td>
         <td class="right muted">—</td>
         <td class="right">0 / ${q.marks}</td>
         <td class="right">${pill('Skipped', C.muted, C.soft)}</td>
-      </tr>`)
+      </tr>`,
+    )
     .join('');
 
-  // ── Per-question detail ──
+  // Per-question detail
   const questionDetails = questions
     .map((q, i) => {
       if (!q.attempted) {
@@ -230,7 +294,8 @@ export function generateReportHTML(data: ReportData): string {
       const shown = q.failed_cases.slice(0, MAX_FAILED_CASES_SHOWN);
       const hidden = q.failed_cases.length - shown.length;
       const failed = shown
-        .map((fc) => `
+        .map(
+          (fc) => `
           <div class="case">
             <div class="case-head">
               <span class="muted small">Test case #${fc.testcase_id}</span>
@@ -246,7 +311,8 @@ export function generateReportHTML(data: ReportData): string {
                 <pre style="border-color:${C.red}40;">${escapeHtml(fc.actual_output || '(no output)')}</pre>
               </div>
             </div>
-          </div>`)
+          </div>`,
+        )
         .join('');
 
       return `
@@ -269,10 +335,13 @@ export function generateReportHTML(data: ReportData): string {
     })
     .join('');
 
-  // ── Integrity detail tables ──
+  // Integrity detail tables
   const tabRows = tab_switches.events.length
     ? tab_switches.events
-        .map((e, i) => `<tr><td class="num">${i + 1}</td><td>${formatTime(e.occurred_at)}</td><td class="right">${(e.duration_ms / 1000).toFixed(1)}s</td></tr>`)
+        .map(
+          (e, i) =>
+            `<tr><td class="num">${i + 1}</td><td>${formatTime(e.occurred_at)}</td><td class="right">${(e.duration_ms / 1000).toFixed(1)}s</td></tr>`,
+        )
         .join('')
     : `<tr><td colspan="3" class="empty">No tab switches detected</td></tr>`;
 
@@ -372,7 +441,7 @@ export function generateReportHTML(data: ReportData): string {
 <div class="page">
   <!-- ═══ BRAND BAR ═══ -->
   <div class="brand">
-    <div class="brand-name">WissenCode</div>
+    <div class="brand-name">Wissen Code</div>
     <div class="muted small">Assessment Report · Generated ${formatDate(new Date().toISOString())}</div>
   </div>
 
@@ -389,7 +458,7 @@ export function generateReportHTML(data: ReportData): string {
       </dl>
     </div>
     <div class="result" style="background:${resultBg};border:1px solid ${resultColor}33;">
-      ${pill(marks.passed ? 'Passed' : 'Failed', resultColor, '#fff')}
+      ${pill(data.provisional ? 'Provisional' : marks.passed ? 'Passed' : 'Failed', resultColor, '#fff')}
       <div class="result-score" style="color:${resultColor};">${marks.percentage.toFixed(1)}%</div>
       <div class="muted small">Passing score ${marks.passing_score}%</div>
       ${cohort?.rank ? `<div class="rank">Ranked <b>${ordinal(cohort.rank)}</b> of ${cohort.completed_count}${cohort.percentile !== null ? ` · better than ${cohort.percentile}%` : ''}</div>` : ''}
@@ -405,7 +474,9 @@ export function generateReportHTML(data: ReportData): string {
   </div>
 
   <!-- ═══ COMPARISON WITH OTHER CANDIDATES ═══ -->
-  ${cohort && cohort.completed_count > 0 ? `
+  ${
+    cohort && cohort.completed_count > 0
+      ? `
   <div class="compare">
     <div class="compare-head">
       <div class="label" style="margin:0;">Compared with ${cohort.completed_count} candidate${cohort.completed_count === 1 ? '' : 's'}</div>
@@ -416,7 +487,9 @@ export function generateReportHTML(data: ReportData): string {
       </div>
     </div>
     ${cohortBar(marks.percentage, marks.passing_score, cohort.average_score, resultColor)}
-  </div>` : ''}
+  </div>`
+      : ''
+  }
 
   <!-- ═══ INTEGRITY SUMMARY ═══ -->
   <div class="integrity" style="background:${integrityBg};border-color:${integrityColor}33;">
@@ -475,7 +548,7 @@ export function generateReportHTML(data: ReportData): string {
   </div>
   <!-- Footer -->
   <div style="text-align:center;color:#4a4a6a;font-size:10px;margin-top:24px;padding-top:12px;border-top:1px solid #1a1a30;">
-    Generated by WissenCode Assessment Platform &nbsp;|&nbsp; ${new Date().toISOString()}
+    Generated by Wissen Code Assessment Platform &nbsp;|&nbsp; ${new Date().toISOString()}
   </div>
 </div>
 </body>

@@ -1,0 +1,216 @@
+services:
+  - type: web
+    name: wissen-frontend
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    dockerfilePath: ./client/deployment/Render.Dockerfile
+    dockerContext: ./client
+    healthCheckPath: /
+    envVars:
+      - key: BACKEND_HOSTPORT
+        fromService:
+          name: wissen-api
+          type: pserv
+          property: hostport
+  - type: pserv
+    name: wissen-api
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    preDeployCommand: npx prisma migrate deploy
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '10000'
+      - key: TRUST_PROXY
+        value: '1'
+      - key: ASYNC_GRADING
+        value: '1'
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MONITORING_TOKEN
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wissen-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: wissen-redis
+          type: keyvalue
+          property: connectionString
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: JUDGE_MODE
+        value: live
+      - key: JUDGE0_API_URL
+        sync: false
+      - key: JUDGE0_API_KEY
+        sync: false
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+  - type: worker
+    name: wissen-ai-worker
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    preDeployCommand: npx prisma migrate deploy
+    dockerCommand: node dist/ai/worker.js
+    envVars:
+      - key: AI_PROVIDER
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: AI_PROVIDER
+      - key: GROQ_API_KEY
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: GROQ_API_KEY
+      - key: GROQ_MODEL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: GROQ_MODEL
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: DATABASE_URL
+      - key: REDIS_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: REDIS_URL
+      - key: JUDGE_MODE
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: JUDGE_MODE
+      - key: JUDGE0_API_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: JUDGE0_API_URL
+      - key: JUDGE0_API_KEY
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: JUDGE0_API_KEY
+      - key: OPENAI_API_KEY
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: OPENAI_API_KEY
+      - key: OPENAI_MODEL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: OPENAI_MODEL
+  - type: worker
+    name: wissen-grading-worker
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    preDeployCommand: npx prisma migrate deploy
+    dockerCommand: node dist/platform/grading-worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: DATABASE_URL
+      - key: REDIS_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: REDIS_URL
+      - key: JUDGE_MODE
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: JUDGE_MODE
+      - key: JUDGE0_API_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: JUDGE0_API_URL
+      - key: JUDGE0_API_KEY
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: JUDGE0_API_KEY
+  - type: worker
+    name: wissen-mail-worker
+    runtime: docker
+    region: singapore
+    plan: 0.5c-512mb
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    preDeployCommand: npx prisma migrate deploy
+    dockerCommand: node dist/platform/worker.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: DATABASE_URL
+      - key: APP_URL
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: APP_URL
+      - key: RESEND_API_KEY
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: RESEND_API_KEY
+      - key: MAIL_FROM
+        fromService:
+          name: wissen-api
+          type: pserv
+          envVarKey: MAIL_FROM
+  - type: keyvalue
+    name: wissen-redis
+    region: singapore
+    plan: 256mb
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
+
+databases:
+  - name: wissen-db
+    region: singapore
+    plan: 0.1c-256mb
+    postgresMajorVersion: '16'
+    databaseName: wissen_code
+    user: wissen
+    ipAllowList: []

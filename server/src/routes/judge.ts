@@ -3,6 +3,49 @@ import { executeCode, LANGUAGE_MAP } from '../services/judge0';
 import prisma from '../prisma';
 
 const router = Router();
+router.use(async (req, res, next) => {
+  if (req.method !== 'POST' || req.user?.role !== 'candidate') return next();
+  try {
+    const questionId =
+      req.path === '/run-tests' ? Number(req.body.questionId) : undefined;
+    if (questionId !== undefined && !Number.isInteger(questionId))
+      return res.status(400).json({ error: 'A valid question ID is required' });
+    const sessions = await prisma.assessmentSession.findMany({
+      where: {
+        candidateUserId: req.user.id,
+        finishedAt: null,
+        ...(questionId
+          ? { assessment: { questions: { some: { questionId } } } }
+          : {}),
+      },
+      select: {
+        startedAt: true,
+        durationMinutes: true,
+        assessment: { select: { timeLimitMinutes: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 20,
+    });
+    if (
+      !sessions.some(
+        (session) =>
+          Date.now() <
+          session.startedAt.getTime() +
+            (session.durationMinutes ?? session.assessment.timeLimitMinutes) *
+              60000,
+      )
+    )
+      return res
+        .status(403)
+        .json({
+          error:
+            'Start an active assessment before running code or viewing sample results',
+        });
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
 // POST /api/judge/run — Run code against custom input (for "Run code" button)
 router.post('/run', async (req: Request, res: Response) => {
@@ -10,7 +53,9 @@ router.post('/run', async (req: Request, res: Response) => {
     const { sourceCode, languageId, stdin } = req.body;
 
     if (!sourceCode || !languageId) {
-      return res.status(400).json({ error: 'sourceCode and languageId are required' });
+      return res
+        .status(400)
+        .json({ error: 'sourceCode and languageId are required' });
     }
 
     const result = await executeCode({
@@ -31,8 +76,7 @@ router.post('/run', async (req: Request, res: Response) => {
       statusDescription: result.status.description,
       executionTime: result.time,
       memoryUsed: result.memory,
-      isError:
-        result.status.id !== 3, // 3 = Accepted (successful execution)
+      isError: result.status.id !== 3, // 3 = Accepted (successful execution)
     };
 
     res.json(output);
@@ -55,14 +99,18 @@ router.post('/run-tests', async (req: Request, res: Response) => {
     const { sourceCode, languageId, questionId } = req.body;
 
     if (!sourceCode || !languageId || !questionId) {
-      return res.status(400).json({ error: 'sourceCode, languageId, and questionId are required' });
+      return res
+        .status(400)
+        .json({ error: 'sourceCode, languageId, and questionId are required' });
     }
 
     // Fetch only sample test cases
     const question = await prisma.question.findUnique({
+      // Interview-private questions execute through the interview APIs only.
       where: { id: questionId },
-      select: { timeLimit: true, memoryLimit: true },
+      select: { timeLimit: true, memoryLimit: true, questionType: true, ownerInterviewId: true },
     });
+    if (question?.ownerInterviewId != null) return res.status(404).json({ error: 'Question not found in the shared bank' });
 
     const sampleTestCases = await prisma.testCase.findMany({
       where: { questionId, isSample: true },
@@ -70,7 +118,10 @@ router.post('/run-tests', async (req: Request, res: Response) => {
     });
 
     if (sampleTestCases.length === 0) {
-      return res.json({ verdicts: [], message: 'No sample test cases found for this question.' });
+      return res.json({
+        verdicts: [],
+        message: 'No sample test cases found for this question.',
+      });
     }
 
     const cpuTimeLimit = question?.timeLimit || 5;
@@ -83,9 +134,12 @@ router.post('/run-tests', async (req: Request, res: Response) => {
 
       try {
         const result = await executeCode({
-          sourceCode,
+          sourceCode:
+            question?.questionType === 'sql'
+              ? `${tc.input}\n${sourceCode}`
+              : sourceCode,
           languageId,
-          stdin: tc.input,
+          stdin: question?.questionType === 'sql' ? '' : tc.input,
           expectedOutput: tc.expectedOutput,
           cpuTimeLimit,
           memoryLimit,
@@ -104,7 +158,11 @@ router.post('/run-tests', async (req: Request, res: Response) => {
           actualOutput: result.stdout || '',
           passed,
           statusId: result.status.id,
-          statusDescription: passed ? 'Accepted' : (isAccepted ? 'Wrong Answer' : result.status.description),
+          statusDescription: passed
+            ? 'Accepted'
+            : isAccepted
+              ? 'Wrong Answer'
+              : result.status.description,
           stderr: result.stderr || '',
           compileOutput: result.compile_output || '',
           message: result.message || '',
@@ -130,7 +188,7 @@ router.post('/run-tests', async (req: Request, res: Response) => {
     }
 
     // Summary counts
-    const passedCount = verdicts.filter(v => v.passed).length;
+    const passedCount = verdicts.filter((v) => v.passed).length;
 
     res.json({
       verdicts,

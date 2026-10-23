@@ -1,0 +1,47 @@
+import { createRequire } from 'node:module';
+import { randomUUID, randomBytes } from 'node:crypto';
+import assert from 'node:assert/strict';
+const require = createRequire(new URL('../server/package.json', import.meta.url));
+require('dotenv').config({ path: new URL('../server/.env', import.meta.url).pathname });
+const puppeteer = require('puppeteer');
+const { PrismaClient } = require('@prisma/client');
+const jwt = require('jsonwebtoken');
+const db = new PrismaClient();
+let browser, user, interview, question;
+const origin = process.env.BROWSER_TEST_URL || 'http://localhost:3000';
+try {
+  user = await db.user.create({ data: { name: 'Live browser interviewer', email: `live-browser-${randomUUID()}@test.invalid`, password: 'unused', role: 'interviewer' } });
+  const session = await db.userSession.create({ data: { userId: user.id, refreshToken: randomBytes(32).toString('hex'), expiresAt: new Date(Date.now() + 600000) } });
+  const token = jwt.sign({ id: user.id, name: user.name, email: user.email, role: user.role, sessionId: session.id }, process.env.JWT_SECRET, { expiresIn: '10m' });
+  question = await db.question.create({ data: { title: 'Live typing fixture', statement: 'Read and print one integer.', difficulty: 'easy' } });
+  interview = await db.interview.create({ data: { title: 'Live browser verification', interviewerId: user.id, candidateName: 'Browser candidate', candidateEmail: 'browser@test.invalid', roomToken: randomUUID(), status: 'in_progress', startedAt: new Date(), currentQuestionId: question.id, currentCode: 'print(1)', questions: { create: [{ questionId: question.id, status: 'active' }] } } });
+  browser = await puppeteer.launch({ headless: true, ...(process.env.PUPPETEER_EXECUTABLE_PATH ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH } : {}), args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  const interviewerContext = await browser.createBrowserContext();
+  const interviewer = await interviewerContext.newPage();
+  await interviewer.setViewport({ width: 1440, height: 1000 });
+  await interviewer.evaluateOnNewDocument((auth) => { localStorage.setItem('wissen-user', JSON.stringify(auth.user)); localStorage.setItem('wissen-token', auth.token); }, { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token });
+  const errors = [];
+  interviewer.on('pageerror', (error) => errors.push(error.message));
+  await interviewer.goto(`${origin}/admin/interviews/${interview.id}?tab=live`, { waitUntil: 'networkidle2' });
+  const candidateContext = await browser.createBrowserContext();
+  const candidate = await candidateContext.newPage();
+  await candidate.setViewport({ width: 1440, height: 1000 });
+  candidate.on('pageerror', (error) => errors.push(error.message));
+  await candidate.goto(`${origin}/interview/${interview.roomToken}`, { waitUntil: 'networkidle2' });
+  await candidate.waitForSelector('.monaco-editor textarea.inputarea', { timeout: 30000 });
+  await candidate.waitForFunction(() => document.body.innerText.includes('Saved'), { timeout: 15000 });
+  await candidate.focus('.monaco-editor textarea.inputarea');
+  await candidate.keyboard.down('Control'); await candidate.keyboard.press('KeyA'); await candidate.keyboard.up('Control');
+  const code = 'print("candidate_live_marker")';
+  await candidate.keyboard.type(code, { delay: 25 });
+  await interviewer.waitForFunction(() => [...document.querySelectorAll('.view-lines')].some((node) => node.textContent.includes('candidate_live_marker')), { timeout: 15000 });
+  assert.equal((await db.interview.findUniqueOrThrow({ where: { id: interview.id } })).currentCode, code);
+  console.log('PASS: candidate typing appears in the interviewer Monaco editor and is saved.');
+  assert.deepEqual(errors, []);
+} finally {
+  if (browser) await browser.close();
+  if (interview) await db.interview.delete({ where: { id: interview.id } });
+  if (question) await db.question.delete({ where: { id: question.id } });
+  if (user) await db.user.delete({ where: { id: user.id } });
+  await db.$disconnect();
+}

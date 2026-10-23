@@ -1,12 +1,34 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 const MOCK_USERS = [
-  { name: 'Ava Patel', email: 'admin@wissen.dev', password: 'Admin@123', role: 'admin' },
-  { name: 'Rahul Singh', email: 'rahul@wissen.dev', password: 'Candidate@123', role: 'candidate' },
-  { name: 'Maria Gomez', email: 'maria@wissen.dev', password: 'Candidate@123', role: 'candidate' },
+  {
+    name: 'Ava Patel',
+    email: 'admin@wissen.dev',
+    password: 'Admin@123',
+    role: 'admin',
+  },
+  {
+    name: 'David Kim',
+    email: 'interviewer@wissen.dev',
+    password: 'Interviewer@123',
+    role: 'interviewer',
+  },
+  {
+    name: 'Rahul Singh',
+    email: 'rahul@wissen.dev',
+    password: 'Candidate@123',
+    role: 'candidate',
+  },
+  {
+    name: 'Maria Gomez',
+    email: 'maria@wissen.dev',
+    password: 'Candidate@123',
+    role: 'candidate',
+  },
 ];
 
 async function main() {
@@ -21,7 +43,7 @@ async function main() {
         email: u.email,
         password: hash,
         role: u.role,
-      }
+      },
     });
   }
   console.log('Demo Users seeded successfully!');

@@ -9,18 +9,24 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('AuthContext', () => {
-  it('starts logged out when there is no stored session', () => {
+  it('uses interviewer access for sessions whose older primary role was admin', () => {
+    localStorage.setItem('wissen-user', JSON.stringify({ ...adminUser, accessRole: 'interviewer' }));
+    localStorage.setItem('wissen-token', 'test-token');
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    expect(result.current.role).toBe('interviewer');
+  });
+  it('starts logged out when there is no stored session', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
     expect(result.current.isLoggedIn).toBe(false);
     expect(result.current.user).toBeNull();
     expect(result.current.role).toBe('candidate');
   });
 
-  it('logs in successfully with valid credentials and exposes the user/role', () => {
+  it('logs in successfully with valid credentials and exposes the user/role', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
 
-    act(() => {
-      const success = result.current.login(adminUser.email, adminUser.password);
+    await act(async () => {
+      const success = await result.current.login(adminUser.email, adminUser.password);
       expect(success).toBe(true);
     });
 
@@ -30,11 +36,11 @@ describe('AuthContext', () => {
     expect(result.current.authError).toBeNull();
   });
 
-  it('rejects invalid credentials and sets an error message', () => {
+  it('rejects invalid credentials and sets an error message', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
 
-    act(() => {
-      const success = result.current.login(adminUser.email, 'wrong-password');
+    await act(async () => {
+      const success = await result.current.login(adminUser.email, 'wrong-password');
       expect(success).toBe(false);
     });
 
@@ -42,10 +48,10 @@ describe('AuthContext', () => {
     expect(result.current.authError).toMatch(/invalid/i);
   });
 
-  it('persists the session across a fresh provider mount', () => {
+  it('persists the session across a fresh provider mount', async () => {
     const first = renderHook(() => useAuth(), { wrapper });
-    act(() => {
-      first.result.current.login(candidateUser.email, candidateUser.password);
+    await act(async () => {
+      await first.result.current.login(candidateUser.email, candidateUser.password);
     });
 
     const second = renderHook(() => useAuth(), { wrapper });
@@ -53,13 +59,13 @@ describe('AuthContext', () => {
     expect(second.result.current.user?.email).toBe(candidateUser.email);
   });
 
-  it('clears the session on logout', () => {
+  it('clears the session on logout', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    act(() => {
-      result.current.login(adminUser.email, adminUser.password);
+    await act(async () => {
+      await result.current.login(adminUser.email, adminUser.password);
     });
-    act(() => {
-      result.current.logout();
+    await act(async () => {
+      await result.current.logout();
     });
 
     expect(result.current.isLoggedIn).toBe(false);
@@ -67,13 +73,13 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('wissen-user')).toBeNull();
   });
 
-  it('updates and persists profile fields', () => {
+  it('updates and persists profile fields', async () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    act(() => {
-      result.current.login(candidateUser.email, candidateUser.password);
+    await act(async () => {
+      await result.current.login(candidateUser.email, candidateUser.password);
     });
-    act(() => {
-      result.current.updateProfile({ name: 'New Name' });
+    await act(async () => {
+      await result.current.updateProfile({ name: 'New Name' });
     });
 
     expect(result.current.user?.name).toBe('New Name');
