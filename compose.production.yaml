@@ -21,6 +21,7 @@ services:
   worker:
     restart: unless-stopped
     environment:
+      NODE_ENV: production
       JUDGE_MODE: live
       JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
   grading-worker:

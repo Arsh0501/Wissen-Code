@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../config/environment';
 import { deliverWebhooks } from './webhooks';
 import prisma from '../prisma';
 import { deliverOutbox } from './communication';

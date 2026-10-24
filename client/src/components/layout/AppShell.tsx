@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import ConnectionStatus from './ConnectionStatus';
 
 // Shared application shell: persistent side navigation + topbar wrapping every authenticated page.
 export default function AppShell() {
@@ -12,6 +13,7 @@ export default function AppShell() {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <Topbar />
+        <ConnectionStatus />
         <main
           id="workspace-content"
           tabIndex={-1}

@@ -319,9 +319,25 @@ try {
       path.join(os.tmpdir(), 'wissen-advanced-replay.png'),
     fullPage: true,
   });
+  stage = 'responsive workspace layouts';
+  await adminPage.goto(`${origin}/`, { waitUntil: 'networkidle0' });
+  for (const [width, height] of [[390, 844], [820, 1180], [1440, 1000]]) {
+    await adminPage.setViewport({ width, height });
+    await adminPage.waitForFunction(() => document.querySelector('#workspace-content'));
+    const layout = await adminPage.evaluate(() => ({
+      viewport: innerWidth,
+      width: document.documentElement.scrollWidth,
+      mobileNav: getComputedStyle(document.querySelector('nav[aria-label="Primary mobile"]')).display,
+      sidebar: getComputedStyle(document.querySelector('.workspace-sidebar')).display,
+    }));
+    assert.ok(layout.width <= layout.viewport + 1, `Workspace overflows at ${width}px`);
+    assert.equal(layout.sidebar === 'none', width < 768);
+    assert.equal(layout.mobileNav === 'none', width >= 768);
+    await adminPage.screenshot({ path: path.join(os.tmpdir(), `wissen-workspace-${width}.png`), fullPage: true });
+  }
   assert.deepEqual(errors, []);
   console.log(
-    'PASS: browser operations, readiness, MCQ grading, JSON/PDF reports, local Monaco, shared code, persisted chat, whiteboard, loopback video with simulated media, and replay.',
+    'PASS: browser operations, readiness, MCQ grading, JSON/PDF reports, local Monaco, shared code, persisted chat, whiteboard, loopback video with simulated media, replay, and phone/tablet/desktop workspace layouts.',
   );
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error);

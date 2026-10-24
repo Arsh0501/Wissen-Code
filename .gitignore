@@ -22,3 +22,9 @@ dist/
 # Database backups contain candidate data
 backups/
 *.dump
+
+# Environment-specific secrets; templates are safe to commit
+.env.*
+**/.env.*
+!**/.env.example
+!**/.env.*.example

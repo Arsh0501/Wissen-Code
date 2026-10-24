@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../config/environment';
 import { Worker } from 'bullmq';
 import prisma from '../prisma';
 import { publishAIResults } from './realtime';

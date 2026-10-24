@@ -3,7 +3,7 @@ import { buildReportData } from '../routes/admin-reports';
 import { ExecutionLimiter } from '../platform/execution-limit';
 import { verifyAccessToken } from '../middleware/auth';
 import axios from 'axios';
-import 'dotenv/config';
+import '../config/environment';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';

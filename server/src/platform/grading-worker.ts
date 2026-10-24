@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../config/environment';
 import { Worker, DelayedError } from 'bullmq';
 import prisma from '../prisma';
 import { redisConnection } from '../ai/queue';
