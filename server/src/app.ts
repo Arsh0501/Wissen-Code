@@ -56,11 +56,13 @@ app.use((req, res, next) => {
   next();
 });
 app.use(helmet());
+// Hundreds of candidates often share one public IP (office / campus NAT), so the
+// per-IP ceiling is high; brute force is throttled per account below instead.
 app.use(
   '/api/auth',
   rateLimit({
     windowMs: 60000,
-    limit: 30,
+    limit: Number(process.env.AUTH_RATE_LIMIT_PER_IP || 600),
     standardHeaders: true,
     legacyHeaders: false,
   }),
@@ -91,6 +93,19 @@ app.get('/api/metrics', metrics);
 
 // Auth & Profile routes (register/login are public; /me & /profile require a token internally)
 app.use('/api/auth/sso', ssoRoutes);
+app.use(
+  '/api/auth',
+  rateLimit({
+    windowMs: 60000,
+    limit: Number(process.env.AUTH_RATE_LIMIT_PER_ACCOUNT || 20),
+    keyGenerator: (req) =>
+      `account:${String(req.body?.email || '').trim().toLowerCase()}`,
+    skip: (req) => typeof req.body?.email !== 'string' || !req.body.email,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many attempts for this account. Try again in a minute.' },
+  }),
+);
 app.use('/api/auth', accountRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', authRoutes);

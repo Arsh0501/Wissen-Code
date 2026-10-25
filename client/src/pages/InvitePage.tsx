@@ -1,12 +1,12 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { getPublicInvite, joinInvite, apiError } from '../services/api';
-import type { PublicInvite } from '../services/api';
-import { formatDate } from '../components/ui';
-import ThemeToggle from '../components/ThemeToggle';
+import BrandLogo from "../components/landing/BrandLogo";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { getPublicInvite, joinInvite, apiError } from "../services/api";
+import type { PublicInvite } from "../services/api";
+import { formatDate } from "../components/ui";
+import ThemeToggle from "../components/ThemeToggle";
 import {
-  Code2,
   Clock,
   FileText,
   Target,
@@ -15,18 +15,18 @@ import {
   AlertTriangle,
   ShieldCheck,
   Link2Off,
-} from 'lucide-react';
+} from "lucide-react";
 
 // Public landing page for a shared test link: shows the test and asks only for name + email
 export default function InvitePage() {
-  const { token = '' } = useParams();
+  const { token = "" } = useParams();
   const navigate = useNavigate();
   const { user, signInWithToken } = useAuth();
   const [invite, setInvite] = useState<PublicInvite | null>(null);
-  const [loadError, setLoadError] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState("");
   const [hasAccount, setHasAccount] = useState(false);
   const [joining, setJoining] = useState(false);
 
@@ -34,13 +34,13 @@ export default function InvitePage() {
     getPublicInvite(token)
       .then(setInvite)
       .catch((err) =>
-        setLoadError(apiError(err, 'This link could not be opened.')),
+        setLoadError(apiError(err, "This link could not be opened.")),
       );
   }, [token]);
 
   async function handleJoin(e: FormEvent) {
     e.preventDefault();
-    setError('');
+    setError("");
     setHasAccount(false);
     setJoining(true);
     try {
@@ -48,8 +48,8 @@ export default function InvitePage() {
       signInWithToken(res.user, res.token);
       navigate(`/exam/${res.assessmentId}`, { replace: true });
     } catch (err: any) {
-      setHasAccount(err?.response?.data?.code === 'HAS_ACCOUNT');
-      setError(apiError(err, 'Could not start the test. Please try again.'));
+      setHasAccount(err?.response?.data?.code === "HAS_ACCOUNT");
+      setError(apiError(err, "Could not start the test. Please try again."));
       setJoining(false);
     }
   }
@@ -63,14 +63,13 @@ export default function InvitePage() {
 
       <ThemeToggle className="absolute top-4 right-4" />
       <div className="relative w-full max-w-lg animate-fade-in">
-        <div className="flex items-center justify-center gap-2.5 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-            <Code2 className="w-5 h-5 text-on-accent" />
-          </div>
-          <span className="text-lg font-bold text-white tracking-tight">
-            Wissen Code
-          </span>
-        </div>
+        <Link
+          to="/candidates"
+          className="flex justify-center mb-6"
+          aria-label="Wissen Code candidate space"
+        >
+          <BrandLogo />
+        </Link>
 
         {loadError ? (
           <div className="card text-center py-10">
@@ -100,17 +99,17 @@ export default function InvitePage() {
                 {[
                   {
                     icon: Clock,
-                    label: 'Time',
+                    label: "Time",
                     value: `${a.timeLimitMinutes} min`,
                   },
                   {
                     icon: FileText,
-                    label: 'Questions',
+                    label: "Questions",
                     value: String(a.questionCount),
                   },
                   {
                     icon: Target,
-                    label: 'Pass mark',
+                    label: "Pass mark",
                     value: `${a.passingScore}%`,
                   },
                 ].map(({ icon: Icon, label, value }) => (
@@ -129,7 +128,7 @@ export default function InvitePage() {
               </div>
               {a.endAt && (
                 <p className="flex items-center gap-1.5 text-xs text-surface-500 mt-3">
-                  <Calendar className="w-3.5 h-3.5" /> Available until{' '}
+                  <Calendar className="w-3.5 h-3.5" /> Available until{" "}
                   {formatDate(a.endAt)}
                 </p>
               )}
@@ -139,7 +138,7 @@ export default function InvitePage() {
               <form onSubmit={handleJoin} className="p-6 space-y-4">
                 {user && (
                   <p className="text-xs text-surface-500 rounded-lg bg-surface-950 ring-1 ring-surface-800 px-3 py-2">
-                    You&apos;re currently signed in as{' '}
+                    You&apos;re currently signed in as{" "}
                     <b className="text-surface-300">{user.name}</b>. Continuing
                     will switch to the details below.
                   </p>
@@ -185,7 +184,7 @@ export default function InvitePage() {
                     {hasAccount && (
                       <button
                         type="button"
-                        onClick={() => navigate('/login')}
+                        onClick={() => navigate("/candidate/login")}
                         className="block mt-1 font-semibold underline"
                       >
                         Go to sign in
@@ -197,7 +196,7 @@ export default function InvitePage() {
                 <div className="rounded-lg bg-surface-950 ring-1 ring-surface-800 p-3 text-xs text-surface-400 flex gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>
-                    The timer starts only when you click{' '}
+                    The timer starts only when you click{" "}
                     <b className="text-surface-200">Start Assessment</b> on the
                     next screen. During the test, leaving the tab 3 times
                     submits it automatically.
@@ -210,7 +209,7 @@ export default function InvitePage() {
                   className="btn-primary w-full py-2.5"
                 >
                   {joining ? (
-                    'Opening test...'
+                    "Opening test..."
                   ) : (
                     <>
                       Continue to test <ArrowRight className="w-4 h-4" />

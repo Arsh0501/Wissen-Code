@@ -286,7 +286,7 @@ export default function RoomTools({
             role="img"
             aria-label="Shared drawing whiteboard"
             viewBox="0 0 1000 600"
-            className="w-full bg-white rounded-lg border border-surface-700 touch-none"
+            className="w-full bg-on-accent rounded-lg border border-surface-700 touch-none"
             onPointerDown={(e) => {
               if (!socket?.connected) return;
               e.currentTarget.setPointerCapture(e.pointerId);

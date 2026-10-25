@@ -9,6 +9,8 @@ import {
   mailConfigured,
   tokenHash,
 } from './communication';
+import { sendNow, sendOtpMail } from './notifications';
+import { OTP_PURPOSES, OTP_TTL_SECONDS, verifyOtp } from './otp';
 const router = Router();
 const wrap =
   (fn: (req: Request, res: Response) => Promise<unknown>) =>
@@ -27,13 +29,16 @@ router.post(
     const user = await prisma.user.findUnique({
       where: { email: email.trim().toLowerCase() },
     });
-    if (user && !user.isGuest) {
+    // Guests (joined through an invite link) may claim the account the same way:
+    // proving control of the inbox is what sets their first password.
+    if (user) {
       const link = await accountLink(user.id, 'reset');
-      await enqueueMail(
+      const message = await enqueueMail(
         user.email,
-        'Reset your Wissen Code password',
-        `Reset your password within 30 minutes:\n${link}\n\nIf you did not request this, ignore this email.`,
+        user.isGuest ? 'Set your Wissen Code password' : 'Reset your Wissen Code password',
+        `${user.isGuest ? 'Set your password' : 'Reset your password'} within 30 minutes:\n${link}\n\nIf you did not request this, ignore this email.`,
       );
+      sendNow([message.id]);
     }
     res.json({
       message: 'If the account exists, a recovery email will be sent.',
@@ -66,7 +71,10 @@ router.post(
         data: { consumedAt: new Date() },
       });
       if (!claim.count) return null;
-      await tx.user.update({ where: { id: token.userId }, data: { password } });
+      await tx.user.update({
+        where: { id: token.userId },
+        data: { password, isGuest: false },
+      });
       await tx.userSession.deleteMany({ where: { userId: token.userId } });
       await tx.accountToken.updateMany({
         where: { userId: token.userId, purpose: 'reset', consumedAt: null },
@@ -144,6 +152,57 @@ router.post(
           ? { message: 'Email verified.' }
           : { error: 'Verification link is invalid or expired.' },
       );
+  }),
+);
+router.post(
+  '/otp/request',
+  wrap(async (req, res) => {
+    const { email: raw, purpose } = z
+      .object({ email: z.email().max(254), purpose: z.enum(OTP_PURPOSES) })
+      .parse(req.body);
+    if (!mailConfigured())
+      return res.status(503).json({ error: 'Email delivery is not configured.' });
+    const email = raw.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email } });
+    // Same response for unknown accounts so the endpoint cannot enumerate users.
+    const result =
+      user && !user.isGuest
+        ? await sendOtpMail(purpose, user)
+        : { status: 'sent' as const, expiresInSeconds: OTP_TTL_SECONDS };
+    if (result.status === 'cooldown')
+      return res
+        .status(429)
+        .json({ error: 'Please wait a minute before requesting another code.' });
+    res.json({
+      message: 'If the account exists, a code has been sent.',
+      expiresInSeconds: result.expiresInSeconds,
+    });
+  }),
+);
+router.post(
+  '/otp/verify',
+  wrap(async (req, res) => {
+    const { email, purpose, code } = z
+      .object({
+        email: z.email().max(254),
+        purpose: z.enum(OTP_PURPOSES),
+        code: z.string().regex(/^\d{6}$/),
+      })
+      .parse(req.body);
+    const result = await verifyOtp(purpose, email, code);
+    if (!result.ok)
+      return res.status(result.reason === 'locked' ? 429 : 400).json({
+        error:
+          result.reason === 'locked'
+            ? 'Too many incorrect attempts. Request a new code after it expires.'
+            : 'This code is invalid or expired.',
+      });
+    if (purpose === 'email-verification')
+      await prisma.user.updateMany({
+        where: { email: email.trim().toLowerCase(), emailVerifiedAt: null },
+        data: { emailVerifiedAt: new Date() },
+      });
+    res.json({ verified: true });
   }),
 );
 export default router;

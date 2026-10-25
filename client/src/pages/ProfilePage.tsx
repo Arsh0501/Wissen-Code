@@ -1,16 +1,16 @@
-import { useState, type FormEvent } from 'react';
-import { useAuth } from '../context/AuthContext';
-import UserAvatar from '../components/layout/UserAvatar';
-import { Save, Check } from 'lucide-react';
-import api, { apiError } from '../services/api';
+import { useState, type FormEvent } from "react";
+import { useAuth } from "../context/AuthContext";
+import UserAvatar from "../components/layout/UserAvatar";
+import { Save, Check } from "lucide-react";
+import api, { apiError } from "../services/api";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ProfilePage() {
   const { user, role, updateProfile } = useAuth();
-  const [verification, setVerification] = useState('');
-  const [name, setName] = useState(user?.name ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
+  const [verification, setVerification] = useState("");
+  const [name, setName] = useState(user?.name ?? "");
+  const [email, setEmail] = useState(user?.email ?? "");
   const [formError, setFormError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -22,11 +22,11 @@ export default function ProfilePage() {
     setSaved(false);
 
     if (!name.trim() || !email.trim()) {
-      setFormError('Name and email are required.');
+      setFormError("Name and email are required.");
       return;
     }
     if (!EMAIL_RE.test(email.trim())) {
-      setFormError('Enter a valid email address.');
+      setFormError("Enter a valid email address.");
       return;
     }
 
@@ -36,7 +36,7 @@ export default function ProfilePage() {
       await updateProfile({ name: name.trim() });
       setSaved(true);
     } catch (error) {
-      setFormError(apiError(error, 'Failed to save profile'));
+      setFormError(apiError(error, "Failed to save profile"));
     } finally {
       setSaving(false);
     }
@@ -46,15 +46,36 @@ export default function ProfilePage() {
     <div className="animate-fade-in max-w-2xl mx-auto">
       <div className="page-heading">
         <p className="eyebrow mb-2">Account settings</p>
-        <h2 className="text-2xl font-bold text-white">Profile</h2>
+        <h1 className="text-2xl font-bold text-white">Profile</h1>
         <p className="text-surface-400 text-sm mt-1">
           Manage your account information.
         </p>
       </div>
 
-      <div className="card mb-5"><h3 className="font-semibold mb-3">Email verification</h3><button className="btn-outline" disabled={!!user.guest} onClick={async () => { try { const { data } = await api.post('/auth/request-verification'); setVerification(data.message); } catch (error) { setVerification(apiError(error)); } }}>Request verification email</button>{verification && <p role="status" className="mt-3 text-sm">{verification}</p>}</div>
+      <div className="card mb-5">
+        <h3 className="font-semibold mb-3">Email verification</h3>
+        <button
+          className="btn-outline"
+          disabled={!!user.guest}
+          onClick={async () => {
+            try {
+              const { data } = await api.post("/auth/request-verification");
+              setVerification(data.message);
+            } catch (error) {
+              setVerification(apiError(error));
+            }
+          }}
+        >
+          Request verification email
+        </button>
+        {verification && (
+          <p role="status" className="mt-3 text-sm">
+            {verification}
+          </p>
+        )}
+      </div>
       <div className="card">
-        <div className="flex items-center gap-4 mb-6">
+        <div className="profile-identity flex items-center gap-4 mb-6">
           <UserAvatar user={user} size="lg" />
           <div>
             <p className="text-lg font-semibold text-white">{user.name}</p>
@@ -125,7 +146,7 @@ export default function ProfilePage() {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            {saving ? 'Saving…' : saved ? 'Saved' : 'Save Changes'}
+            {saving ? "Saving…" : saved ? "Saved" : "Save Changes"}
           </button>
         </form>
       </div>

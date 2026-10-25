@@ -1,12 +1,19 @@
-import { Outlet } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import Topbar from './Topbar';
-import ConnectionStatus from './ConnectionStatus';
+import { Outlet, useLocation } from "react-router-dom";
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
+import ConnectionStatus from "./ConnectionStatus";
 
 // Shared application shell: persistent side navigation + topbar wrapping every authenticated page.
 export default function AppShell() {
+  const { pathname } = useLocation();
+  const section =
+    pathname.split("/")[2] ||
+    (pathname === "/profile" ? "profile" : "dashboard");
   return (
-    <div className="h-dvh w-full bg-surface-950 flex overflow-hidden">
+    <div
+      className="workspace-shell h-dvh w-full bg-surface-950 flex overflow-hidden"
+      data-section={section}
+    >
       <a href="#workspace-content" className="skip-link">
         Skip to content
       </a>
@@ -19,7 +26,9 @@ export default function AppShell() {
           tabIndex={-1}
           className="workspace-main flex-1 min-w-0 min-h-0 overflow-y-auto"
         >
-          <Outlet />
+          <div className="workspace-route" key={pathname}>
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

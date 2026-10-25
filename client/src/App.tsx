@@ -1,37 +1,41 @@
-import { lazy, Suspense } from 'react';
-const TeamPage = lazy(() => import('./pages/admin/TeamPage'));
-const OperationsPage = lazy(() => import('./pages/admin/OperationsPage'));
-const AccountAction = lazy(() => import('./pages/AccountAction'));
-import type { ReactElement } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
-import AppShell from './components/layout/AppShell';
-const LandingPage = lazy(() => import('./pages/LandingPage'));
-const LoginPage = lazy(() => import('./pages/LoginPage'));
-const InvitePage = lazy(() => import('./pages/InvitePage'));
-const AssessmentDashboard = lazy(
-  () => import('./pages/admin/AssessmentDashboard'),
+import { lazy, Suspense } from "react";
+const TeamPage = lazy(() => import("./pages/admin/TeamPage"));
+const OperationsPage = lazy(() => import("./pages/admin/OperationsPage"));
+const AccountAction = lazy(() => import("./pages/AccountAction"));
+import type { ReactElement } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import AppShell from "./components/layout/AppShell";
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const LoginChooser = lazy(() => import("./pages/LoginChooser"));
+const CandidateWelcome = lazy(
+  () => import("./pages/candidate/CandidateWelcome"),
 );
-const QuestionBank = lazy(() => import('./pages/admin/QuestionBank'));
+const InvitePage = lazy(() => import("./pages/InvitePage"));
+const AssessmentDashboard = lazy(
+  () => import("./pages/admin/AssessmentDashboard"),
+);
+const QuestionBank = lazy(() => import("./pages/admin/QuestionBank"));
 
-const AIQuestions = lazy(() => import('./pages/admin/AIQuestions'));
-const InterviewsPage = lazy(() => import('./pages/admin/InterviewsPage'));
+const AIQuestions = lazy(() => import("./pages/admin/AIQuestions"));
+const InterviewsPage = lazy(() => import("./pages/admin/InterviewsPage"));
 const InterviewWorkspace = lazy(
-  () => import('./pages/admin/InterviewWorkspace'),
+  () => import("./pages/admin/InterviewWorkspace"),
 );
 const CandidateInterview = lazy(
-  () => import('./pages/candidate/CandidateInterview'),
+  () => import("./pages/candidate/CandidateInterview"),
 );
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const QuestionForm = lazy(() => import('./pages/admin/QuestionForm'));
-const AssessmentManager = lazy(() => import('./pages/admin/AssessmentManager'));
-const AssessmentForm = lazy(() => import('./pages/admin/AssessmentForm'));
-const SubmissionsViewer = lazy(() => import('./pages/admin/SubmissionsViewer'));
-const CandidateReport = lazy(() => import('./pages/admin/CandidateReport'));
-const ExamDashboard = lazy(() => import('./pages/candidate/ExamDashboard'));
-const AssessmentView = lazy(() => import('./pages/candidate/AssessmentView'));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const QuestionForm = lazy(() => import("./pages/admin/QuestionForm"));
+const AssessmentManager = lazy(() => import("./pages/admin/AssessmentManager"));
+const AssessmentForm = lazy(() => import("./pages/admin/AssessmentForm"));
+const SubmissionsViewer = lazy(() => import("./pages/admin/SubmissionsViewer"));
+const CandidateReport = lazy(() => import("./pages/admin/CandidateReport"));
+const ExamDashboard = lazy(() => import("./pages/candidate/ExamDashboard"));
+const AssessmentView = lazy(() => import("./pages/candidate/AssessmentView"));
 const SubmissionResult = lazy(
-  () => import('./pages/candidate/SubmissionResult'),
+  () => import("./pages/candidate/SubmissionResult"),
 );
 
 function RequireAuth({ children }: { children: ReactElement }) {
@@ -41,14 +45,14 @@ function RequireAuth({ children }: { children: ReactElement }) {
 
 function RequireAdmin({ children }: { children: ReactElement }) {
   const { role } = useAuth();
-  return role === 'admin' ? children : <Navigate to="/" replace />;
+  return role === "admin" ? children : <Navigate to="/" replace />;
 }
 
 function RootDashboard() {
   const { role, user } = useAuth();
-  if (user?.accessRole === 'interviewer')
+  if (user?.accessRole === "interviewer")
     return <Navigate to="/admin/interviews" replace />;
-  return role === 'admin' ? <AssessmentDashboard /> : <ExamDashboard />;
+  return role === "admin" ? <AssessmentDashboard /> : <ExamDashboard />;
 }
 
 function AppRoutes() {
@@ -56,11 +60,32 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={isLoggedIn ? <AppShell /> : <LandingPage />}><Route index element={<RootDashboard />} /></Route>
+      <Route path="/" element={isLoggedIn ? <AppShell /> : <LandingPage />}>
+        <Route index element={<RootDashboard />} />
+      </Route>
+      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/candidates" element={<CandidateWelcome />} />
       <Route path="/account/:action" element={<AccountAction />} />
+      <Route path="/login" element={<LoginChooser />} />
       <Route
-        path="/login"
-        element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />}
+        path="/admin/login"
+        element={
+          isLoggedIn ? (
+            <Navigate to="/" replace />
+          ) : (
+            <LoginPage audience="hiring" />
+          )
+        }
+      />
+      <Route
+        path="/candidate/login"
+        element={
+          isLoggedIn ? (
+            <Navigate to="/" replace />
+          ) : (
+            <LoginPage audience="candidate" />
+          )
+        }
       />
       {/* Public: anyone with a shared link can open it */}
       <Route path="/invite/:token" element={<InvitePage />} />

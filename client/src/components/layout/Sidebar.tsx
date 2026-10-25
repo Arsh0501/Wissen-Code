@@ -1,7 +1,8 @@
-import { NavLink } from 'react-router-dom';
-import { Code2 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { getNavItemsForRole } from './navItems';
+import { Link, NavLink } from "react-router-dom";
+import { ArrowUpRight } from "lucide-react";
+import BrandLogo from "../landing/BrandLogo";
+import { useAuth } from "../../context/AuthContext";
+import { getNavItemsForRole } from "./navItems";
 
 export default function Sidebar() {
   const { role, user } = useAuth();
@@ -9,17 +10,13 @@ export default function Sidebar() {
 
   return (
     <aside className="workspace-sidebar hidden md:flex md:flex-col w-64 shrink-0 border-r border-surface-800 bg-surface-900/60">
-      <div className="flex items-center gap-3 px-6 py-5 border-b border-surface-800">
-        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-          <Code2 className="w-5 h-5 text-on-accent" />
-        </div>
-        <div>
-          <h1 className="text-base font-bold text-white leading-tight">
-            Wissen Code
-          </h1>
-          <p className="text-xs text-surface-500">Assessment Platform</p>
-        </div>
-      </div>
+      <Link to="/" className="workspace-brand" aria-label="Wissen Code home">
+        <BrandLogo />
+        <span className="sr-only">Wissen Code</span>
+      </Link>
+      <p className="workspace-nav-label">
+        {role === "admin" ? "MAKE GREAT CONNECTIONS" : "YOUR NEXT CHAPTER"}
+      </p>
 
       <nav aria-label="Primary" className="flex-1 px-3 py-5 space-y-1.5">
         {items.map(({ to, label, icon: Icon, end }) => (
@@ -30,8 +27,8 @@ export default function Sidebar() {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive
-                  ? 'bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/30'
-                  : 'text-surface-400 hover:text-white hover:bg-surface-800'
+                  ? "bg-primary-500/10 text-primary-700 ring-1 ring-primary-500/30"
+                  : "text-surface-400 hover:text-white hover:bg-surface-800"
               }`
             }
           >
@@ -40,6 +37,27 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      <Link
+        to={role === "admin" ? "/admin/interviews" : "/profile"}
+        className="workspace-side-note"
+      >
+        <img
+          src="/images/wissen-mascot.png"
+          alt=""
+          width="1153"
+          height="1364"
+        />
+        <span>
+          <b>{role === "admin" ? "People first." : "Be your best you."}</b>
+          <small>
+            {role === "admin" ? "Meet your next teammate" : "Make it yours"}{" "}
+            <ArrowUpRight size={12} />
+          </small>
+        </span>
+      </Link>
+      <p className="workspace-sidebar-footer">
+        A little more human. <span aria-hidden="true">✳</span>
+      </p>
     </aside>
   );
 }

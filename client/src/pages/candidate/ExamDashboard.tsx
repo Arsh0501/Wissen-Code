@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { getAssessments, startSession, apiError } from '../../services/api';
-import { formatDate, formatDuration, Spinner } from '../../components/ui';
-import type { Assessment } from '../../types';
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { getAssessments, startSession, apiError } from "../../services/api";
+import { formatDate, formatDuration, Spinner } from "../../components/ui";
+import type { Assessment } from "../../types";
 import {
   Clock,
   FileText,
@@ -23,88 +23,89 @@ import {
   ClipboardPaste,
   Save,
   XCircle,
+  Link2,
   type LucideIcon,
-} from 'lucide-react';
+} from "lucide-react";
 
 type Tone = { pill: string; stripe: string };
 
 function statusFor(a: Assessment): { label: string } & Tone {
-  if (a.candidateStatus === 'completed')
+  if (a.candidateStatus === "completed")
     return {
-      label: 'Completed',
-      pill: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25',
-      stripe: 'bg-emerald-500',
+      label: "Completed",
+      pill: "bg-emerald-500/10 text-emerald-700 ring-emerald-500/25",
+      stripe: "bg-emerald-500",
     };
-  if (a.candidateStatus === 'in-progress')
+  if (a.candidateStatus === "in-progress")
     return {
-      label: 'In progress',
-      pill: 'bg-sky-500/10 text-sky-700 ring-sky-500/25',
-      stripe: 'bg-sky-500',
+      label: "In progress",
+      pill: "bg-sky-500/10 text-sky-700 ring-sky-500/25",
+      stripe: "bg-sky-500",
     };
-  if (a.availability === 'open')
+  if (a.availability === "open")
     return {
-      label: 'Open now',
-      pill: 'bg-primary-500/10 text-primary-700 ring-primary-500/25',
-      stripe: 'bg-primary-500',
+      label: "Open now",
+      pill: "bg-primary-500/10 text-primary-700 ring-primary-500/25",
+      stripe: "bg-primary-500",
     };
-  if (a.availability === 'upcoming')
+  if (a.availability === "upcoming")
     return {
-      label: 'Scheduled',
-      pill: 'bg-amber-500/10 text-amber-700 ring-amber-500/25',
-      stripe: 'bg-amber-400',
+      label: "Scheduled",
+      pill: "bg-amber-500/10 text-amber-700 ring-amber-500/25",
+      stripe: "bg-amber-400",
     };
   return {
-    label: 'Closed',
-    pill: 'bg-surface-800 text-surface-500 ring-surface-700',
-    stripe: 'bg-surface-700',
+    label: "Closed",
+    pill: "bg-surface-800 text-surface-500 ring-surface-700",
+    stripe: "bg-surface-700",
   };
 }
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
 // "in 3 days", "in 5 hours", "in 12 minutes"
 function relativeTime(iso: string | null | undefined): string {
-  if (!iso) return '';
+  if (!iso) return "";
   const ms = new Date(iso).getTime() - Date.now();
   const abs = Math.abs(ms);
   const units: [number, string][] = [
-    [86400000, 'day'],
-    [3600000, 'hour'],
-    [60000, 'minute'],
+    [86400000, "day"],
+    [3600000, "hour"],
+    [60000, "minute"],
   ];
   for (const [size, unit] of units) {
     if (abs >= size) {
       const n = Math.round(abs / size);
-      const label = `${n} ${unit}${n === 1 ? '' : 's'}`;
+      const label = `${n} ${unit}${n === 1 ? "" : "s"}`;
       return ms >= 0 ? `in ${label}` : `${label} ago`;
     }
   }
-  return ms >= 0 ? 'in under a minute' : 'just now';
+  return ms >= 0 ? "in under a minute" : "just now";
 }
 
 function minutesLeft(seconds: number | null | undefined): string {
-  if (!seconds) return 'time almost up';
+  if (!seconds) return "time almost up";
   const m = Math.ceil(seconds / 60);
   return `${m} min left`;
 }
 
 function scoreText(pct: number) {
   return pct >= 70
-    ? 'text-emerald-600'
+    ? "text-emerald-600"
     : pct >= 40
-      ? 'text-amber-600'
-      : 'text-red-600';
+      ? "text-amber-600"
+      : "text-red-600";
 }
 
 function scoreFill(pct: number) {
   return pct >= 70
-    ? 'bg-emerald-500'
+    ? "bg-emerald-500"
     : pct >= 40
-      ? 'bg-amber-500'
-      : 'bg-red-500';
+      ? "bg-amber-500"
+      : "bg-red-500";
 }
 
 export default function ExamDashboard() {
@@ -112,37 +113,37 @@ export default function ExamDashboard() {
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     getAssessments()
       .then(setAssessments)
-      .catch((err) => setError(apiError(err, 'Failed to load assessments')))
+      .catch((err) => setError(apiError(err, "Failed to load assessments")))
       .finally(() => setLoading(false));
   }, []);
 
   const data = useMemo(() => {
     // Actionable tests first: in progress, then open (soonest deadline first), then scheduled, then closed
     const rank = (a: Assessment) =>
-      a.candidateStatus === 'in-progress'
+      a.candidateStatus === "in-progress"
         ? 0
-        : a.availability === 'open'
+        : a.availability === "open"
           ? 1
-          : a.availability === 'upcoming'
+          : a.availability === "upcoming"
             ? 2
             : 3;
     const deadline = (a: Assessment) =>
       a.endAt ? new Date(a.endAt).getTime() : Infinity;
     const pending = assessments
-      .filter((a) => a.candidateStatus !== 'completed')
+      .filter((a) => a.candidateStatus !== "completed")
       .sort((x, y) => rank(x) - rank(y) || deadline(x) - deadline(y));
     const upNext = pending.filter((a) => rank(a) < 3);
     const missed = pending.filter((a) => rank(a) === 3);
     const completed = assessments
-      .filter((a) => a.candidateStatus === 'completed')
+      .filter((a) => a.candidateStatus === "completed")
       .sort((x, y) =>
-        (y.finishedAt || y.startedAt || '').localeCompare(
-          x.finishedAt || x.startedAt || '',
+        (y.finishedAt || y.startedAt || "").localeCompare(
+          x.finishedAt || x.startedAt || "",
         ),
       );
 
@@ -159,10 +160,10 @@ export default function ExamDashboard() {
       ? Math.max(...scored.map((a) => a.result!.percentage))
       : null;
     const inProgress =
-      pending.find((a) => a.candidateStatus === 'in-progress') ?? null;
+      pending.find((a) => a.candidateStatus === "in-progress") ?? null;
     const nextOpen =
       pending.find(
-        (a) => a.candidateStatus !== 'in-progress' && a.availability === 'open',
+        (a) => a.candidateStatus !== "in-progress" && a.availability === "open",
       ) ?? null;
 
     return {
@@ -179,30 +180,39 @@ export default function ExamDashboard() {
     };
   }, [assessments]);
 
-  const firstName = candidateName?.split(' ')[0] || 'there';
+  const firstName = candidateName?.split(" ")[0] || "there";
 
   if (loading) return <Spinner label="Loading your dashboard..." />;
 
   return (
     <div className="w-full space-y-6">
       {/* HERO */}
-      <section className="relative overflow-hidden rounded-2xl border border-primary-500/15 bg-gradient-to-br from-primary-50 via-surface-900 to-sky-50 p-6 md:p-8">
+      <section className="candidate-dashboard-hero relative overflow-hidden border border-primary-500/15 p-6 md:p-8">
         <div className="pointer-events-none absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary-500/10 blur-3xl" />
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-700 bg-primary-500/10 rounded-full px-2.5 py-1 mb-3">
-              <Sparkles className="w-3.5 h-3.5" /> Candidate portal
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-              {greeting()}, {firstName}
-            </h1>
-            <p className="text-surface-500 text-sm mt-2 max-w-xl">
-              {data.inProgress
-                ? 'You have a test in progress. Your timer is still running.'
-                : data.nextOpen
-                  ? `You have ${data.upNext.filter((a) => a.availability === 'open').length} test${data.upNext.filter((a) => a.availability === 'open').length === 1 ? '' : 's'} open right now.`
-                  : 'You’re all caught up. New tests will appear here when they open.'}
-            </p>
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-700 bg-primary-500/10 rounded-full px-2.5 py-1 mb-3">
+                <Sparkles className="w-3.5 h-3.5" /> Candidate portal
+              </p>
+              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                {greeting()}, {firstName}
+              </h1>
+              <p className="text-surface-500 text-sm mt-2 max-w-xl">
+                {data.inProgress
+                  ? "You have a test in progress. Your timer is still running."
+                  : data.nextOpen
+                    ? `You have ${data.upNext.filter((a) => a.availability === "open").length} test${data.upNext.filter((a) => a.availability === "open").length === 1 ? "" : "s"} open right now.`
+                    : "You’re all caught up. New tests will appear here when they open."}
+              </p>
+            </div>
+            <img
+              className="candidate-dashboard-mascot"
+              src="/images/wissen-mascot.png"
+              alt=""
+              width="1153"
+              height="1364"
+            />
           </div>
           {data.inProgress ? (
             <NextAction
@@ -216,7 +226,7 @@ export default function ExamDashboard() {
           ) : data.nextOpen ? (
             <NextAction
               title={data.nextOpen.name}
-              meta={`${data.nextOpen.timeLimitMinutes} min · ${data.nextOpen._count?.questions ?? 0} questions${data.nextOpen.endAt ? ` · closes ${relativeTime(data.nextOpen.endAt)}` : ''}`}
+              meta={`${data.nextOpen.timeLimitMinutes} min · ${data.nextOpen._count?.questions ?? 0} questions${data.nextOpen.endAt ? ` · closes ${relativeTime(data.nextOpen.endAt)}` : ""}`}
               label="Start test"
               icon={Zap}
               onClick={() => navigate(`/exam/${data.nextOpen!.id}`)}
@@ -238,16 +248,16 @@ export default function ExamDashboard() {
           tone="bg-emerald-500/10 text-emerald-700"
           label="Completed"
           value={String(data.completed.length)}
-          hint={`of ${assessments.length} assessment${assessments.length === 1 ? '' : 's'}`}
+          hint={`of ${assessments.length} assessment${assessments.length === 1 ? "" : "s"}`}
         />
         <Stat
           icon={Target}
           tone="bg-primary-500/10 text-primary-700"
           label="Average score"
-          value={data.average === null ? '—' : `${data.average.toFixed(0)}%`}
+          value={data.average === null ? "—" : `${data.average.toFixed(0)}%`}
           hint={
             data.best === null
-              ? 'No results yet'
+              ? "No results yet"
               : `Best ${data.best.toFixed(0)}%`
           }
         />
@@ -256,7 +266,7 @@ export default function ExamDashboard() {
           tone="bg-amber-500/10 text-amber-700"
           label="Passed"
           value={
-            data.scored.length ? `${data.passed} / ${data.scored.length}` : '—'
+            data.scored.length ? `${data.passed} / ${data.scored.length}` : "—"
           }
           hint="Tests with results"
         />
@@ -264,7 +274,7 @@ export default function ExamDashboard() {
           icon={Timer}
           tone="bg-sky-500/10 text-sky-700"
           label="Time on tests"
-          value={data.timeSpent ? formatDuration(data.timeSpent) : '—'}
+          value={data.timeSpent ? formatDuration(data.timeSpent) : "—"}
           hint="Across completed tests"
         />
       </section>
@@ -278,8 +288,13 @@ export default function ExamDashboard() {
             {data.upNext.length === 0 ? (
               <EmptyCard
                 icon={Calendar}
-                title="Nothing scheduled"
-                body="When an admin opens a new assessment for you, it will show up here."
+                title="Nothing scheduled yet"
+                body="Tests and interviews show up here as soon as a hiring team opens one for you."
+                action={
+                  <Link to="/candidates" className="btn-outline">
+                    <Link2 className="w-4 h-4" /> Got an invite link? Paste it
+                  </Link>
+                }
               />
             ) : (
               <div className="space-y-3">
@@ -328,7 +343,7 @@ export default function ExamDashboard() {
                       <p className="text-xs text-surface-500">
                         {a.endAt
                           ? `Closed ${formatDate(a.endAt, false)}`
-                          : 'No longer available'}
+                          : "No longer available"}
                       </p>
                     </div>
                     <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700 gap-1 shrink-0">
@@ -369,13 +384,13 @@ function NextAction({
   return (
     <div className="rounded-xl bg-surface-900/90 ring-1 ring-surface-800 p-4 md:w-80 shrink-0 shadow-sm">
       <p
-        className={`text-[11px] font-semibold uppercase tracking-wider ${urgent ? 'text-sky-700' : 'text-primary-600'}`}
+        className={`text-[11px] font-semibold uppercase tracking-wider ${urgent ? "text-sky-700" : "text-primary-600"}`}
       >
-        {urgent ? 'Continue where you left off' : 'Recommended next'}
+        {urgent ? "Continue where you left off" : "Recommended next"}
       </p>
       <p className="text-sm font-semibold text-white mt-1 truncate">{title}</p>
       <p
-        className={`text-xs mt-0.5 ${urgent ? 'text-sky-700 font-medium' : 'text-surface-500'}`}
+        className={`text-xs mt-0.5 ${urgent ? "text-sky-700 font-medium" : "text-surface-500"}`}
       >
         {meta}
       </p>
@@ -440,7 +455,9 @@ function EmptyCard({
   icon: Icon,
   title,
   body,
+  action,
 }: {
+  action?: ReactNode;
   icon: LucideIcon;
   title: string;
   body: string;
@@ -452,42 +469,43 @@ function EmptyCard({
       </div>
       <p className="text-sm font-semibold text-white">{title}</p>
       <p className="text-xs text-surface-500 mt-1">{body}</p>
+      {action && <div className="mt-4 flex justify-center">{action}</div>}
     </div>
   );
 }
 
 function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
   const status = statusFor(a);
-  const inProgress = a.candidateStatus === 'in-progress';
-  const open = inProgress || a.availability === 'open';
+  const inProgress = a.candidateStatus === "in-progress";
+  const open = inProgress || a.availability === "open";
   const when = inProgress
     ? {
         icon: Clock,
         text: minutesLeft(a.remainingSeconds),
-        className: 'text-sky-700 font-medium',
+        className: "text-sky-700 font-medium",
       }
-    : a.availability === 'upcoming'
+    : a.availability === "upcoming"
       ? {
           icon: Calendar,
           text: `Opens ${relativeTime(a.startAt)} · ${formatDate(a.startAt)}`,
-          className: 'text-amber-700',
+          className: "text-amber-700",
         }
       : a.endAt
         ? {
             icon: Calendar,
             text: `Closes ${relativeTime(a.endAt)} · ${formatDate(a.endAt)}`,
-            className: 'text-surface-400',
+            className: "text-surface-400",
           }
         : {
             icon: Calendar,
-            text: 'No deadline',
-            className: 'text-surface-500',
+            text: "No deadline",
+            className: "text-surface-500",
           };
   const WhenIcon = when.icon;
 
   return (
     <div
-      className={`card relative overflow-hidden p-0 group transition-all duration-200 ${open ? 'cursor-pointer hover:shadow-md hover:shadow-surface-700/30 hover:border-primary-500/40' : ''}`}
+      className={`card relative overflow-hidden p-0 group transition-all duration-200 ${open ? "cursor-pointer hover:shadow-md hover:shadow-surface-700/30 hover:border-primary-500/40" : ""}`}
       onClick={() => open && onOpen()}
     >
       <span
@@ -514,7 +532,7 @@ function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
               <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes} min
             </span>
             <span className="flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5" /> {a._count?.questions ?? 0}{' '}
+              <FileText className="w-3.5 h-3.5" /> {a._count?.questions ?? 0}{" "}
               questions
             </span>
             <span className="flex items-center gap-1">
@@ -558,7 +576,7 @@ function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
 }
 
 function CompletedRow({ a }: { a: Assessment }) {
-  const [retakeError, setRetakeError] = useState('');
+  const [retakeError, setRetakeError] = useState("");
   const [retaking, setRetaking] = useState(false);
   const r = a.result;
   return (
@@ -569,7 +587,7 @@ function CompletedRow({ a }: { a: Assessment }) {
           Submitted {formatDate(a.finishedAt || a.startedAt, false)}
           {r?.timeTakenSeconds
             ? ` · ${formatDuration(r.timeTakenSeconds)}`
-            : ''}
+            : ""}
         </p>
       </div>
       <div className="flex items-center gap-4 shrink-0">
@@ -603,8 +621,8 @@ function CompletedRow({ a }: { a: Assessment }) {
         ) : (
           <span className="text-xs text-surface-500 w-[13.5rem] text-right">
             {a.showResults
-              ? 'No answers were submitted'
-              : 'Results not shared by the organiser'}
+              ? "No answers were submitted"
+              : "Results not shared by the organiser"}
           </span>
         )}
         {a.canRetake && (
@@ -613,7 +631,7 @@ function CompletedRow({ a }: { a: Assessment }) {
             disabled={retaking}
             onClick={async () => {
               setRetaking(true);
-              setRetakeError('');
+              setRetakeError("");
               try {
                 await startSession(a.id, true);
                 window.location.assign(`/exam/${a.id}`);
@@ -662,9 +680,9 @@ function PerformanceCard({ completed }: { completed: Assessment[] }) {
         </h2>
         {trend !== null && (
           <span
-            className={`text-xs font-semibold tabular-nums ${trend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+            className={`text-xs font-semibold tabular-nums ${trend >= 0 ? "text-emerald-600" : "text-red-600"}`}
           >
-            {trend >= 0 ? '+' : ''}
+            {trend >= 0 ? "+" : ""}
             {trend.toFixed(0)} pts
           </span>
         )}
@@ -697,7 +715,7 @@ function PerformanceCard({ completed }: { completed: Assessment[] }) {
                   title={`${a.name}: ${pct.toFixed(0)}% (pass ${a.passingScore}%)`}
                 >
                   <div
-                    className={`w-full max-w-[36px] rounded-t ${a.result!.passed ? 'bg-emerald-500' : 'bg-red-400'}`}
+                    className={`w-full max-w-[36px] rounded-t ${a.result!.passed ? "bg-emerald-500" : "bg-red-400"}`}
                     style={{ height: `${Math.max(2, pct)}%` }}
                   />
                   <div
@@ -744,23 +762,23 @@ function RulesCard() {
   const rules: { icon: LucideIcon; title: string; body: string }[] = [
     {
       icon: Timer,
-      title: 'The timer keeps running',
-      body: 'It starts when you click Start and continues even if you close the page.',
+      title: "The timer keeps running",
+      body: "It starts when you click Start and continues even if you close the page.",
     },
     {
       icon: EyeOff,
-      title: 'Stay on the test tab',
-      body: 'Leaving the tab is recorded. The 3rd time submits your test automatically.',
+      title: "Stay on the test tab",
+      body: "Leaving the tab is recorded. The 3rd time submits your test automatically.",
     },
     {
       icon: ClipboardPaste,
-      title: 'Pastes are recorded',
-      body: 'Pasting code into the editor is logged for the reviewer.',
+      title: "Pastes are recorded",
+      body: "Pasting code into the editor is logged for the reviewer.",
     },
     {
       icon: Save,
-      title: 'Your work is saved',
-      body: 'Answers auto-save every few seconds and when you switch questions.',
+      title: "Your work is saved",
+      body: "Answers auto-save every few seconds and when you switch questions.",
     },
   ];
   return (

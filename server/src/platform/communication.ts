@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import prisma from '../prisma';
+import { nodemailerConfigured, renderEmail, sendWithNodemailer } from './mailer';
 
 export function appURL(path: string) {
   return new URL(
@@ -7,8 +8,11 @@ export function appURL(path: string) {
     process.env.APP_URL || 'http://localhost:3000',
   ).toString();
 }
-export function mailConfigured() {
+function resendConfigured() {
   return !!process.env.RESEND_API_KEY && !!process.env.MAIL_FROM;
+}
+export function mailConfigured() {
+  return nodemailerConfigured() || resendConfigured();
 }
 export async function enqueueMail(
   recipient: string,
@@ -79,30 +83,42 @@ export async function deliverOutbox(
     });
     if (!claim.count) continue;
     try {
-      const response = await send('https://api.resend.com/emails', {
-        method: 'POST',
-        signal: AbortSignal.timeout(15000),
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': message.id,
-        },
-        body: JSON.stringify({
-          from: process.env.MAIL_FROM,
-          to: [message.recipient],
+      let providerId: string;
+      if (nodemailerConfigured()) {
+        providerId = await sendWithNodemailer({
+          id: message.id,
+          to: message.recipient,
           subject: message.subject,
-          text: message.body,
-        }),
-      });
-      if (!response.ok)
-        throw new Error(`Email provider HTTP ${response.status}`);
-      const result = (await response.json()) as { id: string };
+          body: message.body,
+        });
+      } else {
+        const { html, text } = renderEmail(message.subject, message.body);
+        const response = await send('https://api.resend.com/emails', {
+          method: 'POST',
+          signal: AbortSignal.timeout(15000),
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': message.id,
+          },
+          body: JSON.stringify({
+            from: process.env.MAIL_FROM,
+            to: [message.recipient],
+            subject: message.subject,
+            text,
+            html,
+          }),
+        });
+        if (!response.ok)
+          throw new Error(`Email provider HTTP ${response.status}`);
+        providerId = ((await response.json()) as { id: string }).id;
+      }
       await prisma.outboundMessage.update({
         where: { id: message.id },
         data: {
           status: 'sent',
           deliveredAt: new Date(),
-          providerId: result.id,
+          providerId,
           error: null,
         },
       });

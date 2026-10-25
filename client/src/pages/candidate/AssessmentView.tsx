@@ -1,3 +1,4 @@
+import BrandLogo from '../../components/landing/BrandLogo';
 import AnswerInput from '../../components/questions/AnswerInput';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -1501,12 +1502,7 @@ export default function AssessmentView() {
       {/* TOP HEADER BAR */}
       <header className="exam-header flex-none h-14 bg-surface-900 border-b border-surface-800 flex items-center px-4 z-30">
         <div className="exam-brand flex items-center gap-2.5 min-w-[180px]">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-            <Code2 className="w-4 h-4 text-on-accent" />
-          </div>
-          <span className="text-sm font-bold text-white tracking-tight">
-            Wissen Code
-          </span>
+          <BrandLogo />
         </div>
 
         <div className="exam-title flex-1 text-center">

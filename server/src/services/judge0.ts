@@ -155,18 +155,31 @@ function mockExecute(params: {
  * Uses ?wait=true for synchronous execution (simpler for demo).
  * `expectedOutput` is only used by the mock judge.
  */
-const executionLimiter = new ExecutionLimiter(
+// Two lanes share the provider. "Run" clicks fail fast when the service is swamped so the
+// candidate can retry; grading at submit time must never be dropped, so its lane queues deep
+// (thousands of test cases when a whole cohort submits at the deadline) and waits patiently.
+const interactiveLimiter = new ExecutionLimiter(
   Number(process.env.EXECUTION_CONCURRENCY || 4),
 );
-export async function executeCode(params: {
-  sourceCode: string;
-  languageId: number;
-  stdin?: string;
-  cpuTimeLimit?: number;
-  memoryLimit?: number;
-  expectedOutput?: string;
-}): Promise<Judge0Result> {
-  return executionLimiter.run(() => executeProvider(params));
+const gradingLimiter = new ExecutionLimiter(
+  Number(process.env.GRADING_EXECUTION_CONCURRENCY || process.env.EXECUTION_CONCURRENCY || 4),
+  Number(process.env.GRADING_EXECUTION_QUEUE || 50000),
+  Number(process.env.GRADING_EXECUTION_WAIT_MS || 30 * 60000),
+);
+export type ExecutionLane = 'interactive' | 'grading';
+export async function executeCode(
+  params: {
+    sourceCode: string;
+    languageId: number;
+    stdin?: string;
+    cpuTimeLimit?: number;
+    memoryLimit?: number;
+    expectedOutput?: string;
+  },
+  lane: ExecutionLane = 'interactive',
+): Promise<Judge0Result> {
+  const limiter = lane === 'grading' ? gradingLimiter : interactiveLimiter;
+  return limiter.run(() => executeProvider(params));
 }
 
 async function executeProvider(params: {

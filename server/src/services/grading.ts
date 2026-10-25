@@ -80,17 +80,20 @@ export async function gradeAnswer(
   for (const tc of testCases) {
     await onProgress?.();
     try {
-      const result = await executeCode({
-        sourceCode:
-          question?.questionType === 'sql'
-            ? `${tc.input}\n${answer.code}`
-            : answer.code,
-        languageId: answer.languageId,
-        stdin: question?.questionType === 'sql' ? '' : tc.input,
-        expectedOutput: tc.expectedOutput,
-        cpuTimeLimit: question?.timeLimit || 5,
-        memoryLimit: question?.memoryLimit || 256000,
-      });
+      const result = await executeCode(
+        {
+          sourceCode:
+            question?.questionType === 'sql'
+              ? `${tc.input}\n${answer.code}`
+              : answer.code,
+          languageId: answer.languageId,
+          stdin: question?.questionType === 'sql' ? '' : tc.input,
+          expectedOutput: tc.expectedOutput,
+          cpuTimeLimit: question?.timeLimit || 5,
+          memoryLimit: question?.memoryLimit || 256000,
+        },
+        'grading',
+      );
 
       const actualOutput = (result.stdout || '').trim();
       const passed =

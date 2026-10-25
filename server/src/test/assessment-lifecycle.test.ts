@@ -8,6 +8,7 @@ import attempts from '../routes/attempts';
 import jobs from '../routes/ai-jobs';
 import { AuthUser } from '../middleware/auth';
 import { closeQueue } from '../ai/queue';
+import { whenInlineGradingIdle } from '../platform/inline-grading';
 
 test('assessment attempts serialize starts, protect ownership, submit and enforce retake limits', async () => {
   const nonce = Date.now();
@@ -105,8 +106,9 @@ test('assessment attempts serialize starts, protect ownership, submit and enforc
     );
     assert.equal(
       (await request(`/attempts/${first.sessionId}/submit`, 'POST', {})).status,
-      200,
+      202,
     );
+    await whenInlineGradingIdle();
     assert.equal(
       (
         await prisma.assessmentSession.findUniqueOrThrow({
@@ -137,8 +139,9 @@ test('assessment attempts serialize starts, protect ownership, submit and enforc
     assert.equal(
       (await request(`/attempts/${second.sessionId}/submit`, 'POST', {}))
         .status,
-      200,
+      202,
     );
+    await whenInlineGradingIdle();
     assert.equal(
       (
         await request(`/assessments/${assessment.id}/start`, 'POST', {

@@ -9,9 +9,13 @@ import { isMockMode } from '../services/judge0';
 import {
   appURL,
   calendarEvent,
-  enqueueMail,
   mailConfigured,
 } from './communication';
+import {
+  assessmentInvitationBody,
+  queueInterviewInvitation,
+  sendNow,
+} from './notifications';
 import { fingerprints, similarity } from './integrity';
 const router = Router();
 router.use(adminOnly);
@@ -180,12 +184,7 @@ router.post(
     });
     if (!interview || interview.status !== 'scheduled')
       throw new WorkflowError('Scheduled interview not found', 404);
-    await enqueueMail(
-      interview.candidateEmail,
-      interview.title,
-      `Hello ${interview.candidateName},\n\nYour interview: ${interview.title}\n${interview.scheduledAt?.toISOString() ?? 'Time to be confirmed'}\nDuration: ${interview.timeLimitMinutes} minutes\nJoin: ${appURL(`/interview/${interview.roomToken}`)}`,
-      req.user!.id,
-    );
+    await queueInterviewInvitation(interview, req.user!.id);
     await audit(
       req.user!.id,
       'invitation.queued',
@@ -269,7 +268,15 @@ router.post(
         'Reminder must be in the future and before the assessment closes',
       );
     const emails = [...new Set(input.emails.map((e) => e.toLowerCase()))];
-    await prisma.$transaction(async (tx) => {
+    // Without an explicit reminder, nudge candidates a day before a deadline that is far enough out.
+    const reminderAt =
+      reminder ??
+      (assessment.endAt &&
+      assessment.endAt.getTime() - Date.now() > 48 * 3600000
+        ? new Date(assessment.endAt.getTime() - 24 * 3600000)
+        : null);
+    const queued = await prisma.$transaction(async (tx) => {
+      const ids: string[] = [];
       for (const email of emails) {
         const invite = await tx.inviteLink.create({
           data: {
@@ -280,8 +287,11 @@ router.post(
             expiresAt: assessment.endAt,
           },
         });
-        const body = `You are invited to ${assessment.name}.\nDuration: ${assessment.timeLimitMinutes} minutes\n${assessment.endAt ? `Closes: ${assessment.endAt.toISOString()}\n` : ''}Open your invitation: ${appURL(`/invite/${invite.token}`)}`;
-        await tx.outboundMessage.create({
+        const body = assessmentInvitationBody(
+          assessment,
+          appURL(`/invite/${invite.token}`),
+        );
+        const message = await tx.outboundMessage.create({
           data: {
             authorId: req.user!.id,
             recipient: email,
@@ -289,14 +299,15 @@ router.post(
             body,
           },
         });
-        if (reminder)
+        ids.push(message.id);
+        if (reminderAt)
           await tx.outboundMessage.create({
             data: {
               authorId: req.user!.id,
               recipient: email,
               subject: `Reminder: ${assessment.name}`,
               body,
-              scheduledAt: reminder,
+              scheduledAt: reminderAt,
             },
           });
       }
@@ -309,7 +320,9 @@ router.post(
           detail: { count: emails.length },
         },
       });
+      return ids;
     });
+    sendNow(queued);
     res
       .status(202)
       .json({ count: emails.length, message: 'Invitations queued' });

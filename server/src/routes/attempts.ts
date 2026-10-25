@@ -1,4 +1,5 @@
 import { asynchronousGrading, enqueueGrading } from '../platform/grading-jobs';
+import { enqueueInlineGrading } from '../platform/inline-grading';
 import { queueWebhook } from '../platform/webhooks';
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
@@ -490,7 +491,8 @@ export async function finalizeSession(
       },
     };
   } catch (error) {
-    await prisma.assessmentSession.update({
+    // updateMany: the attempt may have been deleted while grading ran in the background.
+    await prisma.assessmentSession.updateMany({
       where: { id: sessionId },
       data: { gradingStatus: 'failed' },
     });
@@ -533,12 +535,21 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
         message: 'Answers received. Grading is processing.',
       });
     }
-    const result = await finalizeSession(session.id);
-    if (result.status === 'already-finished')
-      return res.json({ message: 'Session is already finished' });
-    if (result.status === 'not-found')
-      return res.status(404).json({ error: 'Session not found' });
-    res.json(result.body);
+    // No dedicated worker: accept the answers now and grade in the background of this
+    // process. Grading a whole cohort inline would hold hundreds of requests open for minutes.
+    if (session.gradingStatus === 'completed')
+      return res.json({ sessionId: session.id, message: 'Session already graded' });
+    await prisma.assessmentSession.updateMany({
+      where: { id: session.id, finishedAt: null },
+      data: { finishedAt: new Date() },
+    });
+    enqueueInlineGrading(session.id, finalizeSession);
+    return res.status(202).json({
+      sessionId: session.id,
+      assessmentId: session.assessmentId,
+      gradingStatus: 'queued',
+      message: 'Answers received. Grading is processing.',
+    });
   } catch (error: any) {
     if (error instanceof WorkflowError)
       return res.status(error.status).json({ error: error.message });
