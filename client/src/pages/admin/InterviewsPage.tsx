@@ -20,7 +20,12 @@ import {
   CircleSlash,
   Check,
   Mail,
+  Link2,
+  Plus,
+  Clock,
+  UserRound,
 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
 
 // datetime-local wants local wall-clock time without a zone suffix.
 const localNow = () => {
@@ -37,6 +42,51 @@ export interface InterviewSummary {
   timeLimitMinutes: number;
   roomToken: string;
   scheduledAt: string | null;
+  createdAt?: string;
+  interviewer?: { id: number; name: string; email: string };
+}
+
+const STATUS_ORDER: Record<string, number> = {
+  in_progress: 0,
+  scheduled: 1,
+  completed: 2,
+  cancelled: 3,
+};
+const STATUS_BADGE: Record<string, string> = {
+  in_progress: "bg-sky-500/15 text-sky-700 ring-sky-500/25",
+  scheduled: "bg-primary-500/15 text-primary-700 ring-primary-500/25",
+  completed: "bg-emerald-500/15 text-emerald-700 ring-emerald-500/25",
+  cancelled: "bg-surface-700/40 text-surface-400 ring-surface-600",
+};
+/** "Today 10:30 · in 2 h" style label for a scheduled time. */
+function whenLabel(iso: string | null) {
+  if (!iso) return null;
+  const at = new Date(iso);
+  const now = new Date();
+  const diffMin = Math.round((at.getTime() - now.getTime()) / 60000);
+  const sameDay = at.toDateString() === now.toDateString();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const day = sameDay
+    ? "Today"
+    : at.toDateString() === tomorrow.toDateString()
+      ? "Tomorrow"
+      : at.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  const time = at.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const rel =
+    diffMin < -60
+      ? "overdue"
+      : diffMin < 0
+        ? "starting now"
+        : diffMin < 60
+          ? `in ${diffMin} min`
+          : diffMin < 48 * 60
+            ? `in ${Math.round(diffMin / 60)} h`
+            : `in ${Math.round(diffMin / 1440)} days`;
+  return { text: `${day} ${time}`, rel, overdue: diffMin < -60 };
 }
 export default function InterviewsPage() {
   const navigate = useNavigate();
@@ -114,13 +164,37 @@ export default function InterviewsPage() {
       .toLowerCase()
       .includes(candidateSearch.toLowerCase()),
   );
-  const visible = (list.data ?? []).filter(
-    (i) =>
-      (!status || i.status === status) &&
-      `${i.title} ${i.candidateName} ${i.candidateEmail}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-  );
+  const visible = (list.data ?? [])
+    .filter(
+      (i) =>
+        (!status || i.status === status) &&
+        `${i.title} ${i.candidateName} ${i.candidateEmail} ${i.interviewer?.name ?? ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    )
+    .sort((a, b) => {
+      const byStatus =
+        (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9);
+      if (byStatus) return byStatus;
+      const at = a.scheduledAt ? new Date(a.scheduledAt).getTime() : Infinity;
+      const bt = b.scheduledAt ? new Date(b.scheduledAt).getTime() : Infinity;
+      return a.status === "completed" || a.status === "cancelled"
+        ? bt - at
+        : at - bt;
+    });
+  const { user } = useAuth();
+  const teamView = user?.accessRole === "admin";
+  const [copied, setCopied] = useState<number | null>(null);
+  async function copyRoomLink(i: InterviewSummary) {
+    const url = `${window.location.origin}/interview/${i.roomToken}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(i.id);
+      setTimeout(() => setCopied((v) => (v === i.id ? null : v)), 1800);
+    } catch {
+      window.prompt("Copy the candidate link", url);
+    }
+  }
   const create = useMutation({
     mutationFn: async (start: boolean) => {
       let id = createdId;
@@ -591,48 +665,123 @@ export default function InterviewsPage() {
               body={
                 list.data?.length
                   ? "Try another name or clear your filters."
-                  : "Create your first interview to get started."
+                  : "Pick a candidate and a few questions, schedule a time, and the invite goes out by email. Or start a live room right away."
+              }
+              action={
+                list.data?.length ? (
+                  <button
+                    className="btn-outline"
+                    onClick={() => {
+                      setStatus("");
+                      setSearch("");
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                ) : (
+                  !creating && (
+                    <button
+                      className="btn-primary"
+                      onClick={() => {
+                        setCreating(true);
+                        setValidation("");
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                    >
+                      <Plus className="w-4 h-4" /> Create your first interview
+                    </button>
+                  )
+                )
               }
             />
           )}
-          {visible.map((i, index) => (
-            <article
-              className="interview-list-card card flex flex-wrap justify-between items-center gap-4"
-              style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-              key={i.id}
-            >
-              <div>
-                <h2 className="font-semibold">{i.title}</h2>
-                <p className="text-sm text-surface-500">
-                  {i.candidateName} · {i.timeLimitMinutes} min ·{" "}
-                  {i.status.replace(/_/g, " ")}
-                  {i.scheduledAt &&
-                    ` · ${new Date(i.scheduledAt).toLocaleString()}`}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                {i.status === "scheduled" && (
-                  <button
-                    className="btn-primary"
-                    disabled={start.isPending}
-                    onClick={() => start.mutate(i.id)}
+          {visible.map((i, index) => {
+            const when = whenLabel(i.scheduledAt);
+            return (
+              <article
+                className="interview-list-card card flex flex-wrap lg:flex-nowrap justify-between items-center gap-4"
+                style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+                key={i.id}
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-semibold">{i.title}</h2>
+                    <span
+                      className={`badge ring-1 capitalize ${STATUS_BADGE[i.status] ?? ""}`}
+                    >
+                      {i.status === "in_progress" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mr-1.5 animate-pulse-dot" />
+                      )}
+                      {i.status.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-surface-500 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="inline-flex items-center gap-1">
+                      <UserRound size={13} /> {i.candidateName}
+                      <span className="text-surface-600">· {i.candidateEmail}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={13} /> {i.timeLimitMinutes} min
+                    </span>
+                    {when && (
+                      <span
+                        className={`inline-flex items-center gap-1 ${when.overdue && i.status === "scheduled" ? "text-amber-700" : ""}`}
+                      >
+                        <CalendarDays size={13} /> {when.text}
+                        {i.status === "scheduled" && (
+                          <span className="text-surface-600">· {when.rel}</span>
+                        )}
+                      </span>
+                    )}
+                    {teamView && i.interviewer && (
+                      <span className="text-surface-600">
+                        Interviewer: {i.interviewer.name}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-auto shrink-0">
+                  {(i.status === "scheduled" || i.status === "in_progress") && (
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      title="Copy the link the candidate uses to join"
+                      onClick={() => copyRoomLink(i)}
+                    >
+                      {copied === i.id ? (
+                        <>
+                          <Check size={15} /> Copied
+                        </>
+                      ) : (
+                        <>
+                          <Link2 size={15} /> Candidate link
+                        </>
+                      )}
+                    </button>
+                  )}
+                  {i.status === "scheduled" && (
+                    <button
+                      className="btn-primary"
+                      disabled={start.isPending}
+                      onClick={() => start.mutate(i.id)}
+                    >
+                      Start interview
+                    </button>
+                  )}
+                  <Link
+                    className="btn-outline"
+                    to={`/admin/interviews/${i.id}${i.status === "in_progress" ? "?tab=live" : ""}`}
                   >
-                    Start interview
-                  </button>
-                )}
-                <Link
-                  className="btn-outline"
-                  to={`/admin/interviews/${i.id}${i.status === "in_progress" ? "?tab=live" : ""}`}
-                >
-                  {i.status === "in_progress"
-                    ? "Join live room"
-                    : i.status === "completed"
-                      ? "View evaluation"
-                      : "Plan and review"}
-                </Link>
-              </div>
-            </article>
-          ))}
+                    {i.status === "in_progress"
+                      ? "Join live room"
+                      : i.status === "completed"
+                        ? "View evaluation"
+                        : "Plan and review"}
+                  </Link>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </AdminLayout>
