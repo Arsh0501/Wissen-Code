@@ -12,6 +12,12 @@ import {
 } from '../../services/workflows';
 import { Spinner } from '../../components/ui';
 
+interface AutoResult {
+  drafts: QuestionDraft[];
+  added: { id: number; questionId: number; title: string; verified: boolean }[];
+  needsReview: { id: number; title: string; failed: string[]; reason: string }[];
+}
+
 export default function AIQuestions() {
   const queryClient = useQueryClient();
   const status = useQuery({
@@ -29,9 +35,11 @@ export default function AIQuestions() {
   const [questionType, setType] = useState('coding');
   const [count, setCount] = useState(3);
   const [selected, setSelected] = useState<number | null>(null);
+  const [autoAdd, setAutoAdd] = useState(true);
+  const [summary, setSummary] = useState<AutoResult | null>(null);
   const generate = useMutation({
-    mutationFn: () =>
-      apiData<QuestionDraft[]>('/ai/generate', 'post', {
+    mutationFn: async () => {
+      const body = {
         topic,
         difficulty,
         questionType,
@@ -40,10 +48,16 @@ export default function AIQuestions() {
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean),
-      }),
+      };
+      if (autoAdd) return apiData<AutoResult>('/ai/auto', 'post', body);
+      const drafts = await apiData<QuestionDraft[]>('/ai/generate', 'post', body);
+      return { drafts, added: [], needsReview: [] } satisfies AutoResult;
+    },
     onSuccess: async (result) => {
-      setSelected(result[0].id);
+      setSummary(autoAdd ? result : null);
+      setSelected(result.drafts[0]?.id ?? null);
       await queryClient.invalidateQueries({ queryKey: workflowKeys.drafts });
+      await queryClient.invalidateQueries({ queryKey: ['question-bank'] });
     },
   });
   const draft = drafts.data?.find((d) => d.id === selected);
@@ -65,8 +79,10 @@ export default function AIQuestions() {
       )}
       {status.data && !status.data.canVerify && (
         <p className="card mb-4 text-amber-700">
-          The judge is in mock mode. Reference solutions must pass real
-          execution before approval; validation will report this requirement.
+          The judge is in mock mode, so reference solutions are not executed.
+          Questions that pass the AI review are added to the bank tagged
+          “unverified”; run them against a live judge before using them in a
+          real assessment.
         </p>
       )}
       <form
@@ -130,11 +146,28 @@ export default function AIQuestions() {
             placeholder="Python, problem solving"
           />
         </label>
+        <label className="label flex items-center gap-2 self-end md:col-span-2">
+          <input
+            type="checkbox"
+            checked={autoAdd}
+            onChange={(e) => setAutoAdd(e.target.checked)}
+          />
+          <span>
+            Automatically validate and add passing questions to the Question
+            Bank
+          </span>
+        </label>
         <button
           className="btn-primary self-end"
           disabled={generate.isPending || !status.data?.configured}
         >
-          {generate.isPending ? 'Generating drafts…' : 'Generate'}
+          {generate.isPending
+            ? autoAdd
+              ? 'Generating, validating and adding…'
+              : 'Generating drafts…'
+            : autoAdd
+              ? 'Generate & add to bank'
+              : 'Generate'}
         </button>
         {generate.error && (
           <p role="alert" className="text-red-600 md:col-span-3">
@@ -142,6 +175,61 @@ export default function AIQuestions() {
           </p>
         )}
       </form>
+      {summary && (
+        <section className="card mb-6 space-y-3" aria-live="polite">
+          <h2 className="font-semibold">
+            {summary.added.length} added to the Question Bank
+            {summary.needsReview.length
+              ? ` · ${summary.needsReview.length} need${summary.needsReview.length === 1 ? 's' : ''} review`
+              : ''}
+          </h2>
+          {summary.added.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {summary.added.map((q) => (
+                <li key={q.id} className="flex flex-wrap items-center gap-2">
+                  <span className="text-emerald-600">✓</span>
+                  <Link
+                    className="underline"
+                    to={`/admin/questions/${q.questionId}/edit`}
+                  >
+                    {q.title}
+                  </Link>
+                  {!q.verified && (
+                    <span className="badge bg-amber-500/10 text-amber-700 ring-1 ring-amber-500/25">
+                      unverified
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          {summary.needsReview.length > 0 && (
+            <ul className="space-y-1 text-sm">
+              {summary.needsReview.map((q) => (
+                <li key={q.id}>
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={() => setSelected(q.id)}
+                  >
+                    {q.title}
+                  </button>
+                  <span className="text-surface-500">
+                    {' '}
+                    · {q.failed.length ? `failed: ${q.failed.join(', ')}` : q.reason}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-surface-500">
+            <Link className="underline" to="/admin/questions">
+              Open the Question Bank
+            </Link>{' '}
+            to review, edit or use them in an assessment.
+          </p>
+        </section>
+      )}
       {drafts.isLoading ? (
         <Spinner />
       ) : drafts.error ? (

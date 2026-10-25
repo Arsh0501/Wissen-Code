@@ -47,7 +47,7 @@ describe('AI question approval workflow', () => {
     expect(
       await screen.findByText(/requires an OpenAI API key/i),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^generate$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /generate/i })).toBeDisabled();
   });
   it('blocks approval before validation and blocks validation while edits are unsaved', async () => {
     const user = userEvent.setup();
