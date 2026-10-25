@@ -61,6 +61,8 @@ See [docs/api.md](docs/api.md) for the main API routes and realtime contract.
 
 ## Team and interview workflows
 
+Interview planning and resume-based interview question generation are removed. **Prepare questions** provides only selection from the existing question bank and question sets. Resume viewing, live calls, transcript review, AI follow-ups and evaluations remain available.
+
 ### Bulk assessment invitations
 
 In **Assessments**, publish an assessment and click **Bulk invite candidates**. Upload CSV or Excel `.xlsx` (up to 5 MB / 5,000 candidate rows per sheet), choose a worksheet if needed, and confirm the name/email header mapping. Column order does not matter; other columns are ignored. Ambiguous headers require manual mapping. Invalid/duplicate rows are flagged and cannot be selected. Older `.xls` files must first be saved as `.xlsx`.

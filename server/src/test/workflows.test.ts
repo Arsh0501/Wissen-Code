@@ -325,77 +325,12 @@ void test('AI drafts, approval gates and evidence-backed interview evaluation', 
       },
     });
     interviewId = interview.id;
-    const input = {
-      jobRequirements: 'Build Python services',
-      candidateExperience: '3 years',
-      requiredSkills: ['Python'],
-      durationMinutes: 30,
-    };
-    await t.test(
-      'plans are editable and duration sums are enforced',
-      async () => {
-        assert.equal((await prisma.interview.findUniqueOrThrow({ where: { id: interviewId } })).status, 'scheduled');
-        const plan = await request(
-          `/interviews/${interviewId}/plan/generate`,
-          'POST',
-          input,
-        );
-        assert.equal(plan.status, 200);
-        const savedPlan = await request(`/interviews/${interviewId}/plan`);
-        assert.equal(savedPlan.status, 200);
-        assert.deepEqual(savedPlan.body.sections, plan.body.sections);
-        assert.equal((await prisma.interview.findUniqueOrThrow({ where: { id: interviewId } })).startedAt, null);
-        const sections = [{ ...plan.body.sections[0], minutes: 29 }];
-        assert.equal(
-          (
-            await request(`/interviews/${interviewId}/plan`, 'PUT', {
-              ...input,
-              sections,
-            })
-          ).status,
-          400,
-        );
-        sections[0].minutes = 30;
-        assert.equal(
-          (
-            await request(`/interviews/${interviewId}/plan`, 'PUT', {
-              ...input,
-              sections,
-            })
-          ).status,
-          200,
-        );
-      },
-    );
-    await t.test(
-      'planned discussion questions support skill evaluation',
-      async () => {
-        const statement = 'How do you parse an integer?';
-        let hash = 5381;
-        for (const char of `Python:${statement}`)
-          hash = (Math.imul(hash, 33) ^ char.charCodeAt(0)) | 0;
-        const questionId = -(Math.abs(hash) || 1);
-        const result = await request(
-          `/interviews/${interviewId}/evaluations`,
-          'PUT',
-          {
-            questionId,
-            candidateAnswer: 'Use int() with validation',
-            candidateCode: '',
-            notes: 'Answered verbally',
-            skills: [
-              { skill: 'Python', rating: 4, rationale: 'Explained validation' },
-            ],
-            status: 'final',
-          },
-        );
-        assert.equal(result.status, 200);
-        assert.equal(
-          result.body.executionResults.questionSnapshot.statement,
-          statement,
-        );
-      },
-    );
+    await t.test('retired interview planner endpoints are unavailable', async () => {
+      for (const [method, path] of [['GET', 'plan'], ['POST', 'plan/generate'], ['PUT', 'plan']]) {
+        const response = await fetch(`${base}/interviews/${interviewId}/${path}`, { method, headers: { 'x-test-role': 'admin' } });
+        assert.equal(response.status, 404);
+      }
+    });
     await t.test(
       'skill evaluation requires rationale and AI quotes must exist in evidence',
       async () => {
@@ -458,8 +393,8 @@ void test('AI drafts, approval gates and evidence-backed interview evaluation', 
         assert.equal((await request(`/interviews/${interviewId}/evaluations/${empty.body.id}/observe`, 'POST')).status, 400);
       } finally { rationaleEvidence = false; }
     });
-    await t.test('assigned interviewers can access planning and evaluations while candidates cannot', async () => {
-      for (const suffix of ['plan', 'evaluations', 'ai-results']) {
+    await t.test('assigned interviewers can access evaluations while candidates cannot', async () => {
+      for (const suffix of ['evaluations', 'ai-results']) {
         const path = `/interviews/${interviewId}/${suffix}`;
         assert.equal((await request(path, 'GET', undefined, 'interviewer')).status, 200);
         assert.equal((await request(path, 'GET', undefined, 'candidate')).status, 403);

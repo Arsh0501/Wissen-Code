@@ -2,9 +2,10 @@ import PDFDocument from 'pdfkit';
 import { existsSync } from 'node:fs';
 import type { Prisma } from '@prisma/client';
 import prisma from '../prisma';
-import { questionFeedback } from './question-feedback';
+import { questionFeedback, questionNoteData, reviewedTranscript } from './question-feedback';
 import { feedbackCriteriaSchema } from './interview-feedback';
 import { WorkflowError } from './structured-ai';
+import { questionWasAsked } from './question-asked';
 
 interface AskedFollowUp {
   id: string;
@@ -25,9 +26,11 @@ interface ReportQuestion {
   skillEvaluations: { skill: string; rating: number | null; rationale: string; status: string }[];
   submission: null | { language: string; code: string; score: number; passed: number; total: number };
   followUps: AskedFollowUp[];
+  conversation: { id: string; question: string; answer: string; answerSource: string; askedAt: string }[];
 }
 
 export interface InterviewFeedbackReportContent {
+  formatVersion: 3;
   interview: {
     id: number; title: string; candidateName: string; candidateEmail: string;
     interviewerName: string; interviewerEmail: string; scheduledAt: string | null;
@@ -95,8 +98,8 @@ export async function buildInterviewFeedbackReport(interviewId: number, revision
       events: { where: { eventType: { in: ['QUESTION_CHANGED', 'INTERVIEW_STARTED', 'ANSWER_UPDATED', 'QUESTION_FEEDBACK_UPDATED', 'AI_REVIEWED'] } }, orderBy: { id: 'asc' } },
       notes: { orderBy: { createdAt: 'asc' } },
       evaluations: true,
-      plan: true,
       followUps: { where: { status: 'asked' }, orderBy: { askedAt: 'asc' } },
+      transcriptSegments: { orderBy: [{ startedAt: 'asc' }, { id: 'asc' }] },
     },
   });
   if (interview.status !== 'completed' || !interview.finalFeedback || interview.feedbackRevision !== revision) {
@@ -134,27 +137,35 @@ export async function buildInterviewFeedbackReport(interviewId: number, revision
     where: { id: { in: [...interacted].filter(id => id > 0 && !assignedIds.has(id)) } },
   });
   const questionList: { id: number; title: string; statement: string }[] = [...interview.questions.map(link => link.question), ...previousQuestions];
-  // Planned verbal questions use stable negative IDs in the skill-evaluation UI.
-  if (Array.isArray(interview.plan?.sections)) for (const raw of interview.plan.sections) {
-    const section = object(raw);
-    if (typeof section.skill !== 'string' || !Array.isArray(section.questions)) continue;
-    for (const statement of section.questions) {
-      if (typeof statement !== 'string') continue;
-      let hash = 5381;
-      for (const character of `${section.skill}:${statement}`) hash = (Math.imul(hash, 33) ^ character.charCodeAt(0)) | 0;
-      const id = -(Math.abs(hash) || 1);
-      if (interacted.has(id) && !questionList.some(question => question.id === id)) {
-        questionList.push({ id, title: `${section.skill} discussion`, statement });
-      }
-    }
-  }
-  const questions: ReportQuestion[] = questionList.map(question => {
+  const questions: ReportQuestion[] = questionList.filter(question => {
+    const link = interview.questions.find(item => item.questionId === question.id);
+    // Older interviews may predate the Asked state; retain questions with actual recorded responses or asked follow-ups.
+    return questionWasAsked(link?.notes, link?.status) || !!link?.candidateAnswer.trim()
+      || !!reviewedTranscript(link?.notes)
+      || interview.submissions.some(item => item.questionId === question.id)
+      || evaluations.some(item => item.questionId === question.id && (item.candidateAnswer.trim() || item.candidateCode.trim()))
+      || followUps.some(item => item.questionId === question.id);
+  }).map(question => {
     const link = interview.questions.find(item => item.questionId === question.id);
     const submission = interview.submissions.find(item => item.questionId === question.id);
     const evaluation = evaluations.find(item => item.questionId === question.id);
+    const segments = interview.transcriptSegments.filter(segment => segment.questionId === question.id);
+    const savedTurns = object(questionNoteData(link?.notes ?? '').conversation).turns;
+    const turns = (Array.isArray(savedTurns) ? savedTurns.map(object) : [])
+      .filter(turn => typeof turn.id === 'string' && typeof turn.question === 'string' && typeof turn.startedAt === 'string');
+    const conversation = turns.map((turn, index) => {
+      const reviewed = typeof turn.transcript === 'string' ? turn.transcript.trim() : '';
+      const start = Date.parse(String(turn.startedAt));
+      const end = index + 1 < turns.length ? Date.parse(String(turns[index + 1].startedAt)) : Infinity;
+      const automatic = segments.filter(segment => segment.startedAt.getTime() >= start && segment.startedAt.getTime() < end).map(segment => segment.text).join('\n');
+      return { id: String(turn.id), question: String(turn.question), answer: reviewed || automatic,
+        answerSource: reviewed ? 'Interviewer-reviewed transcript' : automatic ? 'Automatic transcript (not reviewed; may contain recognition errors)' : 'No response was recorded', askedAt: String(turn.startedAt) };
+    });
     const directAnswer = link?.candidateAnswer.trim() || '';
-    const recordedAnswer = directAnswer || evaluation?.candidateAnswer.trim() || '';
-    const answerSource = directAnswer ? 'Saved candidate answer' : 'Answer recorded in interviewer evaluation';
+    const reviewed = reviewedTranscript(link?.notes)?.text ?? '';
+    const automatic = segments.map(segment => segment.text).join('\n');
+    const recordedAnswer = conversation.length ? conversation[0].answer : directAnswer || evaluation?.candidateAnswer.trim() || reviewed || automatic;
+    const answerSource = conversation.length ? conversation[0].answerSource : directAnswer ? 'Saved candidate answer' : evaluation?.candidateAnswer.trim() ? 'Answer recorded in interviewer evaluation' : reviewed ? 'Interviewer-reviewed transcript' : 'Automatic transcript (not reviewed; may contain recognition errors)';
     const feedback = questionFeedback(link?.notes);
     const result = submission ? json(submission.results) : [];
     const results = Array.isArray(result) ? result.map(object) : [];
@@ -164,10 +175,10 @@ export async function buildInterviewFeedbackReport(interviewId: number, revision
       : '';
     return {
       id: question.id, title: question.title, statement: question.statement,
-      participation: recordedAnswer || feedback || interacted.has(question.id)
+      participation: conversation.length || recordedAnswer || feedback || interacted.has(question.id)
         ? 'Interaction recorded' : 'Assigned; no interaction was recorded',
       answerSummary: [recordedAnswer ? `Recorded response excerpt: ${responseExcerpt(recordedAnswer)}` : '', codingSummary].filter(Boolean).join('\n')
-        || 'No candidate response or submitted code was recorded. Verbal answers were not transcribed.',
+        || 'No candidate response or submitted code was recorded.',
       recordedAnswer, answerSource,
       interviewerFeedback: feedback,
       skillEvaluations: (Array.isArray(evaluation?.skills) ? evaluation.skills : []).map(object)
@@ -175,9 +186,11 @@ export async function buildInterviewFeedbackReport(interviewId: number, revision
         .map(skill => ({ skill: String(skill.skill), rating: typeof skill.rating === 'number' ? skill.rating : null, rationale: typeof skill.rationale === 'string' ? skill.rationale : '', status: evaluation!.status })),
       submission: submission ? { language: submission.languageName, code: submission.code, score: submission.score, passed, total: results.length } : null,
       followUps: followUps.filter(followUp => followUp.questionId === question.id),
+      conversation,
     };
   });
   return {
+    formatVersion: 3,
     interview: {
       id: interview.id, title: interview.title, candidateName: interview.candidateName, candidateEmail: interview.candidateEmail,
       interviewerName: interview.interviewer.name, interviewerEmail: interview.interviewer.email,
@@ -231,16 +244,24 @@ export function renderInterviewFeedbackPdf(report: InterviewFeedbackReportConten
         text(criterion.feedback || 'No supporting comment provided.', 10, '#475569');
       });
       heading('Questions and candidate responses');
-      text('Response summaries use saved answers and submission results, without inventing verbal responses. Assigned questions without interaction evidence are labelled separately. Follow-ups include only suggestions marked as asked; unrecorded verbal follow-ups cannot be reconstructed.', 9, '#64748b');
-      if (!report.questions.length) text('No interview questions were recorded.');
+      text('Only asked questions and follow-ups are included, in conversation order. Saved reviewed transcripts are preferred; automatic transcripts are labelled as unreviewed and may contain recognition errors. Questions that were only lined up are excluded. Missing answers are never invented.', 9, '#64748b');
+      if (!report.questions.length) text('No questions were recorded as asked.');
       report.questions.forEach((question, index) => {
         heading(`${index + 1}. ${question.title}`);
         text(question.participation, 9, '#64748b');
         text(question.statement);
         text('Candidate response summary', 11);
         text(question.answerSummary);
-        if (question.recordedAnswer) { text(question.answerSource, 11); text(question.recordedAnswer); }
-        if (question.interviewerFeedback) { text('Interviewer observations (not a candidate transcript)', 11); text(question.interviewerFeedback); }
+        if (question.conversation.length) {
+          text('Question conversation - questions and answers in order', 11);
+          question.conversation.forEach((turn, turnIndex) => {
+            text(`${turnIndex === 0 ? 'Main question' : `Follow-up ${turnIndex}`}: ${turn.question}`, 11);
+            text(`Asked: ${date(turn.askedAt)}`, 9, '#64748b');
+            text(turn.answerSource, 9, '#64748b');
+            text(turn.answer || 'No response was recorded.');
+          });
+        } else if (question.recordedAnswer) { text(question.answerSource, 11); text(question.recordedAnswer); }
+        if (question.interviewerFeedback) { text('Feedback for this question and its follow-up conversation', 11); text(question.interviewerFeedback); }
         if (question.skillEvaluations.length) {
           text('Per-question skill evaluations', 11);
           question.skillEvaluations.forEach(skill => text(`${skill.skill}: ${skill.rating ?? 'Unrated'}/5 (${skill.status})${skill.rationale ? `\n${skill.rationale}` : ''}`));
@@ -249,9 +270,12 @@ export function renderInterviewFeedbackPdf(report: InterviewFeedbackReportConten
           text(`Latest candidate submission - ${question.submission.language}`, 11);
           text(question.submission.code, 8);
         }
-        text('Follow-ups marked as asked', 11);
-        if (!question.followUps.length) text('No follow-ups were marked as asked for this question.');
-        question.followUps.forEach(followUp => text(`• ${followUp.question}${followUp.askedAt ? `\nAsked: ${date(followUp.askedAt)}` : ''}`));
+        const otherAsked = question.followUps.filter(followUp => !question.conversation.some(turn => followUp.id === turn.id || followUp.id === `manual:${turn.id}`));
+        if (otherAsked.length || !question.conversation.length) {
+          text('Other follow-ups marked as asked', 11);
+          if (!otherAsked.length) text('No follow-ups were marked as asked for this question.');
+          otherAsked.forEach(followUp => text(`• ${followUp.question}${followUp.askedAt ? `\nAsked: ${date(followUp.askedAt)}` : ''}\nNo separately linked answer was recorded for this follow-up.`));
+        }
       });
       if (report.otherFollowUps.length) {
         heading('Other recorded follow-ups');
@@ -294,6 +318,11 @@ export async function generateInterviewFeedbackReport(
 }
 
 export async function feedbackReportMetadata(interviewId: number) {
-  const report = await prisma.interviewFeedbackReport.findUnique({ where: { interviewId }, select: { status: true, feedbackRevision: true, generatedAt: true, error: true } });
-  return report ? { ...report, downloadUrl: report.status === 'ready' ? `/interviews/${interviewId}/feedback/report/download` : null } : null;
+  const report = await prisma.interviewFeedbackReport.findUnique({ where: { interviewId }, select: { status: true, feedbackRevision: true, generatedAt: true, error: true, content: true } });
+  if (!report) return null;
+  const { content, ...metadata } = report;
+  const outdated = report.status === 'ready' && object(content).formatVersion !== 3;
+  return { ...metadata, status: outdated ? 'outdated' : report.status,
+    error: outdated ? 'Regenerate this report to include only asked questions and their conversation answers.' : report.error,
+    downloadUrl: report.status === 'ready' && !outdated ? `/interviews/${interviewId}/feedback/report/download` : null };
 }

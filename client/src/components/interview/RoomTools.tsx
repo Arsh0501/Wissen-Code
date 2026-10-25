@@ -784,7 +784,7 @@ export default function RoomTools({
           </button>
         </div>
       </div>
-      {interviewer && <LiveTranscript socket={socket} audio={candidateAudio} />}
+      {interviewer && <LiveTranscript socket={socket} audio={candidateAudio} portal />}
     </section>
   );
 }

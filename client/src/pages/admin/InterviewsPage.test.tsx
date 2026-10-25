@@ -5,6 +5,36 @@ import { Routes, Route } from 'react-router-dom';
 import api, * as services from '../../services/api';
 import InterviewsPage from './InterviewsPage';
 import { renderWithProviders, adminUser } from '../../test/test-utils';
+it('fills assessment candidate email and clears it when the next candidate has none', async () => {
+  const user = userEvent.setup();
+  vi.spyOn(services, 'getAssessments').mockResolvedValue([{ id: 3, name: 'Frontend assessment' }] as any);
+  vi.mocked(api.request).mockImplementation(async (config: any) => ({
+    data: config.url === '/users/interviewers'
+      ? [{ id: 2, name: 'Interviewer', email: 'interviewer@example.test', role: 'interviewer' }]
+      : config.url === '/assessments/3/candidates'
+        ? { candidates: [
+            { name: 'Maya', email: 'maya@example.test', candidateUserId: 10 },
+            { name: 'Guest', email: null },
+          ] }
+        : [],
+  }));
+  renderWithProviders(<InterviewsPage />, { loggedInAs: adminUser });
+  await user.click(screen.getByRole('button', { name: 'Create Interview' }));
+  await user.type(screen.getByLabelText('Interview title'), 'Frontend Interview');
+  await user.selectOptions(await screen.findByLabelText(/Assigned Interviewer/), '2');
+  await user.click(screen.getByRole('button', { name: 'Next: Select Candidate' }));
+  await screen.findByRole('option', { name: 'Frontend assessment' });
+  await user.selectOptions(screen.getByLabelText('Candidates from an assessment'), '3');
+  await user.click(await screen.findByRole('button', { name: 'Maya' }));
+  expect(screen.getByLabelText('Candidate name')).toHaveValue('Maya');
+  expect(screen.getByLabelText('Candidate email')).toHaveValue('maya@example.test');
+  await user.click(screen.getByRole('button', { name: 'Guest' }));
+  expect(screen.getByLabelText('Candidate name')).toHaveValue('Guest');
+  expect(screen.getByLabelText('Candidate email')).toHaveValue('');
+  await user.type(screen.getByLabelText('Candidate email'), 'guest@example.test');
+  expect(screen.getByLabelText('Candidate email')).toHaveValue('guest@example.test');
+});
+
 it('lets admins select a candidate and schedule without selecting questions or starting', async () => {
   const user = userEvent.setup();
   vi.spyOn(services, 'getQuestions').mockResolvedValue([

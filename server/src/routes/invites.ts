@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '../prisma';
 import { adminOnly } from '../middleware/adminOnly';
-import { signToken, verifyAccessToken } from '../middleware/auth';
+import { verifyAccessToken } from '../middleware/auth';
 import { createSessionForUser } from './auth';
 import { availabilityError } from './attempts';
 import bulkAssessmentInvites from './bulk-assessment-invites';
@@ -260,8 +260,16 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
     if (!invite)
       return res.status(404).json({ error: 'This link is not valid.' });
 
+    const bearer = req.headers.authorization?.replace(/^Bearer /, '');
+    let identity;
+    try { identity = bearer ? await verifyAccessToken(bearer) : null; }
+    catch { identity = null; }
+    if (invite.recipientEmail && (email !== invite.recipientEmail.toLowerCase() || (identity && identity.email.toLowerCase() !== invite.recipientEmail.toLowerCase()))) {
+      return res.status(403).json({ error: 'This invitation can only be used by the email address it was sent to.', code: 'INVITE_EMAIL_MISMATCH' });
+    }
+
     let user = await prisma.user.findUnique({ where: { email } });
-    if (user && !user.isGuest) {
+    if (user && !user.isGuest && (!identity || identity.id !== user.id || identity.role !== 'candidate')) {
       // A real account must sign in with its password — a link can't be used to act as that account
       return res
         .status(409)
@@ -283,13 +291,6 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
       availabilityError(invite.assessment);
     if (problem) return res.status(403).json({ error: problem });
     if (user) {
-      const bearer = req.headers.authorization?.replace(/^Bearer /, '');
-      let identity;
-      try {
-        identity = bearer ? await verifyAccessToken(bearer) : null;
-      } catch {
-        identity = null;
-      }
       if (!identity || identity.id !== user.id)
         return res
           .status(409)
@@ -297,12 +298,14 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
             error:
               'Returning guests must use their existing session or claim their account with a password.',
           });
-      if (!alreadyJoined)
-        await prisma.inviteRedemption.create({
-          data: { inviteId: invite.id, userId: user.id },
-        });
+      if (!alreadyJoined) await prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM "InviteLink" WHERE id = ${invite.id} FOR UPDATE`;
+        const fresh = await tx.inviteLink.findUniqueOrThrow({ where: { id: invite.id }, include: { _count: { select: { redemptions: true } } } });
+        if (inviteProblem(fresh)) throw new Error('Invite is no longer available');
+        await tx.inviteRedemption.create({ data: { inviteId: invite.id, userId: user!.id } });
+      });
       return res.json({
-        token: signToken(identity),
+        token: bearer,
         user: identity,
         assessmentId: invite.assessment.id,
       });

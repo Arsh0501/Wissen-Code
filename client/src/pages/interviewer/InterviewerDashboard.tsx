@@ -21,6 +21,7 @@ import { apiError } from '../../services/api';
 import { Spinner } from '../../components/ui';
 import ResumeDialog from '../../components/interview/ResumeDialog';
 import QuestionPreparation from '../../components/interview/QuestionPreparation';
+import InterviewFeedbackReportDownload from '../../components/interview/InterviewFeedbackReportDownload';
 
 export interface AssignedInterview {
   id: number;
@@ -76,7 +77,6 @@ export default function InterviewerDashboard() {
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showQuestionsModal, setShowQuestionsModal] = useState(false);
 
-  const [generateOnOpen, setGenerateOnOpen] = useState(false);
 
   // Fetch interviews assigned to this interviewer
   const interviewsQuery = useQuery({
@@ -86,8 +86,6 @@ export default function InterviewerDashboard() {
   });
 
   const interviews = interviewsQuery.data ?? [];
-  const selectedStatus = interviews.find((item) => item.id === selectedInterview?.id)?.status ?? selectedInterview?.status;
-  const canPrepareSelected = selectedStatus === 'scheduled' || selectedStatus === 'in_progress';
 
   // Start interview mutation
   const startMutation = useMutation({
@@ -176,7 +174,7 @@ export default function InterviewerDashboard() {
               Welcome back, {user?.name || 'Interviewer'}
             </h1>
             <p className="text-surface-400 text-sm mt-1">
-              Manage your technical interviews, prepare resume-based questions, and review live candidate evaluations.
+              Manage your technical interviews, select available questions, and review live candidate evaluations.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -456,6 +454,7 @@ export default function InterviewerDashboard() {
 
                   {/* Right Column: Actions */}
                   <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto border-t border-surface-800 pt-4 pb-2 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>a]:shrink-0 [&>a]:whitespace-nowrap" role="region" aria-label="Interview actions" tabIndex={0}>
+                    {isCompleted && <InterviewFeedbackReportDownload interviewId={interview.id} submitted={!!interview.finalFeedback} completed compact />}
                     {/* View Resume Button */}
                     {(interview.candidateResume || interview.candidateResumeUrl) && (
                       <button
@@ -476,19 +475,14 @@ export default function InterviewerDashboard() {
                       title={!isScheduled && !isLive ? 'Question preparation is disabled after the interview ends.' : 'Prepare interview questions'}
                       onClick={() => {
                         setSelectedInterview(interview);
-                        setGenerateOnOpen(false);
                         setShowQuestionsModal(true);
                       }}
                       className="btn-outline text-xs px-3 py-2 flex items-center gap-1.5 border-purple-500/30 text-purple-300 hover:bg-purple-950/30"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                      Questions & Resume AI
+                      Select questions
                     </button>
 
-                    {(isScheduled || isLive) && <Link
-                      to={`/admin/interviews/${interview.id}?tab=plan`}
-                      className="btn-outline text-xs px-3 py-2"
-                    >Interview plan</Link>}
 
                     {/* Scheduled: Start Interview */}
                     {isScheduled && (
@@ -549,15 +543,12 @@ export default function InterviewerDashboard() {
       {showQuestionsModal && selectedInterview && <QuestionPreparation
         key={selectedInterview.id}
         interviewId={selectedInterview.id}
-        autoGenerate={generateOnOpen}
-        onClose={() => { setShowQuestionsModal(false); setGenerateOnOpen(false); }}
-        onViewResume={() => { setGenerateOnOpen(false); setShowResumeModal(true); }}
+        onClose={() => setShowQuestionsModal(false)}
       />}
       {showResumeModal && selectedInterview && <ResumeDialog
         interview={selectedInterview}
         onClose={() => setShowResumeModal(false)}
         backLabel={showQuestionsModal ? 'Back to questions' : 'Back to interviews'}
-        onGenerate={canPrepareSelected ? () => { setShowResumeModal(false); setGenerateOnOpen(true); setShowQuestionsModal(true); } : undefined}
       />}
 
 

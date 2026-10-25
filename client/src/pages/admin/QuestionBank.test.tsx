@@ -1,5 +1,5 @@
 import { beforeEach, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as services from '../../services/api';
 import QuestionBank from './QuestionBank';
@@ -23,7 +23,7 @@ const questions: Question[] = [
     title: 'Fix cache',
     statement: 'Find and repair memoization bugs',
     difficulty: 'hard',
-    questionType: 'debugging',
+    questionType: 'mcq',
     tags: '["React"]',
     timeLimit: 2,
     memoryLimit: 256000,
@@ -46,24 +46,29 @@ beforeEach(() => {
   } as any);
   vi.spyOn(services, 'updateAssessment').mockResolvedValue({ id: 10 } as any);
 });
-it('bulk-selects visible bank questions and saves an ordered draft assessment selection', async () => {
+it('opens the preview outside the page layout and restores scrolling when closed', async () => {
+  vi.spyOn(services, 'getQuestion').mockResolvedValue(questions[0]);
   const user = userEvent.setup();
   renderWithProviders(<QuestionBank />, { loggedInAs: adminUser });
-  await screen.findByLabelText('Select Array sum');
-  await user.selectOptions(screen.getByLabelText('Question type'), 'debugging');
-  await user.click(screen.getByLabelText('Select all visible questions'));
-  await user.selectOptions(screen.getByLabelText('Draft assessment'), '10');
-  await user.click(
-    await screen.findByRole('button', { name: 'Add selected questions' }),
-  );
-  expect(screen.getByText('Assessment questions (1)')).toBeInTheDocument();
-  await user.click(
-    screen.getByRole('button', { name: 'Save assessment selection' }),
-  );
-  await waitFor(() =>
-    expect(services.updateAssessment).toHaveBeenCalledWith(10, {
-      questions: [{ questionId: 2, marks: 30 }],
-      questionCount: 1,
-    }),
-  );
+  await user.click(await screen.findByRole('button', { name: 'Array sum' }));
+  const dialog = await screen.findByRole('dialog', { name: 'Question preview' });
+  expect(dialog.parentElement?.parentElement).toBe(document.body);
+  expect(screen.getByRole('button', { name: 'Close' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Select question' })).not.toBeInTheDocument();
+  expect(document.body.style.overflow).toBe('hidden');
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog', { name: 'Question preview' })).not.toBeInTheDocument();
+  expect(document.body.style.overflow).toBe('');
+});
+it('filters questions without assessment controls or selection checkboxes', async () => {
+  const user = userEvent.setup();
+  renderWithProviders(<QuestionBank />, { loggedInAs: adminUser });
+  await screen.findByRole('button', { name: 'Array sum' });
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(screen.queryByText('Add questions to an assessment')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Draft assessment')).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText('Question type'), 'mcq');
+  expect(screen.getByRole('button', { name: 'Fix cache' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Array sum' })).not.toBeInTheDocument();
+  expect(screen.getByText('1 questions shown')).toBeVisible();
 });

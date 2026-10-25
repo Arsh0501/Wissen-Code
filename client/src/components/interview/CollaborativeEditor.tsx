@@ -271,7 +271,7 @@ export default function CollaborativeEditor({
     [],
   );
   return (
-    <div>
+    <div className="min-w-0 w-full max-w-full overflow-hidden">
       <div
         className="flex flex-wrap gap-2 items-center mb-2 text-xs text-surface-500"
         role="status"
@@ -352,6 +352,8 @@ export default function CollaborativeEditor({
           readOnly: readOnly || state.current.revision < 0 || !socket?.connected,
           minimap: { enabled: false },
           automaticLayout: true,
+          wordWrap: 'on',
+          scrollBeyondLastLine: false,
         }}
         onChange={(value) => {
           const next = value ?? '';

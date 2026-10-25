@@ -1,14 +1,20 @@
 import api from '../services/api';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import OtpVerify from '../components/OtpVerify';
+import { type AuthUser, useAuth } from '../context/AuthContext';
 import { ArrowRight } from 'lucide-react';
-import LocationsGlobe from '../components/landing/LocationsGlobe';
+import BrandScene from '../components/BrandScene';
+import BrandLogo from '../components/landing/BrandLogo';
 import './LoginPage.css';
 import ThemeToggle from '../components/ThemeToggle';
 
 export default function LoginPage() {
+  const [params] = useSearchParams();
+  const requestedNext = params.get('next') || '';
+  const next = /^\/invite\/[A-Za-z0-9_-]{16,64}$/.test(requestedNext) ? requestedNext : '/';
   const { login, signInWithToken, isLoggedIn, authError } = useAuth();
+  const [pendingVerification, setPendingVerification] = useState<{ user: AuthUser; token: string; refreshToken?: string; expiresInSeconds: number } | null>(null);
   const [sso, setSso] = useState(false);
   useEffect(() => { void api.get('/auth/sso/config').then(({ data }) => setSso(data.configured === true)).catch(() => {}); }, []);
   const [email, setEmail] = useState('');
@@ -20,7 +26,7 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (isLoggedIn) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={next} replace />;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -29,7 +35,11 @@ export default function LoginPage() {
     try {
       if (isSignup) {
         const { data } = await api.post('/auth/register', { name: name.trim(), email: email.trim(), password, role });
-        signInWithToken(data.user, data.accessToken ?? data.token);
+        if (data.verification?.status === 'sent') {
+          setPendingVerification({ user: data.user, token: data.accessToken ?? data.token, refreshToken: data.refreshToken, expiresInSeconds: data.verification.expiresInSeconds });
+        } else {
+          signInWithToken(data.user, data.accessToken ?? data.token, data.refreshToken);
+        }
       } else {
         await login(email.trim(), password);
       }
@@ -43,12 +53,21 @@ export default function LoginPage() {
   return (
     <div className="auth-shell login-split">
       <ThemeToggle className="fixed top-4 right-4 z-10" />
-      <section className="login-globe-panel" aria-label="Wissen global offices">
-        <LocationsGlobe compact />
-        <h1 className="login-globe-welcome"><span>Welcome to</span>Wissen Code</h1>
+      <section className="login-brand-panel" aria-label="Wissen Code">
+        <Link to="/" className="login-brand-link" aria-label="Wissen Code home"><BrandLogo /></Link>
+        <div className="login-story-copy">
+          <p className="brand-eyebrow">MAKE GREAT CONNECTIONS</p>
+          <h1>Good people.<br /><span>Great possibilities.</span></h1>
+          <p>Assess real skills, meet your next teammate, and make every conversation count.</p>
+        </div>
+        <BrandScene />
       </section>
       <main className="auth-form-area">
-        <div className="w-full max-w-md animate-fade-in">
+        {pendingVerification ? (
+          <OtpVerify email={pendingVerification.user.email} expiresInSeconds={pendingVerification.expiresInSeconds}
+            onVerified={() => signInWithToken(pendingVerification.user, pendingVerification.token, pendingVerification.refreshToken)}
+            onSkip={() => signInWithToken(pendingVerification.user, pendingVerification.token, pendingVerification.refreshToken)} />
+        ) : <div className="w-full max-w-md animate-fade-in">
           <p className="login-form-eyebrow">{isSignup ? 'Create your account' : 'Login to your account'}</p>
           <h2 className="text-3xl font-semibold text-white">{isSignup ? 'Join Wissen Code' : 'Welcome back!'}</h2>
           <p className="text-surface-500 text-sm mt-3 mb-8">
@@ -125,7 +144,7 @@ export default function LoginPage() {
             </button>
           </p>
           {!isSignup && <p className="text-xs text-surface-500 mt-6 text-center">Invited to an assessment? Open the invitation link shared with you.</p>}
-        </div>
+        </div>}
       </main>
     </div>
   );

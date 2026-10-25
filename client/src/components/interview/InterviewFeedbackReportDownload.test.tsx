@@ -24,6 +24,24 @@ function mockDownload() {
   return clicked;
 }
 
+it('shows a download button on a completed interview while explaining missing final feedback', () => {
+  renderWithProviders(<InterviewFeedbackReportDownload interviewId={20} submitted={false} completed compact />, { loggedInAs: adminUser });
+  expect(screen.getByRole('button', { name: 'Download PDF report' })).toBeDisabled();
+  expect(screen.getByText('Awaiting final feedback')).toBeVisible();
+  expect(api.request).not.toHaveBeenCalled();
+});
+
+it('generates an older completed interview report from the dashboard download button', async () => {
+  const clicked = mockDownload();
+  vi.mocked(api.request).mockImplementation(async request => ({ data: request.method === 'post' ? ready : null }));
+  renderWithProviders(<InterviewFeedbackReportDownload interviewId={20} submitted completed compact />, { loggedInAs: adminUser });
+  expect(api.request).not.toHaveBeenCalled();
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Download PDF report' }));
+  await waitFor(() => expect(clicked).toHaveBeenCalledOnce());
+  expect(api.request).toHaveBeenCalledWith(expect.objectContaining({ url: '/interviews/20/feedback/report', method: 'post' }));
+});
+
 it('automatically downloads the generated PDF after final feedback succeeds', async () => {
   const clicked = mockDownload();
   vi.mocked(api.request).mockImplementation(async request => ({ data: request.method === 'post'

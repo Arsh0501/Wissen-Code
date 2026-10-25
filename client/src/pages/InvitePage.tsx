@@ -29,6 +29,7 @@ export default function InvitePage() {
   const [error, setError] = useState('');
   const [hasAccount, setHasAccount] = useState(false);
   const [joining, setJoining] = useState(false);
+  useEffect(() => { if (user) { setName(user.name); setEmail(user.email); } }, [user]);
 
   useEffect(() => {
     getPublicInvite(token)
@@ -185,7 +186,7 @@ export default function InvitePage() {
                     {hasAccount && (
                       <button
                         type="button"
-                        onClick={() => navigate('/login')}
+                        onClick={() => navigate(`/login?next=${encodeURIComponent(`/invite/${token}`)}`)}
                         className="block mt-1 font-semibold underline"
                       >
                         Go to sign in

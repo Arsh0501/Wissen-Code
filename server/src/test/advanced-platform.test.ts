@@ -101,10 +101,11 @@ test('calendar fields escape newlines and webhook signatures bind ID, timestamp,
 
 test('durable email outbox claims concurrent delivery once and records provider failures for retry', async () => {
   const previous = {
-    key: process.env.RESEND_API_KEY,
+    key: process.env.SMTP_PASS, host: process.env.SMTP_HOST, smtpUser: process.env.SMTP_USER,
     from: process.env.MAIL_FROM,
   };
-  process.env.RESEND_API_KEY = 'test-only-not-a-real-key';
+  process.env.SMTP_PASS = 'test-only-not-a-real-key';
+  process.env.SMTP_HOST = 'smtp.test.invalid'; process.env.SMTP_USER = 'sender@test.invalid';
   process.env.MAIL_FROM = 'Wissen <sender@test.invalid>';
   const first = await prisma.outboundMessage.create({
     data: {
@@ -122,11 +123,12 @@ test('durable email outbox claims concurrent delivery once and records provider 
   });
   try {
     let calls = 0;
-    const transport = (async (_url, init) => {
+    const transport = async (message: { id: string; to: string; subject: string; body: string }) => {
       calls++;
-      assert.equal(new Headers(init?.headers).get('Idempotency-Key'), first.id);
-      return new Response('{"id":"provider-test"}', { status: 200 });
-    }) as typeof fetch;
+      assert.equal(message.id, first.id);
+      assert.equal(message.to, 'recipient@test.invalid');
+      return 'provider-test';
+    };
     await Promise.all([
       deliverOutbox(transport, [first.id]),
       deliverOutbox(transport, [first.id]),
@@ -141,8 +143,7 @@ test('durable email outbox claims concurrent delivery once and records provider 
       'sent',
     );
     await deliverOutbox(
-      (async () =>
-        new Response('unavailable', { status: 503 })) as typeof fetch,
+      async () => { throw new Error('SMTP unavailable'); },
       [second.id],
     );
     const failed = await prisma.outboundMessage.findUniqueOrThrow({
@@ -155,8 +156,10 @@ test('durable email outbox claims concurrent delivery once and records provider 
     await prisma.outboundMessage.deleteMany({
       where: { id: { in: [first.id, second.id] } },
     });
-    if (previous.key === undefined) delete process.env.RESEND_API_KEY;
-    else process.env.RESEND_API_KEY = previous.key;
+    if (previous.host === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = previous.host;
+    if (previous.smtpUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = previous.smtpUser;
+    if (previous.key === undefined) delete process.env.SMTP_PASS;
+    else process.env.SMTP_PASS = previous.key;
     if (previous.from === undefined) delete process.env.MAIL_FROM;
     else process.env.MAIL_FROM = previous.from;
   }

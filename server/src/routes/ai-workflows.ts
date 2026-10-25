@@ -5,7 +5,7 @@ import prisma from '../prisma';
 import { adminOnly } from '../middleware/adminOnly';
 import { structuredAI, WorkflowError } from '../services/structured-ai';
 import {
-  questionContentSchema,
+  draftContentSchema,
   validationSchema,
 } from '../services/workflow-schemas';
 import { verifyStarterDrivers } from '../services/coding-question-contract';
@@ -34,7 +34,7 @@ export function createAIWorkflowRouter(
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
   const serialize = (d: any) => ({
     ...d,
-    content: questionContentSchema.parse(d.content),
+    content: draftContentSchema.parse(d.content),
   });
 
   router.get('/status', (_req, res) =>
@@ -51,6 +51,7 @@ export function createAIWorkflowRouter(
       res.json(
         (
           await prisma.aIQuestionDraft.findMany({
+            where: { status: { notIn: ['approved', 'rejected'] }, questionId: null },
             orderBy: { updatedAt: 'desc' },
             take: 200,
           })
@@ -68,7 +69,7 @@ export function createAIWorkflowRouter(
   router.post(
     '/drafts',
     wrap(async (req, res) => {
-      const content = questionContentSchema.parse(req.body);
+      const content = draftContentSchema.parse(req.body);
       res
         .status(201)
         .json(
@@ -85,12 +86,12 @@ export function createAIWorkflowRouter(
     wrap(async (req, res) => {
       const input = z
         .object({
-          content: questionContentSchema,
+          content: draftContentSchema,
           revision: z.number().int().positive(),
         })
         .parse(req.body);
       const previous = await prisma.aIQuestionDraft.findUnique({ where: { id: Number(req.params.id) }, select: { content: true } });
-      if ((previous?.content as any)?.starterContractVersion === 2) input.content.starterContractVersion = 2;
+      if ((previous?.content as any)?.starterContractVersion === 2 && input.content.questionType !== 'mcq') input.content.starterContractVersion = 2;
       const updated = await prisma.aIQuestionDraft.updateMany({
         where: {
           id: Number(req.params.id),
@@ -142,7 +143,7 @@ export function createAIWorkflowRouter(
           'Approved questions cannot be revalidated',
           409,
         );
-      const content = questionContentSchema.parse(draft.content);
+      const content = draftContentSchema.parse(draft.content);
       const bank = await prisma.question.findMany({
         where: { ownerInterviewId: null },
         select: { id: true, title: true, statement: true },
@@ -157,7 +158,7 @@ export function createAIWorkflowRouter(
         select: { id: true, content: true },
       });
       const draftDuplicates = otherDrafts.filter((d) => {
-        const q = questionContentSchema.parse(d.content);
+        const q = draftContentSchema.parse(d.content);
         return (
           normalize(q.title) === normalize(content.title) ||
           normalize(q.statement) === normalize(content.statement)
@@ -166,11 +167,11 @@ export function createAIWorkflowRouter(
       const result = await ai(
         'question_validation',
         validationSchema,
-        'Independently validate all seven checks exactly once: duplicate, correctness, ambiguity, difficulty, testCases, expectedSolution, edgeCases. A passed duplicate check means no duplicate. Solve the problem and examine every expected output and reference solution. Compare to existing questions for semantic duplicates. Cite concrete evidence for each check; any uncertainty must fail that check. For every failed check, describe the exact inconsistency, affected field, and a concrete correction in evidence. Do not mark a concern resolved without supporting evidence.',
+        (content.questionType === 'mcq' ? 'This is a single-choice MCQ. Independently solve it and verify exactly one option is correct. Answer explanations are optional; do not fail a missing or empty explanation. If one is supplied, check that it agrees with the answer. For testCases review option quality; for expectedSolution review the answer key; for edgeCases review counterexamples and distracting options. Code execution is not applicable. ' : 'Answer explanations are optional; do not fail a missing or empty prose explanation. The reference solution and test cases still need to be correct. ') + 'Independently validate all seven checks exactly once: duplicate, correctness, ambiguity, difficulty, testCases, expectedSolution, edgeCases. A passed duplicate check means no duplicate. Solve the problem and examine every expected output and reference solution. Compare to existing questions for semantic duplicates. Cite concrete evidence for each check; any uncertainty must fail that check. For every failed check, describe the exact inconsistency, affected field, and a concrete correction in evidence. Do not mark a concern resolved without supporting evidence.',
         {
           question: content,
           bank: validationComparisons(content, bank),
-          otherDrafts: validationComparisons(content, otherDrafts.map((d) => questionContentSchema.parse(d.content)), 2000),
+          otherDrafts: validationComparisons(content, otherDrafts.map((d) => draftContentSchema.parse(d.content)), 2000),
         },
       );
       const keys = [
@@ -192,6 +193,16 @@ export function createAIWorkflowRouter(
         const check = result.checks.find((c) => c.key === 'duplicate')!;
         check.passed = false;
         check.evidence = `Exact duplicate detected: bank IDs ${duplicates.map((q) => q.id).join(', ')}; draft IDs ${draftDuplicates.map((q) => q.id).join(', ')}`;
+      }
+      if (content.questionType === 'mcq') {
+        const validation = { ...result, checks: result.checks, passed: result.checks.every(c => c.passed),
+          revision: draft.revision, executionVerified: false, executions: [], fixes: [] };
+        const updated = await prisma.aIQuestionDraft.updateMany({
+          where: { id: draft.id, revision: draft.revision, status: { not: 'approved' } },
+          data: { validation, validatedRevision: draft.revision, status: validation.passed ? 'validated' : 'needs_changes' },
+        });
+        if (!updated.count) throw new WorkflowError('Draft changed during validation. Reload and retry.', 409);
+        return res.json(serialize(await prisma.aIQuestionDraft.findUniqueOrThrow({ where: { id: draft.id } })));
       }
       const sampleAndHidden =
         content.testCases.some((t) => t.isSample) &&
@@ -272,8 +283,8 @@ export function createAIWorkflowRouter(
       if (directApprove) {
         const draft = await prisma.aIQuestionDraft.findUnique({ where: { id: Number(req.params.id) } });
         if (!draft) throw new WorkflowError('Draft not found', 404);
-        const content = questionContentSchema.parse(draft.content);
-        if (draft.status !== 'approved' && content.starterContractVersion === 2) {
+        const content = draftContentSchema.parse(draft.content);
+        if (draft.status !== 'approved' && content.questionType !== 'mcq' && content.starterContractVersion === 2) {
           if (draft.revision !== revision) throw new WorkflowError('Draft changed. Reload before approving.', 409);
           if (mockMode()) throw new WorkflowError('A real judge is required to verify starter input/output drivers.', 409);
           let verification: { verified: boolean; executions: QuestionExecution[]; error?: string };
@@ -313,8 +324,9 @@ export function createAIWorkflowRouter(
               'Save and successfully validate the latest revision before approving.',
               409,
             );
-          const q = questionContentSchema.parse(draft.content);
-          if (q.starterContractVersion === 2 && directlyVerifiedRevision !== draft.revision && (!(draft.validation as any)?.starterVerified || draft.validatedRevision !== draft.revision))
+          if (draft.revision !== revision) throw new WorkflowError('Draft changed. Reload before approving.', 409);
+          const q = draftContentSchema.parse(draft.content);
+          if (q.questionType !== 'mcq' && q.starterContractVersion === 2 && directlyVerifiedRevision !== draft.revision && (!(draft.validation as any)?.starterVerified || draft.validatedRevision !== draft.revision))
             throw new WorkflowError('Validate the starter input/output drivers for this revision before approval.', 409);
           const bank = await tx.question.findMany({
             where: { ownerInterviewId: null },
@@ -340,22 +352,16 @@ export function createAIWorkflowRouter(
               tags: JSON.stringify([
                 ...new Set([...q.topics, ...q.requiredSkills]),
               ]),
-              testCases: { create: q.testCases },
-              starterCodes: {
-                create: (q.starterCodes && q.starterCodes.length > 0)
-                  ? q.starterCodes.map((sc) => ({
-                      languageId: sc.languageId,
-                      languageName: sc.languageName,
-                      code: sc.code,
-                    }))
-                  : [
-                      {
-                        languageId: 71,
-                        languageName: 'Python',
-                        code: q.starterCodePython || '# Write your solution here',
-                      },
-                    ],
-              },
+              ...(q.questionType === 'mcq'
+                ? { settings: { options: q.options, correctOptionIds: [q.correctOptionId], multiple: false, explanation: q.solutionExplanation } }
+                : {
+                    testCases: { create: q.testCases },
+                    starterCodes: {
+                      create: q.starterCodes.length > 0
+                        ? q.starterCodes.map(sc => ({ languageId: sc.languageId, languageName: sc.languageName, code: sc.code }))
+                        : [{ languageId: 71, languageName: 'Python', code: q.starterCodePython || '# Write your solution here' }],
+                    },
+                  }),
             },
           });
           return tx.aIQuestionDraft.update({

@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import InterviewAIControls from './InterviewAIControls';
-import QuestionFeedback from './QuestionFeedback';
+import QuestionConversation from './QuestionConversation';
 import CollaborativeEditor from './CollaborativeEditor';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AIEvaluationData } from '../ai/InterviewAI';
 import InterviewAIConversation from './InterviewAIConversation';
 import { InterviewLiveState } from '../../hooks/useInterviewLive';
-import { apiData, Evaluation, type InterviewPlan } from '../../services/workflows';
+import { apiData, Evaluation } from '../../services/workflows';
 import { apiError } from '../../services/api';
 import { Question } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
@@ -14,15 +14,13 @@ import { RotateCcw } from 'lucide-react';
 import { getStarterCodeForLanguage, getAvailableQuestionLanguages } from '../../services/starterCodes';
 import ExecutionResults from './ExecutionResults';
 import QuestionDescription from '../questions/QuestionDescription';
+import ExpandableQuestionContent from './ExpandableQuestionContent';
 import LiveInterviewEvents from './LiveInterviewEvents';
-import InterviewPlanPreview from './InterviewPlanPreview';
-import QuestionFollowUps from './QuestionFollowUps';
-import QuestionTranscript from './QuestionTranscript';
 import CurrentQuestionSources from './CurrentQuestionSources';
-type LiveRoomSection = 'question' | 'plan' | 'communication' | 'ai' | 'notes' | 'activity';
+import { TranscriptionControlsContext } from './TranscriptionControlsContext';
+type LiveRoomSection = 'question' | 'communication' | 'ai' | 'notes' | 'activity';
 const LIVE_ROOM_SECTIONS = [
   { id: 'question', label: 'Question & code' },
-  { id: 'plan', label: 'Interview plan' },
   { id: 'communication', label: 'Video, chat & board' },
   { id: 'ai', label: 'AI assistance' },
   { id: 'notes', label: 'Private notes' },
@@ -78,25 +76,18 @@ export default function LiveInterviewRoom({
   live,
   evaluations,
   onQuestion,
-  plan = null,
-  planLoading = false,
-  planError,
-  onOpenPlan,
   communication,
 }: {
   interview: LiveRoomInterview;
   live: InterviewLiveState;
   evaluations: Evaluation[];
   onQuestion: (id: number) => void;
-  plan?: InterviewPlan | null;
-  planLoading?: boolean;
-  planError?: string;
-  onOpenPlan?: () => void;
   communication?: ReactNode;
 }) {
   const { theme } = useTheme();
   const client = useQueryClient();
   const [notes, setNotes] = useState('');
+  const [transcriptionTarget, setTranscriptionTarget] = useState<HTMLDivElement | null>(null);
   const [section, setSection] = useState<LiveRoomSection>('question');
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const status = live.snapshot.status ?? interview.status;
@@ -203,7 +194,7 @@ export default function LiveInterviewRoom({
   });
 
   return (
-    <div className="space-y-5">
+    <TranscriptionControlsContext.Provider value={transcriptionTarget}><div className="space-y-5">
       <div className="card flex flex-wrap justify-between gap-5 items-center">
         <div>
           <h2 className="text-xl font-semibold">Live Interview Room</h2>
@@ -270,13 +261,10 @@ export default function LiveInterviewRoom({
         >{item.label}</button>)}
       </nav>
       <div className="max-h-[70dvh] overflow-y-auto min-w-0">
-      <div hidden={section !== 'plan'}>
-        {planLoading ? <p role="status">Loading interview plan…</p> : planError ? <p role="alert">{planError}</p> : <InterviewPlanPreview plan={plan} onOpenPlan={onOpenPlan} />}
-      </div>
       <div hidden={section !== 'communication'}>{communication ?? <p className="card">Communication tools are unavailable.</p>}</div>
-      <div hidden={section !== 'question'}>
-      <div className={`grid ${nonCoding ? '' : 'xl:grid-cols-[1fr_1.2fr]'} gap-5`}>
-        <section className="card space-y-4">
+      <div hidden={section !== 'question' && section !== 'communication'} className={section === 'communication' ? 'mt-5' : ''}>
+      <div className={`grid ${nonCoding ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]'} gap-5 min-w-0`}>
+        <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
           <label className="label">
             Current question
             <select
@@ -295,36 +283,24 @@ export default function LiveInterviewRoom({
               ))}
             </select>
           </label>
-          <CurrentQuestionSources interviewId={interview.id} questions={interview.questions} plan={plan} disabled={busy || status !== 'in_progress'} />
+          <CurrentQuestionSources interviewId={interview.id} questions={interview.questions} disabled={busy || status !== 'in_progress'} />
           {question ? (
             <>
-              <h3 className="font-semibold">{question.title}</h3>
-              <QuestionDescription question={question} />
+              <h3 className="font-semibold [overflow-wrap:anywhere]">{question.title}</h3>
+              <ExpandableQuestionContent key={question.id}><QuestionDescription question={question} /></ExpandableQuestionContent>
             </>
           ) : (
             <p className="text-surface-500">No active question selected.</p>
           )}
-          {question && activeId && <QuestionTranscript key={`transcript:${interview.id}:${activeId}`} interviewId={interview.id} questionId={activeId} active={status === 'in_progress'} />}
-          {nonCoding && question && activeId && <QuestionFeedback
-            key={`feedback:${interview.id}:${activeId}`}
-            interviewId={interview.id}
-            questionId={activeId}
-            notes={activeQuestionLink?.notes}
-            active={status === 'in_progress'}
-          />}
-          {!nonCoding && <p className="text-xs text-surface-500">AI follow-ups use this question's latest candidate-submitted code and test results, or a saved reviewed transcript. Speech alone does not verify code correctness.</p>}
+          {question && activeId && <QuestionConversation key={`conversation:${interview.id}:${activeId}`} interviewId={interview.id} questionId={activeId} active={status === 'in_progress'} controls={<div ref={setTranscriptionTarget} />} />}
+          {!nonCoding && <p className="text-xs text-surface-500">Conversation follow-ups use the reviewed transcript for the current turn. Speech alone does not verify code correctness.</p>}
           {question?.settings?.rubric && (
             <p className="text-sm whitespace-pre-wrap">
               Rubric: {question.settings.rubric}
             </p>
           )}
-          {activeId && <QuestionFollowUps
-            key={`follow-ups:${interview.id}:${activeId}`}
-            interviewId={interview.id} questionId={activeId} status={status}
-            suggestions={live.ai.followUps.map(item => ({ ...item, status: (decisions[`follow:${item.id}`] || item.status) as typeof item.status }))}
-          />}
         </section>
-        {!nonCoding && <section className="card space-y-4">
+        {!nonCoding && <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-white">Candidate code</h3>
@@ -358,6 +334,7 @@ export default function LiveInterviewRoom({
               </button>
             </div>
           </div>
+          <p className="text-xs text-surface-400">Shared coding area: you and the candidate can edit the same code during the interview.</p>
           <CollaborativeEditor
             key={activeId}
             socket={live.socket}
@@ -474,6 +451,6 @@ export default function LiveInterviewRoom({
         />
       </div>
       </div>
-    </div>
+    </div></TranscriptionControlsContext.Provider>
   );
 }

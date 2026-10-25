@@ -19,7 +19,6 @@ import {
   apiError,
   getQuestions,
   getAssessments,
-  getReportData,
 } from '../../services/api';
 import { Question } from '../../types';
 import { Spinner } from '../../components/ui';
@@ -27,6 +26,7 @@ import { useAuth } from '../../context/AuthContext';
 import ResumeDialog from '../../components/interview/ResumeDialog';
 import ScheduledInterviewActions from '../../components/interview/ScheduledInterviewActions';
 import InterviewNavigation from '../../components/interview/InterviewNavigation';
+import InterviewFeedbackReportDownload from '../../components/interview/InterviewFeedbackReportDownload';
 
 export interface InterviewSummary {
   id: number;
@@ -128,19 +128,10 @@ export default function InterviewsPage() {
   const assessmentCandidates = useQuery({
     queryKey: ['assessment-candidates', Number(candidateAssessment)],
     queryFn: () =>
-      apiData<{ candidates: { name: string }[] }>(
+      apiData<{ candidates: { name: string; email?: string | null; candidateUserId?: number | null }[] }>(
         `/assessments/${candidateAssessment}/candidates`,
       ),
     enabled: creating && step === 1 && !!candidateAssessment,
-  });
-
-  const resolveCandidate = useMutation({
-    mutationFn: (candidate: string) =>
-      getReportData(candidate, Number(candidateAssessment)),
-    onSuccess: (data, candidate) => {
-      setName(candidate);
-      setEmail(data.candidate?.email || '');
-    },
   });
 
   const candidates = [
@@ -432,10 +423,12 @@ export default function InterviewsPage() {
                     )
                     .map((c) => (
                       <button
-                        key={c.name}
+                        key={c.candidateUserId ?? c.name}
                         className="btn-outline text-xs"
-                        disabled={resolveCandidate.isPending}
-                        onClick={() => resolveCandidate.mutate(c.name)}
+                        onClick={() => {
+                          setName(c.name);
+                          setEmail(c.email || '');
+                        }}
                       >
                         {c.name}
                       </button>
@@ -919,6 +912,7 @@ export default function InterviewsPage() {
 
                 {/* Right side buttons */}
                 <div className="flex flex-wrap items-center gap-2">
+                  {isCompleted && <InterviewFeedbackReportDownload interviewId={i.id} submitted={!!i.finalFeedback} completed compact />}
                   <ScheduledInterviewActions interview={i} />
                   {!schedulingOnly && isScheduled && (
                     <button

@@ -57,7 +57,6 @@ const STEPS = [
   { key: 'questions', label: 'Select Questions', icon: ListChecks },
   { key: 'config', label: 'Configure Assessment', icon: Settings2 },
   { key: 'review', label: 'Review', icon: Eye },
-  { key: 'generate', label: 'Generate', icon: Save },
   { key: 'publish', label: 'Publish', icon: Rocket },
 ] as const;
 type StepKey = (typeof STEPS)[number]['key'];
@@ -195,6 +194,7 @@ export default function AssessmentForm() {
   const [search, setSearch] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [tag, setTag] = useState('');
+  const [bankQuestionType, setBankQuestionType] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -211,7 +211,7 @@ export default function AssessmentForm() {
             ...f,
             questions: unique.map((questionId) => ({
               questionId,
-              marks:
+              marks: questions.find((q) => q.id === questionId)?.questionType === 'mcq' ? 1 :
                 DEFAULT_MARKS[
                   questions.find((q) => q.id === questionId)!.difficulty
                 ],
@@ -229,11 +229,11 @@ export default function AssessmentForm() {
             difficulty: a.difficulty ?? 'mixed',
             questionTypes: parseJsonArray<string>(
               a.questionTypes || '["coding"]',
-            ),
-            topics: parseJsonArray<string>(a.topics || '[]'),
-            requiredSkills: parseJsonArray<string>(a.requiredSkills || '[]'),
+            ).filter(type => ['coding', 'mcq'].includes(type)),
+            topics: [],
+            requiredSkills: [],
             allowedEmails: parseJsonArray<string>(a.allowedEmails || '[]'),
-            allowedDomains: parseJsonArray<string>(a.allowedDomains || '[]'),
+            allowedDomains: [],
             maxAttempts: a.maxAttempts ?? 1,
             name: a.name,
             description: a.description,
@@ -277,6 +277,7 @@ export default function AssessmentForm() {
       !selectedIds.has(q.id) &&
       (!search || q.title.toLowerCase().includes(search.toLowerCase())) &&
       (!difficulty || q.difficulty === difficulty) &&
+      (!bankQuestionType || (q.questionType || 'coding') === bankQuestionType) &&
       (!tag || parseJsonArray(q.tags).includes(tag)),
   );
   const totalMarks = form.questions.reduce((a, q) => a + (q.marks || 0), 0);
@@ -285,10 +286,10 @@ export default function AssessmentForm() {
     question: byId.get(q.questionId),
   }));
 
-  async function generateAssessment() {
-    const errors = validate(form, true);
+  async function saveReviewDraft() {
+    const errors = validate(form, false);
     const firstBadStep = STEPS.find((s) => errors[s.key]?.length);
-    setAttempted('published');
+    setAttempted('draft');
     if (firstBadStep) {
       setStep(firstBadStep.key);
       return;
@@ -311,7 +312,7 @@ export default function AssessmentForm() {
   function addQuestion(q: Question) {
     set('questions', [
       ...form.questions,
-      { questionId: q.id, marks: DEFAULT_MARKS[q.difficulty] ?? 10 },
+      { questionId: q.id, marks: q.questionType === 'mcq' ? 1 : DEFAULT_MARKS[q.difficulty] ?? 10 },
     ]);
   }
   function removeQuestion(qid: number) {
@@ -399,7 +400,7 @@ export default function AssessmentForm() {
             Cancel
           </Link>
           <button
-            onClick={() => save('draft')}
+            onClick={() => step === 'review' ? saveReviewDraft() : save('draft')}
             disabled={saving}
             className="btn-outline text-sm"
           >
@@ -559,7 +560,7 @@ export default function AssessmentForm() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <select
                   className="input py-1.5 text-sm"
                   value={difficulty}
@@ -581,6 +582,11 @@ export default function AssessmentForm() {
                       {t}
                     </option>
                   ))}
+                </select>
+                <select className="input py-1.5 text-sm sm:col-span-2" aria-label="Question type" value={bankQuestionType} onChange={e => setBankQuestionType(e.target.value)}>
+                  <option value="">All types</option>
+                  <option value="coding">Coding</option>
+                  <option value="mcq">MCQ</option>
                 </select>
               </div>
             </div>
@@ -647,7 +653,7 @@ export default function AssessmentForm() {
             </div>
             {selectedQuestions.length === 0 ? (
               <p className="text-sm text-surface-500 text-center py-16 px-6">
-                Add questions from the bank. Default marks: easy 10, medium 20,
+                Add questions from the bank. MCQs default to 1 mark each. Coding defaults: easy 10, medium 20,
                 hard 30. You can change them.
               </p>
             ) : (
@@ -951,9 +957,7 @@ export default function AssessmentForm() {
               ['Question count', String(form.questionCount)],
               ['Difficulty', form.difficulty || 'mixed'],
               ['Question types', form.questionTypes?.join(', ') || 'coding'],
-              ['Topics', form.topics?.join(', ') || 'All'],
               ['Candidate emails', form.allowedEmails?.join(', ') || 'All'],
-              ['Candidate domains', form.allowedDomains?.join(', ') || 'All'],
               ['Attempts', String(form.maxAttempts)],
               ['Duration', `${form.timeLimitMinutes} minutes`],
               ['Passing score', `${form.passingScore}%`],
@@ -1023,39 +1027,16 @@ export default function AssessmentForm() {
               ))}
             </select>
           </label>
-          <label className="label">
-            Question types
-            <select
-              multiple
-              className="input mt-2"
-              value={form.questionTypes}
-              onChange={(e) =>
-                set(
-                  'questionTypes',
-                  [...e.target.selectedOptions].map((o) => o.value),
-                )
-              }
-            >
-              <option value="coding">Coding</option>
-              <option value="debugging">Debugging</option>{['mcq', 'sql', 'written', 'project'].map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
-            </select>
-          </label>
-          <label className="label">
-            Topics
-            <StringListInput
-              placeholder="arrays, strings"
-              value={form.topics ?? []}
-              onChange={(values) => set('topics', values)}
-            />
-          </label>
-          <label className="label">
-            Required skills
-            <StringListInput
-              placeholder="Python, problem solving"
-              value={form.requiredSkills ?? []}
-              onChange={(values) => set('requiredSkills', values)}
-            />
-          </label>
+          <fieldset className="space-y-2">
+            <legend className="label">Question types</legend>
+            <div className="flex flex-wrap gap-5">
+              {[{ value: 'coding', label: 'Coding' }, { value: 'mcq', label: 'MCQ' }].map(type => <label key={type.value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={form.questionTypes?.includes(type.value) ?? false} onChange={event => set('questionTypes', event.target.checked ? [...(form.questionTypes ?? []), type.value] : (form.questionTypes ?? []).filter(value => value !== type.value))} />
+                {type.label}
+              </label>)}
+            </div>
+            <p className="text-xs text-surface-400">Select either type or both to combine coding and MCQ questions in one assessment.</p>
+          </fieldset>
           <label className="label">
             Maximum attempts
             <input
@@ -1075,43 +1056,10 @@ export default function AssessmentForm() {
               onChange={(values) => set('allowedEmails', values)}
             />
           </label>
-          <label className="label">
-            Allowed email domains
-            <StringListInput
-              placeholder="wissen.com"
-              value={form.allowedDomains ?? []}
-              onChange={(values) => set('allowedDomains', values)}
-            />
-          </label>
           <p className="text-xs text-surface-500 md:col-span-2">
-            Emails and domains form one allowlist: matching either grants
-            access. Empty lists allow all eligible candidates. Published
-            questions must match the configured count, difficulty, types and
-            topics.
+            Allowed candidate emails restrict access to the listed candidates. An empty list allows all eligible candidates.
+            Published questions must match the configured count, difficulty and question types.
           </p>
-        </div>
-      )}
-      {step === 'generate' && (
-        <div className="card space-y-4">
-          <h2 className="text-xl font-semibold">Generate assessment</h2>
-          <p>
-            Save the reviewed configuration and selected questions as a draft.
-            Publishing is a separate step.
-          </p>
-          <p>
-            {form.questions.length} selected questions · {form.timeLimitMinutes}{' '}
-            minutes · {form.maxAttempts} attempt(s)
-          </p>
-          <button
-            className="btn-primary"
-            onClick={generateAssessment}
-            disabled={saving}
-          >
-            {saving ? 'Generating…' : 'Generate assessment draft'}
-          </button>
-          <Link className="btn-outline ml-3" to="/admin/ai-questions">
-            Generate new AI questions
-          </Link>
         </div>
       )}
       {step === 'publish' && (
@@ -1120,7 +1068,7 @@ export default function AssessmentForm() {
           <p>
             {generatedId
               ? 'The assessment draft is ready. Publish to open it to eligible candidates within its validity window.'
-              : 'Complete Review and Generate before publishing.'}
+              : 'Save the assessment as a draft from Review before publishing.'}
           </p>
           <button
             className="btn-primary"
@@ -1143,8 +1091,8 @@ export default function AssessmentForm() {
         </button>
         {stepIndex < STEPS.length - 1 && (
           <button
-            disabled={step === 'generate'}
-            onClick={() => setStep(STEPS[stepIndex + 1].key)}
+            disabled={saving}
+            onClick={() => step === 'review' ? saveReviewDraft() : setStep(STEPS[stepIndex + 1].key)}
             className="btn-outline text-sm"
           >
             Next: {STEPS[stepIndex + 1].label} →

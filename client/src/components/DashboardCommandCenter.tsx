@@ -6,6 +6,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { PointerEvent } from 'react';
+import './DashboardCommandCenter.css';
 export default function DashboardCommandCenter({
   active,
   inProgress,

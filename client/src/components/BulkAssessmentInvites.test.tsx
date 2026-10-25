@@ -6,6 +6,22 @@ import { renderWithProviders, adminUser } from '../test/test-utils';
 import BulkAssessmentInvites from './BulkAssessmentInvites';
 vi.mock('../services/candidateImport', async importOriginal => ({ ...await importOriginal<any>(), readCandidateFile: async () => [{ name: 'Candidates', rows: [['Email', 'Extra', 'Name'], ['maya@example.com', 'ignored', 'Maya'], ['invalid', 'ignored', 'Bad row']] }] }));
 
+it('shows assessment-wide pending and sent statuses on reopen and blocks selecting previously invited recipients', async () => {
+  vi.mocked(api.request).mockImplementation(async (config: any) => ({ data: config.url.startsWith('/invites/candidates')
+    ? { candidates: [{ id: 7, name: 'Sam', email: 'sam@example.com' }], hasMore: false }
+    : { messages: [{ recipient: 'maya@example.com', status: 'pending' }, { recipient: 'sam@example.com', status: 'sent' }] },
+  }));
+  renderWithProviders(<BulkAssessmentInvites assessment={{ id: 20, name: 'API assessment' }} onClose={vi.fn()} />, { loggedInAs: adminUser });
+  const user = userEvent.setup();
+  expect(await screen.findByText('1 done sending | 1 still pending | 0 failed')).toBeVisible();
+  await user.upload(screen.getByLabelText('Import CSV or Excel (.xlsx)'), new File(['test'], 'candidates.csv', { type: 'text/csv' }));
+  expect(await screen.findByLabelText('Select imported row 2')).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Add candidates from database' }));
+  expect(await screen.findByRole('checkbox', { name: /Sam.*sam@example.com/ })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /Send assessment invitations/ })).toBeDisabled();
+  expect(vi.mocked(api.request).mock.calls.some(([config]) => config.method === 'post')).toBe(false);
+});
+
 it('previews imported rows and allows database candidates before sending only the selected recipients', async () => {
   vi.mocked(api.request).mockImplementation(async (config: any) => ({ data:
     config.url.startsWith('/invites/candidates') ? { candidates: [{ id: 7, name: 'Sam', email: 'sam@example.com' }], hasMore: false } :

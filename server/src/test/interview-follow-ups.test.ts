@@ -51,6 +51,7 @@ test('manual and AI follow-ups are scoped, private, idempotent and included only
     assert.equal(await prisma.interviewFollowUp.count({ where: { interviewId: interview.id } }), 1);
     const asked = await call(`${root}/${input.requestId}`, 'PUT', { status: 'asked' });
     assert.equal(asked.status, 200); assert.equal(asked.body.status, 'asked'); assert.ok(asked.body.askedAt);
+    assert.equal((await call(`${root}/current`)).body.question, input.question);
     assert.equal((await call(`${root}/${input.requestId}`, 'PUT', { status: 'dismissed' })).status, 409);
     await call(root, 'POST', { requestId: randomUUID(), question: 'PENDING_MANUAL_SECRET' });
     const dismissed = await call(root, 'POST', { requestId: randomUUID(), question: 'DISMISSED_MANUAL_SECRET' });
@@ -62,7 +63,13 @@ test('manual and AI follow-ups are scoped, private, idempotent and included only
     assert.equal((await call(reviewPath, 'POST', { itemId: `${job.id}-0`, decision: 'ask' })).status, 409);
     await prisma.interview.update({ where: { id: interview.id }, data: { currentQuestionId: question.id } });
     assert.equal((await call(reviewPath, 'POST', { itemId: `${job.id}-0`, decision: 'ask' })).status, 200);
+    const aiCurrent = (await call(`${root}/current`)).body;
+    assert.equal(aiCurrent.id, `${job.id}-0`);
+    assert.equal(aiCurrent.parentId, input.requestId);
     assert.equal((await call(root, 'POST', { requestId: randomUUID(), question: 'Manual ask now', askNow: true })).body.status, 'asked');
+    assert.equal((await call(`${root}/current`)).body.parentId, aiCurrent.id);
+    assert.equal((await call(`${root}/current`, 'DELETE')).status, 200);
+    assert.equal((await call(`${root}/current`)).body, null);
     const room = await call(`/room/${marker}`);
     assert.ok(!JSON.stringify(room.body).includes('Manual follow-up marked asked'));
 

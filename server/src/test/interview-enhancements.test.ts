@@ -205,132 +205,6 @@ Experience:
     assert.equal(response.status, 400);
   });
 
-  await t.test('PDF-only resumes generate questions that an interviewer can add and edit before starting', async () => {
-    const adminHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` };
-    const interviewerHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${interviewerToken}` };
-    const create = await fetch(`${BASE_URL}/interviews`, {
-      method: 'POST', headers: adminHeaders, body: JSON.stringify({ title: 'PDF preparation',
-        candidateName: candidate.name, candidateEmail: candidate.email, interviewerId: interviewer.id,
-        timeLimitMinutes: 45, candidateResumeUrl: `data:application/pdf;base64,${resumePdf.toString('base64')}` }),
-    });
-    assert.equal(create.status, 201);
-    const created: any = await create.json();
-    const id = created.interview.id;
-    const generation = await fetch(`${BASE_URL}/interviews/${id}/generate-resume-questions`, { method: 'POST', headers: interviewerHeaders, body: '{}' });
-    assert.equal(generation.status, 200, await generation.clone().text());
-    const generated: any = await generation.json();
-    assert.ok(generated.questions.length >= 3);
-    assert.ok(['ai', 'resume-based'].includes(generated.source));
-    const draft = { ...generated.questions[0], expectedSolution: 'PRIVATE_REVIEW_ONLY' };
-    const add = await fetch(`${BASE_URL}/interviews/${id}/questions`, { method: 'POST', headers: interviewerHeaders, body: JSON.stringify(draft) });
-    assert.equal(add.status, 201, await add.clone().text());
-    const added: any = await add.json();
-    const originalId = added.question.questionId;
-    testQuestionIds.push(originalId);
-    assert.equal(added.question.question.statement, draft.statement);
-    // Resume questions belong to this interview and cannot be reused elsewhere.
-    const second = await fetch(`${BASE_URL}/interviews`, { method: 'POST', headers: adminHeaders, body: JSON.stringify({
-      title: 'Shared question control', candidateName: candidate.name, candidateEmail: candidate.email,
-      interviewerId: interviewer.id, timeLimitMinutes: 45, questionIds: [originalId],
-    }) });
-    assert.equal(second.status, 400);
-    const bankList = await fetch(`${BASE_URL}/questions`, { headers: interviewerHeaders });
-    assert.equal(bankList.status, 200);
-    assert.ok(!(await bankList.json() as any[]).some((question) => question.id === originalId));
-    const edit = await fetch(`${BASE_URL}/interviews/${id}/questions/${originalId}`, {
-      method: 'PUT', headers: interviewerHeaders,
-      body: JSON.stringify({ title: 'Updated interview-specific question', statement: 'Describe a React performance investigation.', difficulty: 'hard', tags: ['React'] }),
-    });
-    assert.equal(edit.status, 200, await edit.clone().text());
-    const edited: any = await edit.json();
-    testQuestionIds.push(edited.question.id);
-    assert.notEqual(edited.question.id, originalId);
-    assert.equal((await prisma.question.findUniqueOrThrow({ where: { id: originalId } })).statement, draft.statement);
-    const list = await fetch(`${BASE_URL}/interviews`, { headers: interviewerHeaders });
-    const interviews: any = await list.json();
-    const saved = interviews.find((item: any) => item.id === id);
-    assert.equal(saved.questions[0].question.title, 'Updated interview-specific question');
-    const room = await fetch(`${BASE_URL}/public/interview/${created.interview.roomToken}`);
-    assert.equal(room.status, 200);
-    assert.equal((await room.text()).includes('PRIVATE_REVIEW_ONLY'), false);
-    const denied = await fetch(`${BASE_URL}/interviews/${id}/questions/${edited.question.id}`, {
-      method: 'PUT', headers: { ...interviewerHeaders, Authorization: `Bearer ${candidateToken}` }, body: JSON.stringify(draft),
-    });
-    assert.equal(denied.status, 403);
-    const start = await fetch(`${BASE_URL}/interviews/${id}/start`, { method: 'POST', headers: interviewerHeaders, body: '{}' });
-    assert.equal(start.status, 200);
-    const liveEdit = await fetch(`${BASE_URL}/interviews/${id}/questions/${edited.question.id}`, { method: 'PUT', headers: interviewerHeaders, body: JSON.stringify(draft) });
-    assert.equal(liveEdit.status, 200);
-    assert.equal((await liveEdit.json() as any).question.id, edited.question.id);
-  });
-
-  await t.test('Interviewer can combine database DSA questions with resume questions while preserving coding data', async () => {
-    const bankQuestion = await prisma.question.create({ data: {
-      title: `Two Sum ${runId}`, statement: 'Find two array elements whose sum equals the target.',
-      difficulty: 'easy', questionType: 'coding', tags: '["arrays","DSA"]',
-      starterCodes: { create: [{ languageId: 71, languageName: 'Python', code: 'def two_sum(values, target):\n    pass' }] },
-      testCases: { create: [{ input: '2 7 9\n9', expectedOutput: '0 1', isSample: true }, { input: '3 2 4\n6', expectedOutput: '1 2', isSample: false }] },
-    } });
-    testQuestionIds.push(bankQuestion.id);
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${interviewerToken}` };
-    const bank = await fetch(`${BASE_URL}/questions`, { headers });
-    assert.equal(bank.status, 200);
-    const bankData: any = await bank.json();
-    assert.ok(bankData.some((item: any) => item.id === bankQuestion.id));
-    const detail = await fetch(`${BASE_URL}/questions/${bankQuestion.id}`, { headers });
-    assert.equal(detail.status, 200);
-    const detailData: any = await detail.json();
-    assert.equal(detailData.testCases.length, 1);
-    const denied = await fetch(`${BASE_URL}/questions`, { headers: { Authorization: `Bearer ${candidateToken}` } });
-    assert.equal(denied.status, 403);
-    const create = await fetch(`${BASE_URL}/interviews`, { method: 'POST', headers: { ...headers, Authorization: `Bearer ${adminToken}` }, body: JSON.stringify({
-      title: 'DSA and resume interview', candidateName: candidate.name, candidateEmail: candidate.email,
-      interviewerId: interviewer.id, timeLimitMinutes: 45, candidateResume: 'React and TypeScript engineer with PostgreSQL experience.',
-    }) });
-    assert.equal(create.status, 201);
-    const created: any = await create.json();
-    const id = created.interview.id;
-    const add = await fetch(`${BASE_URL}/interviews/${id}/questions`, { method: 'POST', headers, body: JSON.stringify({ questionId: bankQuestion.id }) });
-    assert.equal(add.status, 201);
-    const added: any = await add.json();
-    assert.equal(added.question.questionId, bankQuestion.id);
-    assert.equal(added.question.question.starterCodes[0].code, 'def two_sum(values, target):\n    pass');
-    assert.equal(added.question.question.testCases.length, 2);
-    const saved = await prisma.interview.findUniqueOrThrow({ where: { id } });
-    assert.equal(saved.currentQuestionId, bankQuestion.id);
-    assert.equal(saved.currentCode, 'def two_sum(values, target):\n    pass');
-    const duplicate = await fetch(`${BASE_URL}/interviews/${id}/questions`, { method: 'POST', headers, body: JSON.stringify({ questionId: bankQuestion.id }) });
-    assert.equal(duplicate.status, 409);
-    const generation = await fetch(`${BASE_URL}/interviews/${id}/generate-resume-questions`, { method: 'POST', headers, body: '{}' });
-    assert.equal(generation.status, 200);
-    const generated: any = await generation.json();
-    const resumeAdd = await fetch(`${BASE_URL}/interviews/${id}/questions`, { method: 'POST', headers, body: JSON.stringify(generated.questions[0]) });
-    assert.equal(resumeAdd.status, 201);
-    const resumeQuestion: any = await resumeAdd.json();
-    testQuestionIds.push(resumeQuestion.question.questionId);
-    const interviewResponse = await fetch(`${BASE_URL}/interviews/${id}`, { headers });
-    const interview: any = await interviewResponse.json();
-    assert.equal(interview.questions.length, 2);
-    assert.equal(interview.questions[0].questionId, bankQuestion.id);
-    assert.equal(interview.questions[1].questionId, resumeQuestion.question.questionId);
-  });
-
-  await t.test('Unreadable PDFs return an actionable generation error', async () => {
-    const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` };
-    const create = await fetch(`${BASE_URL}/interviews`, { method: 'POST', headers, body: JSON.stringify({
-      title: 'Unreadable PDF', candidateName: candidate.name, candidateEmail: candidate.email,
-      interviewerId: interviewer.id, timeLimitMinutes: 45,
-      candidateResumeUrl: `data:application/pdf;base64,${Buffer.from('%PDF-1.4\n%%EOF').toString('base64')}`,
-    }) });
-    assert.equal(create.status, 201);
-    const created: any = await create.json();
-    const generation = await fetch(`${BASE_URL}/interviews/${created.interview.id}/generate-resume-questions`, {
-      method: 'POST', headers: { ...headers, Authorization: `Bearer ${interviewerToken}` }, body: '{}',
-    });
-    assert.equal(generation.status, 422);
-    assert.match((await generation.json() as any).error, /paste.*resume text/i);
-  });
-
   await t.test('Only admin can modify or cancel a scheduled interview', async () => {
     for (const token of [interviewerToken, candidateToken]) {
       for (const [suffix, method] of [['', 'PUT'], ['/cancel', 'POST']]) {
@@ -542,24 +416,6 @@ Experience:
     assert.equal(response.status, 403);
   });
 
-  await t.test('Generates resume-based interview questions', async () => {
-    const aiRes = await fetch(`${BASE_URL}/interviews/${testInterviewId}/generate-resume-questions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${interviewerToken}`,
-      },
-      body: JSON.stringify({}),
-    });
-
-    assert.equal(aiRes.status, 200);
-    const body: any = await aiRes.json();
-    assert.ok(Array.isArray(body.questions));
-    assert.ok(body.questions.length >= 3);
-    assert.ok(body.questions[0].title);
-    assert.ok(body.questions[0].statement);
-  });
-
   await t.test('Interviewer can submit final feedback and rating', async () => {
     const premature = await fetch(`${BASE_URL}/interviews/${testInterviewId}/feedback`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${interviewerToken}` },
@@ -597,7 +453,7 @@ Experience:
   });
 
   await t.test('Ended interviews reject question generation, adding, updating and removal', async () => {
-    for (const [path, method] of [['generate-resume-questions', 'POST'], ['questions', 'POST'], ['questions/1', 'PUT'], ['questions/1', 'DELETE']]) {
+    for (const [path, method] of [['questions', 'POST'], ['questions/1', 'PUT'], ['questions/1', 'DELETE']]) {
       const response = await fetch(`${BASE_URL}/interviews/${testInterviewId}/${path}`, {
         method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${interviewerToken}` },
         body: JSON.stringify({ title: 'Late change', statement: 'Must not be saved' }),

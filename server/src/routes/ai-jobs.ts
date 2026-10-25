@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { generationTopics } from '../services/studio-generation';
 import { aiConfigured } from '../ai/config';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -10,10 +12,10 @@ import { runInlineJob } from '../ai/inline';
 import { interviewContext } from '../ai/context';
 import { finalEvaluationContext } from '../ai/final-evaluation-context';
 import { WorkflowError } from '../services/structured-ai';
+import { setCurrentSubquestion } from '../services/current-subquestion';
 import {
   generationSchema,
-  questionContentSchema,
-  planInputSchema,
+  draftContentSchema,
 } from '../services/workflow-schemas';
 const router = Router();
 router.use(adminOrInterviewer);
@@ -43,10 +45,12 @@ router.post(
           error:
             'Question generation and validation require administrator access',
         });
-    if (body.kind === 'question-generation') generationSchema.parse(body.input);
+    if (body.kind === 'question-generation') {
+      generationTopics(generationSchema.parse(body.input));
+      body.input.requestId = randomUUID();
+    }
     if (body.kind === 'question-validation')
-      questionContentSchema.parse(body.input.question);
-    if (body.kind === 'interview-planner') planInputSchema.parse(body.input);
+      draftContentSchema.parse(body.input.question);
     if (!body.kind.startsWith('question-') && !body.interviewId)
       return res.status(400).json({ error: 'Interview ID required' });
     if (body.interviewId) {
@@ -63,8 +67,6 @@ router.post(
       }
       if (body.kind === 'note-writer' && !['in_progress', 'completed'].includes(interview.status))
         return res.status(409).json({ error: 'Start the interview before generating notes' });
-      if (body.kind === 'interview-planner' && interview.status !== 'scheduled')
-        return res.status(409).json({ error: 'Prepare the interview plan before the interview starts' });
     }
     const recentEvents = body.interviewId ? await prisma.interviewEvent.findMany({ where: { interviewId: body.interviewId, eventType: { notIn: ['CODE_CHANGED', 'CURSOR_CHANGED', 'AI_REVIEWED'] } }, orderBy: { id: 'desc' }, take: 20, select: { id: true, eventType: true, createdAt: true, payload: true } }) : [];
     const latestEvent = body.kind === 'interview-assistant' ? recentEvents.find((event) => {
@@ -178,6 +180,7 @@ router.post(
         if (interview.status !== 'in_progress' || !item.questionId || interview.currentQuestionId !== item.questionId) {
           throw new WorkflowError('Ask this follow-up while its question is current in an ongoing interview.', 409);
         }
+        await setCurrentSubquestion(tx, job.interviewId, item.questionId, { id: item.id, question: item.question });
       }
       const isNote = !!feed.notes;
       if (

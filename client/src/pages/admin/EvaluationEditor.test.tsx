@@ -10,7 +10,7 @@ const evaluation = { id: 7, questionId: 3, candidateAnswer: '', candidateCode: '
 it('saves edited skill feedback before requesting observations and preserves final status', async () => {
   const calls: any[] = [];
   vi.mocked(api.request).mockImplementation(async (config: any) => { calls.push(config); return { data: evaluation }; });
-  renderWithProviders(<EvaluationEditor id={20} questionId={3} existing={evaluation} answer="" code="" planSkills={[]} />, { loggedInAs: adminUser });
+  renderWithProviders(<EvaluationEditor id={20} questionId={3} existing={evaluation} answer="" code="" />, { loggedInAs: adminUser });
   const user = userEvent.setup();
   await user.type(screen.getByLabelText('Java evidence'), ' and missed transactions');
   expect(screen.getByRole('button', { name: 'Get AI observations' })).toBeEnabled();
@@ -23,7 +23,7 @@ it('saves edited skill feedback before requesting observations and preserves fin
 
 it('preserves a saved empty code value and enables rationale-only observations', async () => {
   vi.mocked(api.request).mockResolvedValue({ data: evaluation });
-  renderWithProviders(<EvaluationEditor id={20} questionId={3} existing={evaluation} answer="Unrecorded answer" code="Unrecorded draft code" planSkills={[]} />, { loggedInAs: adminUser });
+  renderWithProviders(<EvaluationEditor id={20} questionId={3} existing={evaluation} answer="Unrecorded answer" code="Unrecorded draft code" />, { loggedInAs: adminUser });
   expect(screen.getByRole('textbox', { name: /Candidate code/ })).toHaveValue('');
   await userEvent.setup().click(screen.getByRole('button', { name: 'Get AI observations' }));
   await waitFor(() => expect(api.request).toHaveBeenCalledWith(expect.objectContaining({ url: '/interview-workflows/20/evaluations/7/observe' })));
@@ -31,14 +31,14 @@ it('preserves a saved empty code value and enables rationale-only observations',
 });
 
 it('does not request observations without any recorded evidence', () => {
-  renderWithProviders(<EvaluationEditor id={20} questionId={3} answer="" code="" planSkills={[]} />, { loggedInAs: adminUser });
+  renderWithProviders(<EvaluationEditor id={20} questionId={3} answer="" code="" />, { loggedInAs: adminUser });
   expect(screen.getByRole('button', { name: 'Get AI observations' })).toBeDisabled();
   expect(screen.getByText(/Add an answer, code, interviewer notes or skill rationale/)).toBeInTheDocument();
 });
 
 it('adds skill rows, prevents duplicate names and saves their ratings and feedback', async () => {
   vi.mocked(api.request).mockResolvedValue({ data: evaluation });
-  renderWithProviders(<EvaluationEditor id={20} questionId={3} existing={evaluation} answer="" code="" planSkills={[]} />, { loggedInAs: adminUser });
+  renderWithProviders(<EvaluationEditor id={20} questionId={3} existing={evaluation} answer="" code="" />, { loggedInAs: adminUser });
   const user = userEvent.setup();
   await user.type(screen.getByLabelText('Skill name'), ' Spring Boot ');
   await user.click(screen.getByRole('button', { name: 'Add skill' }));

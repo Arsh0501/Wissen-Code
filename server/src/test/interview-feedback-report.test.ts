@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { PDFParse } from 'pdf-parse';
 import prisma from '../prisma';
-import { askedFollowUps, buildInterviewFeedbackReport, generateInterviewFeedbackReport, responseExcerpt } from '../services/interview-feedback-report';
+import { askedFollowUps, buildInterviewFeedbackReport, generateInterviewFeedbackReport, responseExcerpt, feedbackReportMetadata } from '../services/interview-feedback-report';
 import { REQUIRED_FEEDBACK_CRITERIA } from '../services/interview-feedback';
 
 test('response excerpts remain grounded and only asked follow-ups are included', () => {
@@ -35,9 +36,18 @@ test('generates a readable stored PDF from responses, removed coding questions, 
     const unasked = await prisma.question.create({ data: { title: 'Unused question', statement: 'No discussion occurred.', difficulty: 'easy', ownerInterviewId: interview.id } });
     questionIds.push(discussion.id, coding.id, unasked.id);
     await prisma.interviewQuestion.createMany({ data: [
-      { interviewId: interview.id, questionId: discussion.id, orderIndex: 0, candidateAnswer: 'I would use a unique constraint and a transaction.', referenceAnswer: 'REFERENCE_ANSWER_SECRET', notes: JSON.stringify({ interviewerFeedback: 'Explained transaction boundaries.' }) },
+      { interviewId: interview.id, questionId: discussion.id, orderIndex: 0, candidateAnswer: 'I would use a unique constraint and a transaction.', referenceAnswer: 'REFERENCE_ANSWER_SECRET', notes: JSON.stringify({ interviewerFeedback: 'Explained transaction boundaries.', conversation: {
+        revision: 4, suggestions: [{ id: 'unused', question: 'UNSELECTED_CHAT_SUGGESTION' }], turns: [
+          { id: 'main', question: 'How do you avoid double booking?', transcript: 'I would use a unique constraint and a transaction.', segmentIds: [], startedAt: '2026-01-01T10:00:00.000Z' },
+          { id: 'chat-follow', question: 'How do you recover after a failed booking transaction?', transcript: 'Roll back the transaction and retry after checking availability.', segmentIds: [], startedAt: '2026-01-01T10:01:00.000Z' },
+          { id: 'chat-final', question: 'What happens on a deadlock?', transcript: '', segmentIds: [], startedAt: '2026-01-01T10:02:00.000Z' },
+        ],
+      } }) },
       { interviewId: interview.id, questionId: unasked.id, orderIndex: 1 },
     ] });
+    // Merely selecting a lined-up question does not count as asking it.
+    await prisma.interviewEvent.create({ data: { interviewId: interview.id, eventType: 'QUESTION_CHANGED', actorRole: 'interviewer', payload: JSON.stringify({ questionId: unasked.id }) } });
+    await prisma.interviewTranscriptSegment.create({ data: { id: randomUUID(), interviewId: interview.id, questionId: discussion.id, sessionId: randomUUID(), sequence: 0, speaker: 'candidate', text: 'Retry the aborted operation with backoff.', startedAt: new Date('2026-01-01T10:02:01.000Z'), endedAt: new Date('2026-01-01T10:02:04.000Z') } });
     // Coding question was removed from the assigned list; its submission still belongs in the report.
     await prisma.interviewSubmission.createMany({ data: [
       { interviewId: interview.id, questionId: coding.id, submittedBy: 'candidate', languageId: 63, languageName: 'JavaScript', code: `function solve(nums) { return [0, 1]; }\n${'// Candidate explanation of the solution\n'.repeat(80)}// END_OF_SOLUTION`, score: 50, results: JSON.stringify([{ passed: true }, { passed: false }]) },
@@ -48,23 +58,17 @@ test('generates a readable stored PDF from responses, removed coding questions, 
       _reviews: { [`${marker}-0`]: { decision: 'ask', reviewedAt: new Date().toISOString() } },
     } } });
     await prisma.interviewFeedbackReport.create({ data: { interviewId: interview.id, feedbackRevision: 1 } });
-    const statement = 'How do you ensure safe updates?';
-    let hash = 5381;
-    for (const character of `Java:${statement}`) hash = (Math.imul(hash, 33) ^ character.charCodeAt(0)) | 0;
-    const planQuestionId = -(Math.abs(hash) || 1);
-    await prisma.interviewPlan.create({ data: {
-      interviewId: interview.id, jobRequirements: 'Build services', candidateExperience: '3 years', requiredSkills: ['Java'], durationMinutes: 60,
-      sections: [{ skill: 'Java', minutes: 60, objective: 'Assess safe updates', questions: [statement], followUps: [] }],
-    } });
-    await prisma.interviewEvaluation.create({ data: {
-      interviewId: interview.id, questionId: planQuestionId, authorId: user.id, candidateAnswer: 'Use atomic counters for concurrent updates.',
-      executionResults: {}, observations: [], status: 'final', skills: [{ skill: 'Java', rating: 4, rationale: 'Correctly explained atomic operations.' }],
-    } });
     const content = await buildInterviewFeedbackReport(interview.id, 1);
-    assert.equal(content.questions.length, 4);
+    assert.equal(content.questions.length, 2);
     assert.match(content.questions.find(q => q.id === coding.id)!.answerSummary, /1 of 2 test cases passed/);
-    assert.equal(content.questions.find(q => q.id === unasked.id)!.participation, 'Assigned; no interaction was recorded');
+    assert.equal(content.questions.some(q => q.id === unasked.id), false);
     assert.equal(content.questions.find(q => q.id === discussion.id)!.followUps.length, 1);
+    const chat = content.questions.find(q => q.id === discussion.id)!.conversation;
+    assert.equal(chat.length, 3);
+    assert.equal(chat[1].answer, 'Roll back the transaction and retry after checking availability.');
+    assert.equal(chat[2].answer, 'Retry the aborted operation with backoff.');
+    assert.match(chat[2].answerSource, /not reviewed/);
+    assert.ok(!JSON.stringify(content).includes('UNSELECTED_CHAT_SUGGESTION'));
     assert.ok(!JSON.stringify(content).includes('REFERENCE_ANSWER_SECRET'));
     assert.ok(!JSON.stringify(content).includes('INTERVIEWER_CODE_NOT_CANDIDATE'));
 
@@ -82,12 +86,22 @@ test('generates a readable stored PDF from responses, removed coding questions, 
       assert.match(text, /Role alignment/);
       assert.match(text, /unique constraint and a transaction/);
       assert.match(text, /What happens when the transaction fails/);
+      assert.match(text, /How do you recover after a failed booking transaction/);
+      assert.match(text, /Roll back the transaction and retry after checking availability/);
+      assert.match(text, /Retry the aborted operation with backoff/);
+      assert.match(text, /Explained transaction boundaries/);
+      assert.match(text, /Demonstrated sound fundamentals/);
+      assert.ok(!text.includes('Unused question'));
+      assert.ok(!text.includes('No discussion occurred'));
       assert.match(text, /Two sum/);
       assert.match(text, /END_OF_SOLUTION/);
-      assert.match(text, /Java discussion/);
-      assert.match(text, /Correctly explained atomic operations/);
+      assert.ok(!text.includes("Java discussion"));
+
       assert.ok(!text.includes('UNASKED_FOLLOWUP_SECRET'));
     } finally { await parser.destroy(); }
+    await prisma.interviewFeedbackReport.update({ where: { interviewId: interview.id }, data: { content: {} } });
+    assert.equal((await feedbackReportMetadata(interview.id))?.status, 'outdated');
+    assert.equal((await feedbackReportMetadata(interview.id))?.downloadUrl, null);
   } finally {
     await prisma.aIJob.deleteMany({ where: { interviewId: interview.id } });
     await prisma.interview.delete({ where: { id: interview.id } });

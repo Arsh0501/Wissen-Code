@@ -790,6 +790,21 @@ router.get(
         }),
       ]);
 
+      const candidateAccounts = await prisma.user.findMany({
+        where: {
+          OR: [
+            { id: { in: sessions.flatMap((s) => s.candidateUserId ? [s.candidateUserId] : []) } },
+            { name: { in: [...sessions.map((s) => s.candidateName), ...submissions.map((s) => s.candidateName)] } },
+          ],
+        },
+        select: { id: true, name: true, email: true },
+      });
+      const emailById = new Map(candidateAccounts.map((u) => [u.id, u.email]));
+      const accountsByName = new Map<string, typeof candidateAccounts>();
+      for (const account of candidateAccounts) {
+        accountsByName.set(account.name, [...(accountsByName.get(account.name) ?? []), account]);
+      }
+
       const candidates = summarizeCandidates(
         assessment.questions,
         assessment.passingScore,
@@ -802,6 +817,11 @@ router.get(
           );
           return {
             ...c,
+            email: c.candidateUserId
+              ? emailById.get(c.candidateUserId) ?? null
+              : accountsByName.get(c.name)?.length === 1
+                ? accountsByName.get(c.name)![0].email
+                : null,
             session: s
               ? {
                   startedAt: s.startedAt.toISOString(),

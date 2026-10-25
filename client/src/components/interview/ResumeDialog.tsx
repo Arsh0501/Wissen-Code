@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import ResumeViewer from './ResumeViewer';
 
-export default function ResumeDialog({ interview, onClose, onGenerate, backLabel = 'Back to interviews' }: {
+export default function ResumeDialog({ interview, onClose, backLabel = 'Back to interviews' }: {
   interview: { id: number; candidateName: string; candidateEmail: string; candidateResume?: string | null; candidateResumeUrl?: string | null };
-  onClose: () => void; onGenerate?: () => void; backLabel?: string;
+  onClose: () => void; backLabel?: string;
 }) {
   const close = useRef(onClose);
   close.current = onClose;
@@ -34,7 +34,6 @@ export default function ResumeDialog({ interview, onClose, onGenerate, backLabel
             <div><h2 className="font-semibold">Resume: {interview.candidateName}</h2><p className="text-xs text-surface-400">{interview.candidateEmail}</p></div>
           </div>
           <div className="flex items-center gap-3">
-            {onGenerate && <button className="btn-primary text-xs" onClick={onGenerate}>Generate questions from resume</button>}
             <button onClick={onClose} className="btn-ghost text-xs">Close</button>
           </div>
         </header>

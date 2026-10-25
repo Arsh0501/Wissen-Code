@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiData } from '../../services/workflows';
 import { apiError } from '../../services/api';
@@ -8,7 +8,7 @@ function savedFeedback(notes?: string) {
   catch { return ''; }
 }
 
-export default function QuestionFeedback({ interviewId, questionId, notes, active }: { interviewId: number; questionId: number; notes?: string; active: boolean }) {
+export default function QuestionFeedback({ interviewId, questionId, notes, active, children }: { interviewId: number; questionId: number; notes?: string; active: boolean; children?: ReactNode }) {
   const [feedback, setFeedback] = useState(() => savedFeedback(notes));
   const [saved, setSaved] = useState(() => savedFeedback(notes));
   const client = useQueryClient();
@@ -27,5 +27,6 @@ export default function QuestionFeedback({ interviewId, questionId, notes, activ
     <button className="btn-primary" disabled={!active || save.isPending || !feedback.trim() || feedback.trim() === saved} onClick={() => save.mutate(feedback.trim())}>{save.isPending ? 'Saving feedback…' : 'Save question feedback'}</button>
     {save.isSuccess && <p role="status" className="text-xs text-surface-500">{feedback.trim() === saved ? 'Question feedback saved.' : 'You have unsaved feedback changes.'}</p>}
     {save.error && <p role="alert" className="text-sm text-red-500">{apiError(save.error)}</p>}
+    {children}
   </section>;
 }

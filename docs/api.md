@@ -50,7 +50,6 @@ Create and list interviews with `POST` and `GET /interviews`. Read an assigned i
 - `POST /interviews/:id/execute`, `/interviews/:id/submit`, `/interviews/:id/notes`.
 - `GET /interviews/:id/notes`.
 - `GET /public/interview/:roomToken` and `PUT /public/interview/:roomToken/answer` for the candidate room.
-- `GET /interview-workflows/:id/plan`, `POST /interview-workflows/:id/plan/generate` and `PUT /interview-workflows/:id/plan`.
 - `GET` and `PUT /interview-workflows/:id/evaluations` for saved skill ratings and evidence.
 
 Connect Socket.IO to the backend origin with `{ token }` or `{ roomToken }` in its auth payload. Emit `JOIN_INTERVIEW` with an interview ID or room token after connection. The server checks room assignment before joining.
@@ -67,7 +66,7 @@ Generated questions stay in the draft queue until validation and human approval.
 - `POST /ai/drafts`, `PUT /ai/drafts/:id`.
 - `POST /ai/drafts/:id/validate` and `/ai/drafts/:id/approve`.
 
-Background jobs use `POST /ai/jobs` with `{ kind, interviewId?, input }`. The response is 202 with a job ID. Supported kinds are `question-generation`, `question-validation`, `interview-planner`, `interview-assistant`, `note-writer` and `evaluation`.
+Background jobs use `POST /ai/jobs` with `{ kind, interviewId?, input }`. The response is 202 with a job ID. Supported kinds are `question-generation`, `question-validation`, `interview-assistant`, `note-writer` and `evaluation`.
 
 Read owned jobs with `GET /ai/jobs` or `/ai/jobs/:id`; retry failed jobs with `POST /ai/jobs/:id/retry`. Interview evaluation requires a completed interview.
 
@@ -100,3 +99,7 @@ With `ASYNC_GRADING=1`, attempt submission returns HTTP 202 after saving the sub
 Realtime additions: `UPDATE_CODE` requires `baseRevision`; stale edits return the latest saved state for conflict resolution. `CODE_CHANGED` includes `revision`, `authorRole`, and `authorName`. `CURSOR_CHANGED`, `CHAT_MESSAGE`, `WHITEBOARD_STROKE`, `WHITEBOARD_CLEARED`, `ROOM_TOOLS`, and `RTC_SIGNAL` require an authorized room. Private notes and AI results remain private. Chat, board strokes, and code snapshots are retained as interview events; video/audio are not recorded.
 
 See [production setup](production.md) for deployment and external service requirements.
+
+Interview planning has been removed. Prepare interview questions supports question-bank entries, question sets, and reviewed questions generated from the interview's attached resume.
+
+Question conversations use `GET /api/interviews/:id/questions/:questionId/conversation` and `POST` to the same path. Only the assigned interviewer can read them; updates require the question to be current in an ongoing interview. Each update includes the last `revision`; stale requests return 409. Actions are `start`, `save`, `send`, `ask`, `dismiss`, `feedback`, and `save-feedback`. Transcript actions include `turnId`, reviewed `text`, and optional `segmentIds`; `ask`/`dismiss` include `suggestionId`. Asking a suggestion archives the previous turn, clears all alternative suggestions, and opens a new empty turn. Live audio is limited to segments starting within that turn. `send` saves the current answer and generates transcript-grounded follow-ups for that question. `feedback` saves the current answer, when present, and sends every main/follow-up question and reviewed answer in this conversation to AI. Its returned feedback is an editable draft; `save-feedback` explicitly saves the interviewer's reviewed feedback. Conversations are retained privately in interview-question notes, and asked follow-ups are also retained for interview reports. No schema migration is required.

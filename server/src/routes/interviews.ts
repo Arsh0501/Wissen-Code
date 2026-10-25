@@ -11,9 +11,6 @@ import {
   recordInterviewEvent,
 } from '../socket/interview-handler';
 import { INTERVIEW_EVENTS } from '../socket/types';
-import OpenAI from 'openai';
-import { aiConfig } from '../ai/config';
-import { extractResumeText } from '../services/resume-text';
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { enforceInterviewDeadlines } from '../services/interview-expiry';
@@ -24,6 +21,7 @@ import { criteriaFeedbackSchema, finalInterviewFeedbackSchema } from '../service
 import { feedbackReportMetadata, generateInterviewFeedbackReport } from '../services/interview-feedback-report';
 import interviewFollowUpRoutes from './interview-follow-ups';
 import interviewTranscriptRoutes from './interview-transcript';
+import interviewConversationRoutes from './interview-conversation';
 
 const router = Router();
 
@@ -128,7 +126,7 @@ router.use('/:id', async (req, res, next) => {
     await enforceInterviewDeadlines({ id });
     const state = await prisma.interview.findUniqueOrThrow({ where: { id }, select: { status: true } });
     if (['POST', 'PUT', 'DELETE'].includes(req.method) &&
-      /\/(generate-resume-questions|questions(?:\/\d+)?)$/.test(req.originalUrl.split('?')[0].replace(/\/+$/, '')) &&
+      /\/(questions(?:\/\d+)?)$/.test(req.originalUrl.split('?')[0].replace(/\/+$/, '')) &&
       !['scheduled', 'in_progress'].includes(state.status)) {
       return res.status(409).json({ error: 'Question preparation is disabled because this interview has ended.' });
     }
@@ -149,6 +147,7 @@ router.use('/:id', async (req, res, next) => {
 
 router.use('/:id/questions/:questionId/follow-ups', interviewFollowUpRoutes);
 router.use('/:id/questions/:questionId/transcript', interviewTranscriptRoutes);
+router.use('/:id/questions/:questionId/conversation', interviewConversationRoutes);
 
 // Helper to broadcast socket event if Socket.IO is initialized
 function broadcastToInterviewRoom(
@@ -843,12 +842,12 @@ router.put(
       const starterCode = starter ? starter.code : '';
 
       await prisma.interviewQuestion.updateMany({
-        where: { interviewId: id },
+        where: { interviewId: id, status: 'active' },
         data: { status: 'pending' },
       });
 
       await prisma.interviewQuestion.updateMany({
-        where: { interviewId: id, questionId: question.id },
+        where: { interviewId: id, questionId: question.id, status: { in: ['pending', 'active'] } },
         data: { status: 'active' },
       });
 
@@ -1167,7 +1166,8 @@ router.get('/:id/feedback/report/download', adminOrInterviewer, async (req, res,
   try {
     const id = Number(req.params.id);
     const report = await prisma.interviewFeedbackReport.findUnique({ where: { interviewId: id } });
-    if (!report || report.status !== 'ready' || !report.pdf) {
+    const metadata = await feedbackReportMetadata(id);
+    if (!report || metadata?.status !== 'ready' || !report.pdf) {
       throw new WorkflowError('The PDF is not ready. Generate the report from the Feedback tab.', 409);
     }
     res.setHeader('Cache-Control', 'private, no-store');
@@ -1261,103 +1261,6 @@ for (const final of [false, true]) {
     },
   );
 }
-
-// 12. POST /api/interviews/:id/generate-resume-questions — AI resume question generator
-router.post(
-  '/:id/generate-resume-questions',
-  adminOrInterviewer,
-  async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const interview = await prisma.interview.findUnique({
-        where: { id },
-        select: { id: true, title: true, candidateName: true, candidateResume: true, candidateResumeUrl: true },
-      });
-
-      if (!interview) return res.status(404).json({ error: 'Interview not found' });
-      let resumeText = interview.candidateResume?.trim() || '';
-      if (!resumeText && interview.candidateResumeUrl?.startsWith('data:application/pdf;base64,')) {
-        try {
-          resumeText = await extractResumeText(interview.candidateResumeUrl);
-        } catch {
-          return res.status(422).json({ error: 'Could not read this PDF. Upload an unlocked, text-based PDF or paste its resume text.' });
-        }
-      }
-      if (!resumeText) {
-        return res.status(400).json({
-          error:
-            'No readable resume text found. For a scanned PDF, paste the resume text before generating questions.',
-        });
-      }
-
-      let generatedQuestions: any[] = [];
-      let source: 'ai' | 'resume-based' = 'resume-based';
-
-      const cfg = aiConfig();
-      if (cfg.apiKey) {
-        try {
-          const client = new OpenAI({
-            apiKey: cfg.apiKey,
-            baseURL: cfg.baseURL,
-            timeout: 60000,
-          });
-
-          const completion = await client.chat.completions.create({
-            model: cfg.model,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a principal technical interviewer. Analyze candidate resumes and generate realistic, highly targeted technical and system design interview questions directly referencing their demonstrated projects, frameworks, and tools.',
-              },
-              {
-                role: 'user',
-                content: `Candidate Name: ${interview.candidateName}\nInterview Title: ${interview.title}\nCandidate Resume:\n${resumeText.slice(0, 4000)}\n\nGenerate 3-5 technical interview questions directly testing concepts from this resume. Output JSON format only: {"questions": [{"title": "Short descriptive title", "statement": "Comprehensive question problem statement or technical scenario", "difficulty": "easy"|"medium"|"hard", "tags": ["React", "PostgreSQL"], "keyDiscussionPoints": ["point 1", "point 2"], "expectedSolution": "Summary of expected architectural approach or algorithm"}]}`,
-              },
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.3,
-          });
-
-          const raw = completion.choices[0]?.message?.content || '{}';
-          const parsed = JSON.parse(raw);
-          const validated = z.array(z.object({
-            title: z.string().trim().min(1), statement: z.string().trim().min(1),
-            difficulty: z.enum(['easy', 'medium', 'hard']), tags: z.array(z.string()).default([]),
-            keyDiscussionPoints: z.array(z.string()).default([]), expectedSolution: z.string().optional(),
-          })).min(1).max(10).safeParse(parsed.questions);
-          if (validated.success) {
-            generatedQuestions = validated.data;
-            source = 'ai';
-          }
-        } catch (aiErr: any) {
-          console.warn(
-            'AI question generation from provider failed, falling back to heuristic generator:',
-            aiErr.message,
-          );
-        }
-      }
-
-      if (!generatedQuestions.length) {
-        generatedQuestions = generateHeuristicQuestions(
-          resumeText,
-          interview.candidateName,
-          interview.title,
-        );
-      }
-
-      await enforceInterviewDeadlines({ id });
-      const latest = await prisma.interview.findUniqueOrThrow({ where: { id }, select: { status: true } });
-      if (!['scheduled', 'in_progress'].includes(latest.status)) {
-        return res.status(409).json({ error: 'Question preparation is disabled because this interview has ended.' });
-      }
-      res.json({ success: true, questions: generatedQuestions, source });
-    } catch (error: any) {
-      console.error('Error generating resume questions:', error);
-      res.status(500).json({ error: 'Failed to generate resume questions' });
-    }
-  },
-);
 
 // 13. POST /api/interviews/:id/questions — Add question to interview
 const preparationQuestionSchema = z.object({
@@ -1524,7 +1427,7 @@ router.delete(
           const next = await tx.interviewQuestion.findFirst({ where: { interviewId: id }, orderBy: { orderIndex: 'asc' }, include: { question: { include: { starterCodes: true } } } });
           const languageId = next?.question.questionType === 'sql' ? 82 : interview.currentLanguageId === 82 ? 71 : interview.currentLanguageId;
           await tx.interview.update({ where: { id }, data: { currentQuestionId: next?.questionId ?? null, currentCode: next?.question.starterCodes.find((s) => s.languageId === languageId)?.code ?? '', currentLanguageId: languageId, codeRevision: { increment: 1 } } });
-          if (next) await tx.interviewQuestion.update({ where: { id: next.id }, data: { status: 'active' } });
+          if (next && ['pending', 'active'].includes(next.status)) await tx.interviewQuestion.update({ where: { id: next.id }, data: { status: 'active' } });
         }
         return { previousActiveId: interview.currentQuestionId };
       });
@@ -1637,130 +1540,5 @@ router.delete('/:id', adminOnly, async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to delete interview' });
   }
 });
-
-function generateHeuristicQuestions(
-  resumeText: string,
-  _candidateName: string,
-  _interviewTitle: string,
-) {
-  const text = resumeText.toLowerCase();
-  const questions: Array<{
-    title: string;
-    statement: string;
-    difficulty: 'easy' | 'medium' | 'hard';
-    tags: string[];
-    keyDiscussionPoints: string[];
-    expectedSolution: string;
-  }> = [];
-
-  if (
-    text.includes('react') ||
-    text.includes('frontend') ||
-    text.includes('javascript') ||
-    text.includes('typescript') ||
-    text.includes('vue') ||
-    text.includes('next')
-  ) {
-    questions.push({
-      title: 'Frontend State Management & Render Optimization',
-      statement: `Based on your experience building modern web interfaces, describe a scenario where you diagnosed and fixed performance bottlenecks or unnecessary re-renders in a component tree. How did you structure your state management (local vs global, server cache vs client state) and verify improvements?`,
-      difficulty: 'medium',
-      tags: ['Frontend', 'React', 'Performance', 'State Management'],
-      keyDiscussionPoints: [
-        'Component memoization (React.memo, useMemo, useCallback) vs component architectural restructuring',
-        'State colocation and avoiding global state bloat',
-        'Profiling tools (React DevTools Profiler, Lighthouse, Chrome DevTools Performance)',
-      ],
-      expectedSolution:
-        'Candidate demonstrates deep understanding of reactive rendering lifecycles, virtual DOM diffing, state colocation, and practical profiling techniques.',
-    });
-  }
-
-  if (
-    text.includes('sql') ||
-    text.includes('postgres') ||
-    text.includes('database') ||
-    text.includes('prisma') ||
-    text.includes('mongo')
-  ) {
-    questions.push({
-      title: 'Database Schema Design & Query Optimization',
-      statement: `In your past projects working with databases, how have you approached indexing strategies and query performance under high read/write loads? Describe how you would handle schema migrations on a production table with millions of rows without downtime.`,
-      difficulty: 'medium',
-      tags: ['Database', 'PostgreSQL', 'System Design', 'Indexing'],
-      keyDiscussionPoints: [
-        'B-Tree vs Hash vs GIN indexes and explain analyze evaluation',
-        'Zero-downtime migrations (expand/contract pattern, online schema changes)',
-        'Connection pooling and transaction isolation levels',
-      ],
-      expectedSolution:
-        'Candidate discusses query execution plans, targeted composite indexes, avoiding table locks, and the expand-contract migration methodology.',
-    });
-  }
-
-  if (
-    text.includes('api') ||
-    text.includes('node') ||
-    text.includes('backend') ||
-    text.includes('python') ||
-    text.includes('microservice') ||
-    text.includes('distributed')
-  ) {
-    questions.push({
-      title: 'Resilient Microservices & API Rate Limiting',
-      statement: `Design a rate-limiting and circuit-breaking architecture for a mission-critical backend service. How do you prevent cascading failures when a downstream third-party dependency experiences latency spikes or outages?`,
-      difficulty: 'hard',
-      tags: ['Backend', 'System Design', 'Resilience', 'APIs'],
-      keyDiscussionPoints: [
-        'Token bucket / sliding window rate limiting algorithms (e.g. using Redis)',
-        'Circuit breaker patterns (Closed, Open, Half-Open states)',
-        'Graceful degradation, fallback responses, and queueing/asynchronous processing',
-      ],
-      expectedSolution:
-        'Candidate explains distributed rate limiting with sliding logs/windows, timeouts with exponential backoff and jitter, and circuit breaker states.',
-    });
-  }
-
-  if (
-    text.includes('test') ||
-    text.includes('ci/cd') ||
-    text.includes('docker') ||
-    text.includes('kubernetes') ||
-    text.includes('aws') ||
-    text.includes('devops')
-  ) {
-    questions.push({
-      title: 'CI/CD Pipeline Reliability & Automated Testing Strategy',
-      statement: `Describe how you structure testing pyramids (unit, integration, end-to-end) and automated delivery pipelines to ensure zero-defect deployments in fast-paced teams.`,
-      difficulty: 'medium',
-      tags: ['DevOps', 'Testing', 'CI/CD', 'Quality Assurance'],
-      keyDiscussionPoints: [
-        'Test pyramid allocation and test execution speed vs fidelity',
-        'Canary deployments and automated health checks / rollbacks',
-        'Integration testing with isolated mock environments or containers',
-      ],
-      expectedSolution:
-        'Candidate demonstrates practical balance between fast feedback loops in CI and comprehensive regression protection.',
-    });
-  }
-
-  if (questions.length < 3) {
-    questions.push({
-      title: 'Complex Technical Challenge & Architecture Walkthrough',
-      statement: `Walk me through the most technically challenging project or feature listed on your resume. What trade-offs did you evaluate, what alternative approaches did you consider, and what would you do differently in retrospect?`,
-      difficulty: 'medium',
-      tags: ['System Architecture', 'Problem Solving', 'Trade-offs'],
-      keyDiscussionPoints: [
-        'Clear problem definition and architectural rationale',
-        'Technical trade-offs (e.g. consistency vs availability, latency vs throughput)',
-        'Measurement of business and technical impact',
-      ],
-      expectedSolution:
-        'Candidate articulates technical clarity, ownership, architectural trade-offs, and continuous learning.',
-    });
-  }
-
-  return questions;
-}
 
 export default router;

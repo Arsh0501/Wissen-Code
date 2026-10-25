@@ -44,7 +44,26 @@ it('blocks final submission until required criteria are filled after the intervi
   await user.selectOptions(screen.getByLabelText('Recommendation'), 'Hire');
   await user.type(screen.getByRole('textbox', { name: 'Final interview feedback' }), 'Overall summary.');
   expect(screen.getByRole('button', { name: 'Submit final feedback' })).toBeDisabled();
+  await user.click(screen.getByRole('button', { name: 'Complete required criteria' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   await user.type(screen.getByLabelText('Additional criterion'), 'fundamentals');
   await user.click(screen.getByRole('button', { name: 'Add criterion' }));
   expect(screen.getByRole('alert')).toHaveTextContent('already exists');
+});
+
+it('keeps the final feedback draft when cancelling and reopening the popup', async () => {
+  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'completed' }} openFinal />, { loggedInAs: adminUser });
+  const user = userEvent.setup();
+  expect(await screen.findByRole('dialog', { name: 'Interview ended' })).toBeVisible();
+  await user.selectOptions(screen.getByLabelText('Overall rating'), '3');
+  await user.selectOptions(screen.getByLabelText('Recommendation'), 'Leaning Hire');
+  await user.type(screen.getByRole('textbox', { name: 'Final interview feedback' }), 'Can consider after more experience.');
+  await user.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
+  expect(screen.getByLabelText('Overall rating')).toHaveValue('3');
+  expect(screen.getByLabelText('Recommendation')).toHaveValue('Leaning Hire');
+  expect(screen.getByRole('textbox', { name: 'Final interview feedback' })).toHaveValue('Can consider after more experience.');
+  await user.keyboard('{Escape}');
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

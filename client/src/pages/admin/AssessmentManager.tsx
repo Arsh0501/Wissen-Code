@@ -285,19 +285,6 @@ export default function AssessmentManager() {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-surface-800">
-                  <div className="flex flex-wrap gap-1.5">
-                    {a.questions.map((aq) => (
-                      <span
-                        key={aq.id}
-                        className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 text-xs"
-                      >
-                        {aq.question.title}{' '}
-                        <span className="text-surface-600 ml-1">
-                          {aq.marks}
-                        </span>
-                      </span>
-                    ))}
-                  </div>
                   <div className="flex items-center gap-2">
                     <Link
                       to={`/admin/submissions/${a.id}`}

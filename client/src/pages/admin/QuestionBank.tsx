@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { filterQuestions } from '../../components/questions/QuestionPicker';
-import AssessmentSelection from '../../components/questions/AssessmentSelection';
 import AdminLayout from '../../components/AdminLayout';
 import { Spinner, EmptyState, parseJsonArray } from '../../components/ui';
 import {
@@ -42,7 +42,6 @@ export default function QuestionBank() {
   const error =
     actionError ||
     (bank.error ? apiError(bank.error, 'Failed to load questions') : '');
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [questionType, setQuestionType] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
@@ -65,7 +64,6 @@ export default function QuestionBank() {
     try {
       await deleteQuestion(q.id);
       await client.invalidateQueries({ queryKey: ['question-bank'] });
-      setSelectedIds((ids) => ids.filter((id) => id !== q.id));
       if (preview?.id === q.id) setPreview(null);
     } catch (err) {
       setError(apiError(err, 'Failed to delete question'));
@@ -95,6 +93,8 @@ export default function QuestionBank() {
   useEffect(() => {
     if (!preview) return;
     const previous = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const dialog = document.querySelector<HTMLElement>(
       '[aria-label="Question preview"]',
     );
@@ -124,6 +124,7 @@ export default function QuestionBank() {
     };
     document.addEventListener('keydown', keydown);
     return () => {
+      document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', keydown);
       previous?.focus();
     };
@@ -151,9 +152,6 @@ export default function QuestionBank() {
     topic: tag,
     type: questionType,
   });
-  const allVisibleSelected =
-    filteredQuestions.length > 0 &&
-    filteredQuestions.every((q) => selectedIds.includes(q.id));
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -286,7 +284,7 @@ export default function QuestionBank() {
         >
           <option value="">All question types</option>
           <option value="coding">Coding</option>
-          <option value="debugging">Debugging</option>{['mcq', 'sql', 'written', 'project'].map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+          <option value="mcq">MCQ</option>
         </select>
         {(searchTerm || difficulty || tag || questionType) && (
           <button
@@ -303,25 +301,7 @@ export default function QuestionBank() {
         )}
       </div>
 
-      <div className="mb-6">
-        <AssessmentSelection
-          questions={questions}
-          selectedIds={selectedIds}
-          onAdded={() => setSelectedIds([])}
-        />
-      </div>
-      <div className="flex flex-wrap items-center justify-between mb-4 gap-3 text-sm">
-        <span>
-          {selectedIds.length} selected · {filteredQuestions.length} shown
-        </span>
-        <button
-          className="btn-ghost"
-          disabled={!selectedIds.length}
-          onClick={() => setSelectedIds([])}
-        >
-          Deselect all
-        </button>
-      </div>
+      <p className="mb-4 text-sm text-surface-400">{filteredQuestions.length} questions shown</p>
       {bank.error && (
         <button className="btn-outline mb-4" onClick={() => bank.refetch()}>
           Retry loading questions
@@ -350,40 +330,9 @@ export default function QuestionBank() {
             <table className="w-full min-w-[680px]">
               <thead>
                 <tr className="border-b border-surface-800 text-xs font-medium text-surface-500 uppercase tracking-wider whitespace-nowrap">
-                  <th className="px-4 py-3">
-                    <input
-                      aria-label="Select all visible questions"
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      ref={(node) => {
-                        if (node)
-                          node.indeterminate =
-                            !allVisibleSelected &&
-                            filteredQuestions.some((q) =>
-                              selectedIds.includes(q.id),
-                            );
-                      }}
-                      onChange={(e) =>
-                        setSelectedIds((ids) =>
-                          e.target.checked
-                            ? [
-                                ...new Set([
-                                  ...ids,
-                                  ...filteredQuestions.map((q) => q.id),
-                                ]),
-                              ]
-                            : ids.filter(
-                                (id) =>
-                                  !filteredQuestions.some((q) => q.id === id),
-                              ),
-                        )
-                      }
-                    />
-                  </th>
                   <th className="text-left px-6 py-3">Title</th>
                   <th className="text-left px-4 py-3">Type</th>
                   <th className="text-left px-4 py-3">Difficulty</th>
-                  <th className="text-left px-4 py-3">Topics</th>
                   <th className="text-right px-4 py-3">Test cases</th>
                   <th className="text-right px-4 py-3">Languages</th>
                   <th className="text-right px-4 py-3">Used in</th>
@@ -396,20 +345,6 @@ export default function QuestionBank() {
                     key={q.id}
                     className="hover:bg-surface-800/30 transition-colors"
                   >
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${q.title}`}
-                        checked={selectedIds.includes(q.id)}
-                        onChange={(e) =>
-                          setSelectedIds((ids) =>
-                            e.target.checked
-                              ? [...ids, q.id]
-                              : ids.filter((id) => id !== q.id),
-                          )
-                        }
-                      />
-                    </td>
                     <td className="px-6 py-3">
                       <button
                         onClick={() => openPreview(q.id)}
@@ -425,19 +360,6 @@ export default function QuestionBank() {
                       <span className={`badge-${q.difficulty}`}>
                         {q.difficulty}
                       </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1 flex-wrap">
-                        {parseJsonArray(q.tags).map((t) => (
-                          <button
-                            key={t}
-                            onClick={() => setTag(t)}
-                            className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 hover:text-white"
-                          >
-                            {t}
-                          </button>
-                        ))}
-                      </div>
                     </td>
                     <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">
                       {q._count?.testCases ?? 0}
@@ -504,8 +426,8 @@ export default function QuestionBank() {
         </div>
       )}
       {/* Preview drawer */}
-      {preview && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+      {preview && createPortal(
+        <div className="fixed inset-0 z-[100] flex justify-end">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => {
@@ -525,11 +447,11 @@ export default function QuestionBank() {
                 setPreviewId(null);
               }
             }}
-            className="relative w-full max-w-2xl h-full bg-surface-900 border-l border-surface-800 overflow-y-auto animate-slide-in"
+            className="relative w-full max-w-2xl h-[100dvh] min-w-0 bg-surface-900 border-l border-surface-800 overflow-y-auto overflow-x-hidden animate-slide-in"
           >
-            <div className="sticky top-0 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-6 py-4 flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold text-white">
+            <div className="sticky top-0 z-10 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-4 sm:px-6 py-4 flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-white [overflow-wrap:anywhere]">
                   {preview.title}
                 </h2>
                 <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-surface-400">
@@ -545,7 +467,7 @@ export default function QuestionBank() {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex shrink-0 items-center gap-1">
                 <button
                   onClick={() => {
                     const token = localStorage.getItem('wissen-token');
@@ -593,21 +515,7 @@ export default function QuestionBank() {
                 </button>
               </div>
             </div>
-            <div className="p-6 space-y-6">
-              <button
-                className="btn-outline"
-                onClick={() =>
-                  setSelectedIds((ids) =>
-                    ids.includes(preview.id)
-                      ? ids.filter((id) => id !== preview.id)
-                      : [...ids, preview.id],
-                  )
-                }
-              >
-                {selectedIds.includes(preview.id)
-                  ? 'Deselect question'
-                  : 'Select question'}
-              </button>
+            <div className="p-4 sm:p-6 space-y-6 min-w-0 [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-auto [&_pre]:whitespace-pre-wrap">
               <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
                 <ReactMarkdown>{preview.statement}</ReactMarkdown>
                 {preview.settings?.options && <ul className="space-y-2 mt-4">{preview.settings.options.map(o => <li className="sample-box" key={o.id}>{o.text}{preview.settings?.correctOptionIds?.includes(o.id) && <span className="text-emerald-600 ml-3">Correct answer</span>}</li>)}</ul>}
@@ -661,7 +569,7 @@ export default function QuestionBank() {
               </div>
             </div>
           </aside>
-        </div>
+        </div>, document.body
       )}
     </AdminLayout>
   );

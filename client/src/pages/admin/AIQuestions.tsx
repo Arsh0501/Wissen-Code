@@ -14,6 +14,7 @@ import {
 } from '../../services/workflows';
 import { Spinner } from '../../components/ui';
 import QuestionValidationFeedback from '../../components/questions/QuestionValidationFeedback';
+import MCQDraftEditor from '../../components/questions/MCQDraftEditor';
 import DirectApproveInfo from '../../components/questions/DirectApproveInfo';
 
 export const AVAILABLE_STARTER_LANGUAGES = [
@@ -26,6 +27,7 @@ export const AVAILABLE_STARTER_LANGUAGES = [
 interface GenerationRequest {
   requestId: string;
   topic: string;
+  topics?: string[];
   difficulty: string;
   questionType: string;
   count: number;
@@ -60,6 +62,29 @@ export default function AIQuestions() {
   const [count, setCount] = useState(3);
   const [selectedLanguages, setSelectedLanguages] = useState<number[]>([71, 63]);
   const [selected, setSelected] = useState<number | null>(null);
+  const [batchIds, setBatchIds] = useState<number[]>([]);
+  const [batchNotice, setBatchNotice] = useState('');
+  const queue = (drafts.data ?? []).filter(d => !['approved', 'rejected'].includes(d.status) && !d.questionId);
+  const mcqs = queue.filter(d => d.content.questionType === 'mcq');
+  const batchSelection = mcqs.filter(d => batchIds.includes(d.id));
+  const batch = useMutation({
+    mutationFn: async (items: QuestionDraft[]) => {
+      const failures: string[] = [];
+      let approved = 0;
+      for (const item of items) {
+        try {
+          await apiData(`/ai/drafts/${item.id}/approve`, 'post', { revision: item.revision, directApprove: true });
+          approved++;
+          setBatchIds(old => old.filter(id => id !== item.id));
+          setSelected(old => old === item.id ? null : old);
+          queryClient.setQueryData<QuestionDraft[]>(workflowKeys.drafts, old => old?.filter(d => d.id !== item.id));
+        } catch (error) { failures.push(`${item.content.title}: ${apiError(error)}`); }
+      }
+      return { approved, failures };
+    },
+    onSuccess: result => setBatchNotice(`Approved ${result.approved} MCQ(s).${result.failures.length ? ` ${result.failures.length} could not be approved: ${result.failures.join('; ')}` : ''}`),
+    onSettled: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: workflowKeys.drafts }), queryClient.invalidateQueries({ queryKey: ['question-bank'] })]); },
+  });
   const generate = useMutation({
     mutationFn: (request: GenerationRequest) => apiData<QuestionDraft[]>('/ai/generate', 'post', request),
     retry: retryWorkflowRequest,
@@ -79,7 +104,7 @@ export default function AIQuestions() {
       await queryClient.invalidateQueries({ queryKey: workflowKeys.drafts });
     },
   });
-  const draft = drafts.data?.find((d) => d.id === selected);
+  const draft = queue.find((d) => d.id === selected);
   return (
     <AdminLayout
       title="AI Question Studio"
@@ -96,10 +121,10 @@ export default function AIQuestions() {
           You can still inspect existing drafts.
         </p>
       )}
-      {status.data && !status.data.canVerify && (
+      {questionType === 'coding' && status.data && !status.data.canVerify && (
         <p className="card mb-4 text-amber-700">
           The judge is in mock mode. Reference solutions must pass real
-          execution before approval; validation will report this requirement.
+          execution before approval; MCQs do not require a code judge.
         </p>
       )}
       <form
@@ -107,7 +132,7 @@ export default function AIQuestions() {
         onSubmit={(e) => {
           e.preventDefault();
           const request: GenerationRequest = {
-            requestId: crypto.randomUUID(), topic, difficulty, questionType, count,
+            requestId: crypto.randomUUID(), topic, topics: topic.split(/[,;\n]/).map(t => t.trim()).filter(Boolean), difficulty, questionType, count,
             starterLanguages: questionType === 'coding' ? selectedLanguages.map((id) => {
               const language = AVAILABLE_STARTER_LANGUAGES.find((item) => item.id === id)!;
               return { id, name: language.name };
@@ -117,8 +142,9 @@ export default function AIQuestions() {
           generate.mutate(request);
         }}
       >
+        <p className="text-sm text-surface-500 md:col-span-3">Enter multiple topics separated by commas. The total count is distributed evenly across topics. Each question is saved with its assigned topic tag.</p>
         <label className="label">
-          Topic
+          Topics (comma separated)
           <input
             required
             className="input mt-2"
@@ -147,6 +173,7 @@ export default function AIQuestions() {
             onChange={(e) => setType(e.target.value)}
           >
             <option value="coding">Coding</option>
+            <option value="mcq">MCQ (single choice)</option>
           </select>
         </label>
         {questionType === 'coding' && (
@@ -198,7 +225,7 @@ export default function AIQuestions() {
           </div>
         )}
         <label className="label">
-          Number of questions
+          Total number of questions (at least one per topic)
           <input
             className="input mt-2"
             type="number"
@@ -228,42 +255,49 @@ export default function AIQuestions() {
         <div className="grid lg:grid-cols-[280px_1fr] gap-5">
           <div className="card space-y-2">
             <h2 className="font-semibold mb-4">
-              Draft queue ({drafts.data?.length ?? 0})
+              Draft queue ({queue.length})
             </h2>
-            {drafts.data?.length === 0 && (
+            {queue.length === 0 && (
               <p className="text-surface-500">Generate questions to begin.</p>
             )}
             {remove.error && <p role="alert" className="text-sm text-red-600">{apiError(remove.error)}</p>}
-            {drafts.data?.map((d) => (
+            {mcqs.length > 0 && <div className="space-y-2 border-b border-surface-700 pb-3">
+              <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={batchSelection.length === mcqs.length} disabled={batch.isPending} onChange={e => setBatchIds(e.target.checked ? mcqs.map(d => d.id) : [])} />Select all MCQs</label>
+              <button className="btn-primary text-xs" disabled={!batchSelection.length || batch.isPending || remove.isPending} onClick={() => { setBatchNotice(''); batch.mutate(batchSelection); }}>{batch.isPending ? 'Approving MCQs…' : `Approve selected MCQs (${batchSelection.length})`}</button>
+              <p className="text-xs text-surface-400">Batch approval uses saved drafts and skips AI review. Correct answer keys and duplicate checks still apply.</p>
+            </div>}
+            {batchNotice && <p role="status" className="text-sm">{batchNotice}</p>}
+            {queue.map((d) => (
               <div key={d.id} className={`rounded-lg ${selected === d.id ? 'bg-primary-500/15' : 'bg-surface-800/40'}`}>
-                <button onClick={() => setSelected(d.id)} className="w-full text-left p-3">
+                {d.content.questionType === 'mcq' && <label className="flex items-center gap-2 px-3 pt-3 text-xs"><input type="checkbox" aria-label={`Select MCQ ${d.content.title}`} checked={batchIds.includes(d.id)} disabled={batch.isPending} onChange={e => setBatchIds(old => e.target.checked ? [...old, d.id] : old.filter(id => id !== d.id))} />Select for approval</label>}
+                <button disabled={batch.isPending} onClick={() => setSelected(d.id)} className="w-full text-left p-3">
                   <strong className="block text-sm">{d.content.title}</strong>
                   <span className="text-xs text-surface-500">{d.status.replace(/_/g, ' ')} · revision {d.revision}</span>
                 </button>
                 {d.status !== 'approved' && <div className="px-3 pb-3">
-                  <button type="button" className="btn-ghost text-xs text-red-500" aria-label={`Delete draft ${d.content.title}`} disabled={remove.isPending} onClick={() => remove.mutate(d)}>
-                    {remove.isPending && remove.variables?.id === d.id ? 'Deleting…' : 'Delete'}
+                  <button type="button" className="btn-ghost text-xs text-red-500" aria-label={`Reject draft ${d.content.title}`} disabled={remove.isPending || batch.isPending} onClick={() => remove.mutate(d)}>
+                    {remove.isPending && remove.variables?.id === d.id ? 'Rejecting…' : 'Reject'}
                   </button>
                 </div>}
               </div>
             ))}
           </div>
-          {draft ? (
+          <fieldset disabled={batch.isPending} className="min-w-0">{draft?.content.questionType === 'mcq' ? <MCQDraftEditor key={`${draft.id}:${draft.revision}:${draft.status}`} draft={draft as QuestionDraft & { content: import('../../services/workflows').MCQContent }} /> : draft ? (
             <DraftEditor
               key={`${draft.id}:${draft.revision}:${draft.status}`}
-              draft={draft}
+              draft={draft as QuestionDraft & { content: QuestionContent }}
             />
           ) : (
             <div className="card text-surface-500">
               Select a draft to preview, edit and validate it.
             </div>
-          )}
+          )}</fieldset>
         </div>
       )}
     </AdminLayout>
   );
 }
-function DraftEditor({ draft }: { draft: QuestionDraft }) {
+function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionContent } }) {
   const client = useQueryClient();
   const [content, setContent] = useState<QuestionContent>(draft.content);
   const [testCases, setTestCases] = useState(
@@ -546,15 +580,6 @@ function DraftEditor({ draft }: { draft: QuestionDraft }) {
             className="input mt-2 font-mono"
             value={content.expectedSolutionPython}
             onChange={(e) => change('expectedSolutionPython', e.target.value)}
-          />
-        </label>
-        <label className="label">
-          Solution explanation
-          <textarea
-            rows={3}
-            className="input mt-2"
-            value={content.solutionExplanation}
-            onChange={(e) => change('solutionExplanation', e.target.value)}
           />
         </label>
       </fieldset>

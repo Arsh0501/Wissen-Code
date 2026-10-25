@@ -66,6 +66,9 @@ test('interview-wide feedback enforces required criteria, ownership, status, rev
     assert.equal(download.status, 200);
     assert.match(download.headers.get('content-type') || '', /application\/pdf/);
     assert.ok(Buffer.from(await download.arrayBuffer()).subarray(0, 5).equals(Buffer.from('%PDF-')));
+    const adminDownload = await fetch(`http://127.0.0.1:${port}/interviews/${interview.id}/feedback/report/download`, { headers: { role: 'admin', other: 'yes' } });
+    assert.equal(adminDownload.status, 200);
+    assert.match(adminDownload.headers.get('content-type') || '', /application\/pdf/);
     const deniedReport = await fetch(`http://127.0.0.1:${port}/interviews/${interview.id}/feedback/report/download`, { headers: { other: 'yes' } });
     assert.equal(deniedReport.status, 403);
     const afterEnd = await save({ criteria, revision: 2 });

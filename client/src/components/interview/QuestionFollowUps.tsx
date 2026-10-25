@@ -34,12 +34,16 @@ export default function QuestionFollowUps({ interviewId, questionId, status, sug
   const [reviewed, setReviewed] = useState<Partial<Record<string, 'asked' | 'dismissed'>>>({});
   const [showAll, setShowAll] = useState(false);
   const manual = useQuery({ queryKey: key, queryFn: () => apiData<ManualFollowUp[]>(path), refetchInterval: active ? 5000 : false });
+  const currentKey = ['current-subquestion', interviewId, questionId];
+  const current = useQuery({ queryKey: currentKey, queryFn: () => apiData<{ id: string; question: string } | null>(`${path}/current`), refetchInterval: active ? 5000 : false });
   const ai = useQuery({ queryKey: aiKey, queryFn: () => apiData<AIStatus>(`/interview-workflows/${interviewId}/ai-results`), refetchInterval: active ? 5000 : false });
   const refresh = () => Promise.all([
     client.invalidateQueries({ queryKey: key }),
     client.invalidateQueries({ queryKey: ['interview', interviewId] }),
     client.invalidateQueries({ queryKey: aiKey }),
+    client.invalidateQueries({ queryKey: currentKey }),
   ]);
+  const reset = useMutation({ mutationFn: () => apiData(`${path}/current`, 'delete'), onSuccess: refresh });
   const create = useMutation({
     mutationFn: (askNow: boolean) => apiData<ManualFollowUp>(path, 'post', { question: question.trim(), requestId, askNow }),
     onSuccess: () => { setQuestion(''); setRequestId(crypto.randomUUID()); setComposing(false); },
@@ -72,12 +76,19 @@ export default function QuestionFollowUps({ interviewId, questionId, status, sug
   });
   const scoped = [...new Map([...suggestions, ...parseAIResults(ai.data?.results).followUps]
     .filter(item => item.questionId === questionId)
-    .map(item => [item.id, item])).values()].reverse();
+    .map(item => [item.id, item])).values()]
+    .filter(item => (reviewed[item.id] ?? item.status) !== 'dismissed').reverse();
   const waiting = ai.data?.jobs?.some(job => job.kind === 'interview-assistant' && ['queued', 'running'].includes(job.status));
-  const busy = create.isPending || mark.isPending || review.isPending;
-  const error = manual.error || generate.error || create.error || mark.error || review.error;
+  const busy = create.isPending || mark.isPending || review.isPending || reset.isPending;
+  const error = manual.error || current.error || generate.error || create.error || mark.error || review.error || reset.error;
 
   return <section aria-label="Current question follow-ups" className="border-t border-surface-800 pt-4 space-y-3">
+    {current.data?.question && <div className="rounded-lg border border-primary-500/40 p-3 space-y-2" aria-label="Current subquestion">
+      <h3 className="font-semibold">Current subquestion</h3>
+      <p className="text-sm whitespace-pre-wrap">{current.data.question}</p>
+      <p className="text-xs text-surface-400">New follow-up suggestions focus on this subquestion and the reviewed transcript for the main question.</p>
+      <button type="button" className="btn-outline text-xs" disabled={!active || busy} onClick={() => reset.mutate()}>Return to main question</button>
+    </div>}
     <div className="flex flex-wrap justify-between items-center gap-3">
       <h3 className="font-semibold">Follow-ups for this question</h3>
       <div className="flex flex-wrap gap-2">
@@ -98,14 +109,14 @@ export default function QuestionFollowUps({ interviewId, questionId, status, sug
         </div>
       </fieldset>
     </form>}
-    {manual.data?.map(item => <article key={item.id} className="rounded-lg border border-surface-700 p-3 space-y-2">
-      <div className="flex justify-between gap-3"><p className="text-sm whitespace-pre-wrap">{item.question}</p><span className="text-xs text-surface-400 shrink-0">Manual · {item.status === 'asked' ? 'Asked' : item.status === 'dismissed' ? 'Dismissed' : 'Pending'}</span></div>
+    {manual.data?.filter(item => item.status !== 'dismissed').map(item => <article key={item.id} className="rounded-lg border border-surface-700 p-3 space-y-2">
+      <div className="flex justify-between gap-3"><p className="text-sm whitespace-pre-wrap">{item.question}</p><span className="text-xs text-surface-400 shrink-0">Manual · {item.status === 'asked' ? 'Asked' : 'Pending'}</span></div>
       {item.status === 'pending' && <div className="flex gap-2"><button className="btn-primary text-xs" disabled={!active || busy} onClick={() => mark.mutate({ id: item.id, status: 'asked' })}>Ask</button><button className="btn-outline text-xs" disabled={!active || busy} onClick={() => mark.mutate({ id: item.id, status: 'dismissed' })}>Dismiss</button></div>}
     </article>)}
     {scoped.slice(0, showAll ? scoped.length : 6).map(item => {
       const state = reviewed[item.id] ?? item.status ?? 'pending';
       return <article key={item.id} className="rounded-lg border border-primary-500/25 p-3 space-y-2">
-        <div className="flex justify-between gap-3"><p className="text-sm whitespace-pre-wrap">{item.question}</p><span className="text-xs text-surface-400 shrink-0">AI · {state === 'asked' ? 'Asked' : state === 'dismissed' ? 'Dismissed' : 'Pending'}</span></div>
+        <div className="flex justify-between gap-3"><p className="text-sm whitespace-pre-wrap">{item.question}</p><span className="text-xs text-surface-400 shrink-0">AI · {state === 'asked' ? 'Asked' : 'Pending'}</span></div>
         {item.context && <details><summary className="text-xs cursor-pointer text-surface-400">Why this follow-up?</summary><p className="text-xs mt-2">{item.context}</p></details>}
         {state === 'pending' && <div className="flex gap-2"><button className="btn-primary text-xs" disabled={!active || busy} onClick={() => review.mutate({ item, decision: 'ask' })}>Ask</button><button className="btn-outline text-xs" disabled={!active || busy} onClick={() => review.mutate({ item, decision: 'dismiss' })}>Dismiss</button></div>}
       </article>;

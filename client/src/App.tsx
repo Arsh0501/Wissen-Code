@@ -73,7 +73,7 @@ function AppRoutes() {
       <Route path="/account/:action" element={<AccountAction />} />
       <Route
         path="/login"
-        element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />}
+        element={<LoginPage />}
       />
       {/* Public: anyone with a shared link can open it */}
       <Route path="/invite/:token" element={<InvitePage />} />

@@ -3,6 +3,26 @@ import assert from 'node:assert/strict';
 import { compactInterviewContext, isContextLimitError, scopeFollowUpContext } from '../ai/context-budget';
 import { validateEvidence } from '../ai/schemas';
 
+test('follow-ups focus on the selected question current subquestion without leaking another question', () => {
+  const notes = (id: string, question: string) => JSON.stringify({
+    interviewerFeedback: 'Candidate described Redis caching.',
+    currentSubquestion: { id, question, askedAt: new Date().toISOString(), parentId: null },
+  });
+  const input = { id: 1, title: 'Interview', status: 'in_progress', currentQuestionId: 1, currentCode: '',
+    questions: [
+      { questionId: 1, candidateAnswer: '', notes: notes('asked-1', 'How do you invalidate the cache?'), question: { title: 'Caching', statement: 'Explain caching', questionType: 'written' } },
+      { questionId: 2, candidateAnswer: '', notes: notes('asked-2', 'OTHER_SUBQUESTION'), question: { title: 'Other', statement: 'Other question', questionType: 'written' } },
+    ], submissions: [], notes: [], events: [],
+  };
+  for (const budget of [12000, 5000]) {
+    const context = compactInterviewContext(scopeFollowUpContext(input, 1), budget);
+    assert.equal(context.interview.currentQuestionId, 1);
+    assert.equal(context.interview.currentSubquestion?.question, 'How do you invalidate the cache?');
+    assert.equal(JSON.stringify(context).includes('OTHER_SUBQUESTION'), false);
+    assert.ok(JSON.stringify(context).length <= budget);
+  }
+});
+
 test('interview AI context excludes resume attachments and repeated code snapshots and stays within its budget', () => {
   const input = {
     id: 1, title: 'Long interview', status: 'in_progress', currentQuestionId: 3,

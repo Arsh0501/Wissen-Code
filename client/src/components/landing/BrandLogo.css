@@ -1,0 +1,39 @@
+.wissen-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #8055df;
+  line-height: 1;
+  white-space: nowrap;
+}
+.wissen-brand-mark {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+a:hover .wissen-brand-mark {
+  transform: rotate(-5deg);
+}
+.wissen-brand-name {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 26px;
+  font-weight: 750;
+  letter-spacing: -1.2px;
+  color: var(--hs-ink, var(--brand-ink, #16213a));
+}
+.wissen-brand-name > span {
+  font-weight: 400;
+  margin-left: 3px;
+}
+.wissen-brand-inverse {
+  color: #fff;
+}
+.wissen-brand-inverse .wissen-brand-name {
+  color: white;
+}
+
+:root[data-theme="dark"] .wissen-brand {
+  --brand-ink: #f4f4f6;
+}

@@ -32,7 +32,7 @@ export const questionContentSchema = z.object({
     )
     .default([]),
   expectedSolutionPython: z.string().min(1),
-  solutionExplanation: z.string().min(10),
+  solutionExplanation: z.string().max(20000).default(''),
 });
 export const generatedQuestionSchema = questionContentSchema.extend({
   starterContractVersion: z.literal(2),
@@ -42,11 +42,27 @@ export const generatedQuestionSchema = questionContentSchema.extend({
   constraints: z.string().trim().min(1).max(5000),
   starterCodePython: z.string().min(1),
 });
+export const mcqContentSchema = questionContentSchema.pick({
+  title: true, statement: true, difficulty: true, topics: true,
+  requiredSkills: true, solutionExplanation: true,
+}).extend({
+  questionType: z.literal('mcq'),
+  options: z.array(z.object({ id: z.string().trim().min(1).max(40), text: z.string().trim().min(1).max(2000) })).min(2).max(6),
+  correctOptionId: z.string().trim().min(1).max(40),
+}).superRefine((q, ctx) => {
+  if (new Set(q.options.map(o => o.id)).size !== q.options.length ||
+      new Set(q.options.map(o => o.text.toLowerCase())).size !== q.options.length)
+    ctx.addIssue({ code: 'custom', message: 'Options must have unique IDs and distinct text.' });
+  if (!q.options.some(o => o.id === q.correctOptionId))
+    ctx.addIssue({ code: 'custom', message: 'Exactly one correct option must reference an existing option.' });
+});
+export const draftContentSchema = z.union([questionContentSchema, mcqContentSchema]);
 export const generationSchema = z.object({
   experienceLevel: z.string().trim().max(500).optional(),
-  topic: z.string().trim().min(2).max(500),
+  topic: z.string().trim().min(2).max(500).optional(),
+  topics: z.array(z.string().trim().min(1).max(100)).min(1).max(20).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']),
-  questionType: z.enum(['coding', 'debugging']),
+  questionType: z.enum(['coding', 'debugging', 'mcq']),
   count: z.number().int().min(1).max(10),
   requiredSkills: z.array(z.string().trim().min(1)).max(20).default([]),
   starterLanguages: z
@@ -75,22 +91,6 @@ export const validationSchema = z.object({
     }),
   ),
   feedback: z.string(),
-});
-export const planInputSchema = z.object({
-  jobRequirements: z.string().trim().min(10).max(10000),
-  candidateExperience: z.string().trim().min(3).max(10000),
-  requiredSkills: z.array(z.string().trim().min(1)).min(1).max(20),
-  durationMinutes: z.number().int().min(5).max(240),
-});
-export const planSectionSchema = z.object({
-  skill: z.string().min(1),
-  minutes: z.number().int().min(1).max(240),
-  objective: z.string().min(1),
-  questions: z.array(z.string().min(1)).min(1).max(10),
-  followUps: z.array(z.string()).max(10),
-});
-export const planSchema = z.object({
-  sections: z.array(planSectionSchema).min(1).max(20),
 });
 export const skillRatingSchema = z.object({
   skill: z.string().min(1),

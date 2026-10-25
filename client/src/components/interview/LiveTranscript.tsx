@@ -1,14 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { TranscriptionControlsContext } from './TranscriptionControlsContext';
 import type { Socket } from 'socket.io-client';
 
-type Segment = { id: string; text: string; questionId: number | null; startedAt: string };
 type Chunk = { audio: ArrayBuffer; startedAt: string };
 type Capture = { context: AudioContext; node: AudioWorkletNode; source: MediaStreamAudioSourceNode; gain: GainNode; sessionId: string; sequence: number; queue: Chunk[]; busy: boolean; stopping: boolean; flushed: boolean; cancelled: boolean; startedAt: number; seconds: number };
 
-export default function LiveTranscript({ socket, audio }: { socket: Socket | null; audio: MediaStream | null }) {
-  const [segments, setSegments] = useState<Segment[]>([]);
+export default function LiveTranscript({ socket, audio, portal = false }: { socket: Socket | null; audio: MediaStream | null; portal?: boolean }) {
+  const controlsTarget = useContext(TranscriptionControlsContext);
   const [configured, setConfigured] = useState(false);
-  const [consent, setConsent] = useState(false);
+  const [consent, setConsent] = useState(true);
   const [status, setStatus] = useState('Transcription is off.');
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
@@ -40,10 +41,9 @@ export default function LiveTranscript({ socket, audio }: { socket: Socket | nul
     try {
       while (current.queue.length && !current.cancelled) {
         const chunk = current.queue.shift()!;
-        const result = await request('TRANSCRIPT_CHUNK', { ...chunk, sessionId: current.sessionId, sequence: current.sequence });
+        await request('TRANSCRIPT_CHUNK', { ...chunk, sessionId: current.sessionId, sequence: current.sequence });
         if (current.cancelled) return;
         current.sequence++;
-        if (result.segment) setSegments(previous => [...previous.filter(s => s.id !== result.segment.id), result.segment].slice(-1000));
         setStatus(current.stopping ? 'Finishing transcription…' : 'Listening to candidate audio…');
       }
       if (current.stopping && current.flushed && !current.cancelled) {
@@ -96,7 +96,7 @@ export default function LiveTranscript({ socket, audio }: { socket: Socket | nul
   useEffect(() => {
     if (!socket) return;
     const load = () => socket.emit('TRANSCRIPT_HISTORY', {}, (result: any) => {
-      if (result?.success) { setConfigured(result.configured); setSegments(result.segments); }
+      if (result?.success) { setConfigured(result.configured); }
       else setError(result?.error || 'Could not load transcript');
     });
     const ended = () => { cancel(); setStatus('Interview or connection ended. Transcription stopped.'); };
@@ -109,18 +109,13 @@ export default function LiveTranscript({ socket, audio }: { socket: Socket | nul
     tracks.forEach(track => track.addEventListener('ended', ended));
     return () => { tracks.forEach(track => track.removeEventListener('ended', ended)); cancel(); };
   }, [audio]);
-  return <section aria-label="Live candidate transcript" className="border-t border-surface-800 pt-4 space-y-3">
-    <h3 className="font-semibold">Live candidate transcript</h3>
-    <p className="text-xs text-surface-400">Candidate speech is transcribed and saved for this interview. Text may contain recognition errors. Review selected segments using Use transcript for this question in Question &amp; code before generating AI follow-ups.</p>
+  const controls = <div aria-label="Transcription controls" className="space-y-2">
     {!configured && <p className="text-sm text-amber-400">Local transcription worker is not configured.</p>}
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={consent} disabled={running || starting} onChange={e => setConsent(e.target.checked)} />Participants have agreed to audio transcription.</label>
     <div className="flex gap-2"><button type="button" className="btn-primary" disabled={!configured || !consent || !audio || running || starting || !socket?.connected} onClick={() => void start()}>{starting ? 'Starting…' : 'Start transcription'}</button>
       <button type="button" className="btn-outline" disabled={!running} onClick={stop}>Stop transcription</button></div>
     <p role="status" className="text-xs text-surface-400">{status}</p>
     {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
-    <div className="max-h-64 overflow-auto space-y-2" aria-label="Saved transcript segments">
-      {!segments.length && <p className="text-sm text-surface-500">Finalized text appears every few seconds while the candidate speaks.</p>}
-      {segments.map(segment => <p key={segment.id} className="text-sm"><span className="text-xs text-surface-500">{new Date(segment.startedAt).toLocaleTimeString()} · Candidate{segment.questionId ? ` · Question ${segment.questionId}` : ''}</span><span className="block whitespace-pre-wrap">{segment.text}</span></p>)}
-    </div>
-  </section>;
+  </div>;
+  return portal ? controlsTarget ? createPortal(controls, controlsTarget) : null : controls;
 }

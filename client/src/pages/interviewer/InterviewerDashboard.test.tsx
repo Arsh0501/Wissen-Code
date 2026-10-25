@@ -81,85 +81,18 @@ it('opens and closes the full-window resume repeatedly and restores focus', asyn
   expect(trigger).toHaveFocus();
 });
 
-it('generates from a PDF-only resume, adds and updates a question, and preserves edits while viewing the resume', async () => {
-  const user = userEvent.setup();
+it('selects available bank questions alongside resume generation', async () => {
   setupScheduledInterview();
   renderWithProviders(<InterviewerDashboard />);
-  await user.click(await screen.findByRole('button', { name: 'View Resume' }));
-  await user.click(screen.getByRole('button', { name: 'Generate questions from resume' }));
-  const prep = within(await screen.findByRole('dialog', { name: 'Prepare interview questions' }));
-  await prep.findByText('React resume question');
-  expect(api.post).toHaveBeenCalledWith('/interviews/9/generate-resume-questions', {}, { timeout: 120000 });
-  await user.click(prep.getByRole('button', { name: 'Add to interview' }));
-  await user.click(prep.getByRole('button', { name: /Current questions/ }));
-  await prep.findByText('Assigned questions (1)');
-  await user.click(prep.getByRole('button', { name: 'Edit question' }));
-  await user.clear(prep.getByLabelText('Question title'));
-  await user.type(prep.getByLabelText('Question title'), 'Updated React question');
-  await user.click(prep.getByRole('button', { name: 'View resume' }));
-  await user.click(prep.getByRole('button', { name: 'Open full window' }));
-  const resume = within(await screen.findByRole('dialog', { name: 'Resume: Maya' }));
-  await user.click(resume.getByRole('button', { name: 'Back to questions' }));
-  await user.click(prep.getByRole('button', { name: /Current questions/ }));
-  expect(prep.getByLabelText('Question title')).toHaveValue('Updated React question');
-  await user.click(prep.getByRole('button', { name: 'Update question' }));
-  await prep.findByText('Question updated.');
-  expect(prep.getByText('Updated React question')).toBeInTheDocument();
-  expect(api.request).toHaveBeenCalledWith(expect.objectContaining({
-    url: '/interviews/9/questions/101', method: 'put', data: expect.objectContaining({ title: 'Updated React question' }),
-  }));
-  await user.click(prep.getByRole('button', { name: 'Done preparing questions' }));
-  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-});
-
-it('lets the interviewer add a question manually before starting', async () => {
   const user = userEvent.setup();
-  setupScheduledInterview();
-  renderWithProviders(<InterviewerDashboard />);
-  await user.click(await screen.findByRole('button', { name: 'Questions & Resume AI' }));
+  await user.click(await screen.findByRole('button', { name: 'Select questions' }));
   const prep = within(await screen.findByRole('dialog', { name: 'Prepare interview questions' }));
-  await user.click(await prep.findByRole('button', { name: 'Add question' }));
-  await user.type(await prep.findByLabelText('Question title'), 'API design discussion');
-  await user.type(prep.getByLabelText('Question statement'), 'How would you make an API idempotent?');
-  await user.click(prep.getByRole('button', { name: 'Add question' }));
-  await prep.findByText('Assigned questions (1)');
-  expect(prep.getByText('API design discussion')).toBeInTheDocument();
-  expect(api.request).toHaveBeenCalledWith(expect.objectContaining({
-    url: '/interviews/9/questions', method: 'post', data: expect.objectContaining({ title: 'API design discussion' }),
-  }));
-  expect(api.post).not.toHaveBeenCalled();
-});
-
-it('combines resume-generated and existing DSA questions in the same interview', async () => {
-  const user = userEvent.setup();
-  setupScheduledInterview();
-  renderWithProviders(<InterviewerDashboard />);
-  await user.click(await screen.findByRole('button', { name: 'Questions & Resume AI' }));
-  const prep = within(await screen.findByRole('dialog', { name: 'Prepare interview questions' }));
-  await user.click(await prep.findByRole('button', { name: 'Generate from resume' }));
-  await user.click(prep.getByRole('button', { name: 'Generate questions' }));
-  await prep.findByText('React resume question');
-  await user.click(prep.getByRole('button', { name: 'Add to interview' }));
-  await user.click(prep.getByRole('button', { name: /Current questions/ }));
-  await prep.findByText('Assigned questions (1)');
-  await user.click(prep.getByRole('button', { name: 'Select questions' }));
-  const bank = within(prep.getByRole('region', { name: 'Question bank' }));
-  await bank.findByLabelText('Search questions');
-  await user.type(bank.getByLabelText('Search questions'), 'Two Sum');
-  await user.selectOptions(bank.getByLabelText('Question type filter'), 'coding');
-  await user.selectOptions(bank.getByLabelText('Topic filter'), 'arrays');
-  await user.selectOptions(bank.getByLabelText('Difficulty filter'), 'easy');
-  await user.click(bank.getByRole('button', { name: 'Two Sum' }));
-  expect(bank.getByText('Find two array elements whose sum equals the target.')).toBeInTheDocument();
-  await user.click(bank.getByLabelText('Select Two Sum'));
+  const bank = within(await prep.findByRole('region', { name: 'Question bank' }));
+  expect(prep.getByRole('button', { name: 'Generate from resume' })).toBeVisible();
+  expect(prep.queryByLabelText('Question title')).not.toBeInTheDocument();
+  await user.click(await bank.findByLabelText('Select Two Sum'));
   await user.click(bank.getByRole('button', { name: 'Add selected questions (1)' }));
-  await waitFor(() => expect(bank.queryByLabelText('Select Two Sum')).not.toBeInTheDocument());
-  await user.click(prep.getByRole('button', { name: /Current questions/ }));
-  await prep.findByText('Assigned questions (2)');
-  expect(prep.getByText('Two Sum')).toBeInTheDocument();
-  expect(api.request).toHaveBeenCalledWith(expect.objectContaining({
-    url: '/interviews/9/questions', method: 'post', data: { questionId: 201 },
-  }));
+  await waitFor(() => expect(api.request).toHaveBeenCalledWith(expect.objectContaining({ url: '/interviews/9/questions', method: 'post', data: { questionId: 201 } })));
 });
 
 it('shows missed interviews as ended without offering Start or final feedback', async () => {
@@ -174,7 +107,7 @@ it('shows missed interviews as ended without offering Start or final feedback', 
   expect(screen.queryByRole('button', { name: 'Submit Feedback' })).not.toBeInTheDocument();
 });
 
-it.each(['completed', 'expired', 'cancelled'])('disables question preparation and resume generation for %s interviews', async (status) => {
+it.each(['completed', 'expired', 'cancelled'])('disables question selection for %s interviews', async (status) => {
   const user = userEvent.setup();
   setupScheduledInterview();
   vi.mocked(api.request).mockResolvedValue({ data: [{
@@ -182,7 +115,7 @@ it.each(['completed', 'expired', 'cancelled'])('disables question preparation an
     status, timeLimitMinutes: 45, extendedMinutes: 0, scheduledAt: null, candidateResumeUrl: '/api/interviews/9/resume',
   }] });
   renderWithProviders(<InterviewerDashboard />);
-  expect(await screen.findByRole('button', { name: 'Questions & Resume AI' })).toBeDisabled();
+  expect(await screen.findByRole('button', { name: 'Select questions' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'View Resume' }));
   const resume = within(await screen.findByRole('dialog', { name: 'Resume: Maya' }));
   expect(resume.queryByRole('button', { name: 'Generate questions from resume' })).not.toBeInTheDocument();

@@ -9,6 +9,8 @@ import {
   mailConfigured,
   tokenHash,
 } from './communication';
+import { sendNow, sendOtpMail } from './verification-mail';
+import { OTP_PURPOSES, OTP_TTL_SECONDS, verifyOtp } from './otp';
 const router = Router();
 const wrap =
   (fn: (req: Request, res: Response) => Promise<unknown>) =>
@@ -100,13 +102,15 @@ router.post(
       return res
         .status(403)
         .json({ error: 'Guest accounts cannot verify an email address.' });
-    if (!user.emailVerifiedAt)
-      await enqueueMail(
+    if (user.emailVerifiedAt)
+      return res.json({ message: 'Your email address is already verified.' });
+    const message = await enqueueMail(
         user.email,
         'Verify your Wissen Code email',
         `Verify your email within 24 hours:\n${await accountLink(user.id, 'verify')}`,
       );
-    res.json({ message: 'Verification email requested.' });
+    sendNow([message.id]);
+    res.json({ message: 'Verification email queued for sending. Check your inbox and spam folder. The mail worker will retry if delivery fails.' });
   }),
 );
 router.post(
@@ -144,6 +148,57 @@ router.post(
           ? { message: 'Email verified.' }
           : { error: 'Verification link is invalid or expired.' },
       );
+  }),
+);
+router.post(
+  '/otp/request',
+  wrap(async (req, res) => {
+    const { email: raw, purpose } = z
+      .object({ email: z.email().max(254), purpose: z.enum(OTP_PURPOSES) })
+      .parse(req.body);
+    if (!mailConfigured())
+      return res.status(503).json({ error: 'Email delivery is not configured.' });
+    const email = raw.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email } });
+    // Same response for unknown accounts so the endpoint cannot enumerate users.
+    const result =
+      user && !user.isGuest
+        ? await sendOtpMail(purpose, user)
+        : { status: 'sent' as const, expiresInSeconds: OTP_TTL_SECONDS };
+    if (result.status === 'cooldown')
+      return res
+        .status(429)
+        .json({ error: 'Please wait a minute before requesting another code.' });
+    res.json({
+      message: 'If the account exists, a code has been sent.',
+      expiresInSeconds: result.expiresInSeconds,
+    });
+  }),
+);
+router.post(
+  '/otp/verify',
+  wrap(async (req, res) => {
+    const { email, purpose, code } = z
+      .object({
+        email: z.email().max(254),
+        purpose: z.enum(OTP_PURPOSES),
+        code: z.string().regex(/^\d{6}$/),
+      })
+      .parse(req.body);
+    const result = await verifyOtp(purpose, email, code);
+    if (!result.ok)
+      return res.status(result.reason === 'locked' ? 429 : 400).json({
+        error:
+          result.reason === 'locked'
+            ? 'Too many incorrect attempts. Request a new code after it expires.'
+            : 'This code is invalid or expired.',
+      });
+    if (purpose === 'email-verification')
+      await prisma.user.updateMany({
+        where: { email: email.trim().toLowerCase(), emailVerifiedAt: null },
+        data: { emailVerifiedAt: new Date() },
+      });
+    res.json({ verified: true });
   }),
 );
 export default router;

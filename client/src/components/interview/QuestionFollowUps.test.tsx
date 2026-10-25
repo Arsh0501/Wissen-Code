@@ -1,9 +1,58 @@
 import { it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import api from '../../services/api';
 import { renderWithProviders, adminUser } from '../../test/test-utils';
 import QuestionFollowUps from './QuestionFollowUps';
+
+it('sets an asked follow-up as current subquestion, supports another follow-up and returns to the main question', async () => {
+  let current: { id: string; question: string } | null = null;
+  vi.mocked(api.request).mockImplementation(async request => {
+    if (request.url?.endsWith('/current')) {
+      if (request.method === 'delete') current = null;
+      return { data: current };
+    }
+    if (request.url?.endsWith('/review')) {
+      const { itemId } = request.data as { itemId: string };
+      current = { id: itemId, question: itemId === 'first' ? 'Explain cache invalidation' : 'What about concurrent writes?' };
+      return { data: { decision: 'ask' } };
+    }
+    return { data: request.url?.includes('ai-results') ? { configured: true, jobs: [], results: {} } : request.url === '/ai/jobs' ? { status: 'queued' } : [] };
+  });
+  renderWithProviders(<QuestionFollowUps interviewId={20} questionId={7} status="in_progress" suggestions={[
+    { id: 'first', jobId: 'job', questionId: 7, context: '', question: 'Explain cache invalidation' },
+    { id: 'second', jobId: 'job', questionId: 7, context: '', question: 'What about concurrent writes?' },
+  ]} />, { loggedInAs: adminUser });
+  const user = userEvent.setup();
+  const first = screen.getByText('Explain cache invalidation').closest('article')!;
+  await user.click(within(first).getByRole('button', { name: 'Ask' }));
+  expect(await screen.findByRole('generic', { name: 'Current subquestion' })).toHaveTextContent('Explain cache invalidation');
+  await user.click(screen.getByRole('button', { name: 'Ask AI for follow-ups' }));
+  await waitFor(() => expect(api.request).toHaveBeenCalledWith(expect.objectContaining({ url: '/ai/jobs', data: { kind: 'interview-assistant', interviewId: 20, input: { questionId: 7 } } })));
+  await user.click(within(screen.getByText('What about concurrent writes?').closest('article')!).getByRole('button', { name: 'Ask' }));
+  await waitFor(() => expect(screen.getByRole('generic', { name: 'Current subquestion' })).toHaveTextContent('What about concurrent writes?'));
+  await user.click(screen.getByRole('button', { name: 'Return to main question' }));
+  await waitFor(() => expect(screen.queryByRole('generic', { name: 'Current subquestion' })).not.toBeInTheDocument());
+});
+
+it('removes dismissed follow-ups and keeps previously dismissed items hidden', async () => {
+  vi.mocked(api.request).mockImplementation(async request => ({ data: request.url?.includes('ai-results')
+    ? { configured: true, results: {}, jobs: [] }
+    : request.url?.endsWith('/review') ? { decision: 'dismiss' }
+      : [{ id: 'manual-dismissed', question: 'Dismissed manual question', status: 'dismissed' }] }));
+  renderWithProviders(<QuestionFollowUps interviewId={20} questionId={7} status="in_progress" suggestions={[
+    { id: 'pending', jobId: 'job', questionId: 7, context: '', question: 'Remove this suggestion' },
+    { id: 'dismissed', jobId: 'old', questionId: 7, context: '', question: 'Previously dismissed suggestion', status: 'dismissed' },
+    { id: 'asked', jobId: 'asked', questionId: 7, context: '', question: 'Keep asked question', status: 'asked' },
+  ]} />, { loggedInAs: adminUser });
+  const user = userEvent.setup();
+  expect(screen.queryByText('Previously dismissed suggestion')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+  await waitFor(() => expect(screen.queryByText('Remove this suggestion')).not.toBeInTheDocument());
+  expect(screen.queryByText('Dismissed manual question')).not.toBeInTheDocument();
+  expect(screen.queryByText('AI · Dismissed')).not.toBeInTheDocument();
+  expect(screen.getByText('Keep asked question')).toBeVisible();
+});
 
 it('generates and asks AI follow-ups scoped to the current question', async () => {
   vi.mocked(api.request).mockImplementation(async request => ({ data: request.url?.includes('ai-results')

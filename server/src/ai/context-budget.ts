@@ -1,12 +1,13 @@
 import { questionFeedback, reviewedTranscript } from '../services/question-feedback';
+import { currentSubquestion, type CurrentSubquestion } from '../services/current-subquestion';
 
 type ContextInput = {
   id: number; title: string; status: string; currentQuestionId: number | null; currentCode: string;
+  currentSubquestion?: CurrentSubquestion | null;
   questions: { questionId: number; candidateAnswer: string; notes?: string; reviewedTranscript?: string; question: { title: string; statement: string; questionType?: string } }[];
   submissions: { id: number; questionId: number; code: string; results: string; score: number; submittedBy?: string }[];
   notes: { id: number; content: string }[];
   events: { id: number; eventType: string; actorRole: string; payload: string }[];
-  plan?: { requiredSkills: unknown } | null;
 };
 
 export function scopeFollowUpContext(input: ContextInput, questionId: number | null) {
@@ -17,8 +18,8 @@ export function scopeFollowUpContext(input: ContextInput, questionId: number | n
   const transcript = reviewedTranscript(link.notes)?.text;
   if (!transcript && (nonCoding ? !questionFeedback(link.notes).trim() : !submissions.length))
     throw Object.assign(new Error(nonCoding ? 'Save interviewer feedback for this question before requesting follow-ups' : 'The candidate must submit code for this question before requesting follow-ups'), { status: 409 });
-  return { ...input, currentQuestionId: questionId, currentCode: '', questions: [{ ...link, candidateAnswer: '', reviewedTranscript: transcript }],
-    submissions, notes: [], plan: null,
+  return { ...input, currentQuestionId: questionId, currentSubquestion: currentSubquestion(link.notes), currentCode: '', questions: [{ ...link, candidateAnswer: '', reviewedTranscript: transcript }],
+    submissions, notes: [],
     events: input.events.filter((event) => {
       try { const payload = JSON.parse(event.payload); return (payload.questionId ?? payload.activeQuestionId) === questionId && (nonCoding ? event.eventType === 'QUESTION_FEEDBACK_UPDATED' : event.eventType === 'CODE_SUBMITTED' && event.actorRole === 'candidate'); }
       catch { return false; }
@@ -30,7 +31,7 @@ export function scopeFollowUpContext(input: ContextInput, questionId: number | n
 export function compactInterviewContext(input: ContextInput, maxChars = 12000) {
   const result = {
     interview: { id: input.id, title: input.title.slice(0, 150), status: input.status, currentQuestionId: input.currentQuestionId,
-      requiredSkills: Array.isArray(input.plan?.requiredSkills) ? input.plan.requiredSkills.filter((skill): skill is string => typeof skill === 'string').slice(0, 10).map((skill) => skill.slice(0, 60)) : [],
+      currentSubquestion: input.currentSubquestion ? { ...input.currentSubquestion, question: input.currentSubquestion.question.slice(0, 2000) } : null,
       questions: [] as { questionId: number; title: string; statement: string }[],
       submissions: [] as { id: number; questionId: number; score: number }[],
       notes: [] as { id: number }[],

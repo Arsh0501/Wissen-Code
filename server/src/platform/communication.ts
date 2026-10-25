@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import prisma from '../prisma';
+import { nodemailerConfigured, sendWithNodemailer } from './mailer';
 
 export function appURL(path: string) {
   return new URL(
@@ -8,7 +9,14 @@ export function appURL(path: string) {
   ).toString();
 }
 export function mailConfigured() {
-  return !!process.env.RESEND_API_KEY && !!process.env.MAIL_FROM;
+  return nodemailerConfigured();
+}
+function redactMailError(error: unknown) {
+  let message = error instanceof Error ? error.message : 'Delivery failed';
+  for (const secret of [process.env.SMTP_PASS, process.env.GOOGLE_MAIL_CLIENT_SECRET, process.env.GOOGLE_MAIL_REFRESH_TOKEN]) {
+    if (secret) message = message.split(secret).join('[redacted]');
+  }
+  return message.replace(/[\r\n\u0000]/g, ' ').slice(0, 600);
 }
 export async function enqueueMail(
   recipient: string,
@@ -43,10 +51,10 @@ export async function accountLink(userId: number, purpose: 'reset' | 'verify') {
   ]);
   return appURL(`/account/${purpose}?token=${raw}`);
 }
-// Durable outbox: concurrent workers claim each message atomically; provider idempotency
-// prevents duplicate email delivery if the worker dies after the provider accepts a request.
+// Durable outbox: concurrent workers claim each message atomically. SMTP retries use
+// a stable Message-ID, but delivery after an ambiguous disconnect may be duplicated.
 export async function deliverOutbox(
-  send: typeof fetch = fetch,
+  send: typeof sendWithNodemailer = sendWithNodemailer,
   onlyIds?: string[],
 ) {
   if (!mailConfigured()) return;
@@ -82,43 +90,13 @@ export async function deliverOutbox(
     });
     if (!claim.count) continue;
     try {
-      const response = await send('https://api.resend.com/emails', {
-        method: 'POST',
-        signal: AbortSignal.timeout(15000),
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          'Content-Type': 'application/json',
-          'Idempotency-Key': message.id,
-        },
-        body: JSON.stringify({
-          from: process.env.MAIL_FROM,
-          to: [message.recipient],
-          subject: message.subject,
-          text: message.body,
-        }),
-      });
-      if (!response.ok) {
-        // Keep actionable provider errors rather than discarding the rejection reason.
-        // Never include raw HTML (e.g. a corporate proxy block page) or credentials.
-        let detail = '';
-        try {
-          const body = await response.json() as { name?: unknown; message?: unknown };
-          detail = [body.name, body.message].filter((value): value is string => typeof value === 'string').join(': ');
-        } catch {
-          detail = 'Non-JSON rejection; check network/proxy restrictions and the Resend endpoint';
-        }
-        const secret = process.env.RESEND_API_KEY;
-        if (secret) detail = detail.split(secret).join('[redacted]');
-        detail = detail.replace(/re_[A-Za-z0-9_-]+/g, '[redacted]').replace(/[\r\n\u0000]/g, ' ').slice(0, 600);
-        throw new Error(`Email provider HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
-      }
-      const result = (await response.json()) as { id: string };
+      const providerId = await send({ id: message.id, to: message.recipient, subject: message.subject, body: message.body });
       await prisma.outboundMessage.update({
         where: { id: message.id },
         data: {
           status: 'sent',
           deliveredAt: new Date(),
-          providerId: result.id,
+          providerId,
           error: null,
         },
       });
@@ -130,7 +108,7 @@ export async function deliverOutbox(
           scheduledAt: new Date(
             Date.now() + Math.min(3600000, 30000 * 2 ** message.attempts),
           ),
-          error: error instanceof Error ? error.message : 'Delivery failed',
+          error: redactMailError(error),
         },
       });
     }

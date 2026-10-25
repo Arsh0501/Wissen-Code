@@ -11,9 +11,6 @@ import { apiError } from '../../services/api';
 import {
   apiData,
   workflowKeys,
-  InterviewPlan,
-  PlanInput,
-  PlanSection,
   Evaluation,
   SkillRating,
 } from '../../services/workflows';
@@ -28,34 +25,6 @@ import InterviewAgentsPanel from '../../components/interview/InterviewAgentsPane
 import InterviewFeedback from '../../components/interview/InterviewFeedback';
 import InterviewFeedbackReportDownload from '../../components/interview/InterviewFeedbackReportDownload';
 import type { FeedbackCriterion } from '../../services/interviewFeedback';
-function planQuestions(plan?: InterviewPlan | null) {
-  return (
-    plan?.sections.flatMap((section) =>
-      section.questions.map((statement) => {
-        let hash = 5381;
-        for (const char of `${section.skill}:${statement}`)
-          hash = (Math.imul(hash, 33) ^ char.charCodeAt(0)) | 0;
-        const id = -(Math.abs(hash) || 1);
-        return {
-          questionId: id,
-          candidateAnswer: '',
-          notes: '',
-          question: {
-            id,
-            title: `${section.skill} discussion`,
-            statement,
-            difficulty: 'medium' as const,
-            tags: '[]',
-            timeLimit: 2,
-            memoryLimit: 256000,
-            createdAt: '',
-            updatedAt: '',
-          },
-        };
-      }),
-    ) ?? []
-  );
-}
 interface Interview extends InterviewSummary {
   feedbackCriteria?: FeedbackCriterion[];
   feedbackRevision?: number;
@@ -83,24 +52,17 @@ export default function InterviewWorkspace() {
   const { role } = useAuth();
   const [preparing, setPreparing] = useState(false);
   const [viewingResume, setViewingResume] = useState(false);
-  const [generateOnOpen, setGenerateOnOpen] = useState(false);
   const [openFinalFeedback, setOpenFinalFeedback] = useState(false);
   const id = Number(useParams().id);
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
   const requestedTab = params.get('tab');
-  const tab = requestedTab && ['plan', 'live', 'ai', 'evaluation', 'feedback'].includes(requestedTab)
-    ? requestedTab : 'plan';
+  const tab = requestedTab && ['live', 'ai', 'evaluation', 'feedback'].includes(requestedTab)
+    ? requestedTab : 'live';
   const setTab = (value: string) => setParams({ tab: value });
   const interview = useQuery({
     queryKey: ['interview', id],
     queryFn: () => apiData<Interview>(`/interviews/${id}`),
-    refetchInterval: 5000,
-  });
-  const plan = useQuery({
-    queryKey: workflowKeys.plan(id),
-    queryFn: () =>
-      apiData<InterviewPlan | null>(`/interview-workflows/${id}/plan`),
     refetchInterval: 5000,
   });
   const evaluations = useQuery({
@@ -122,13 +84,14 @@ export default function InterviewWorkspace() {
       ),
     onSuccess: (_result, variables) => {
       if (variables.operation === 'start') setTab('live');
+      if (variables.operation === 'end') { setOpenFinalFeedback(true); setTab('feedback'); }
       return client.invalidateQueries({ queryKey: ['interview', id] });
     },
   });
   const i = interview.data;
   const targetId =
     questionId ?? i?.currentQuestionId ?? i?.questions[0]?.questionId;
-  const prompts = [...(i?.questions ?? []), ...planQuestions(plan.data)];
+  const prompts = i?.questions ?? [];
   const question = prompts.find((q) => q.questionId === targetId);
   const evaluation = evaluations.data?.find((e) => e.questionId === targetId);
   if (role === 'admin') {
@@ -161,7 +124,7 @@ export default function InterviewWorkspace() {
               )) : <p>The assigned interviewer will prepare the questions.</p>}
             </section>
             {i.finalFeedback && <section className="card"><h2 className="font-semibold">Final feedback</h2><p className="whitespace-pre-wrap">{i.finalFeedback}</p></section>}
-            <InterviewFeedbackReportDownload interviewId={id} submitted={i.status === 'completed' && !!i.finalFeedback} />
+            <InterviewFeedbackReportDownload interviewId={id} completed={i.status === 'completed'} submitted={i.status === 'completed' && !!i.finalFeedback} />
             {!!i.feedbackCriteria?.length && <section className="card space-y-3"><h2 className="font-semibold">Interview feedback criteria</h2>{i.feedbackCriteria.map(criterion => <div key={criterion.key}><h3 className="font-medium">{criterion.label}: {criterion.rating}/5</h3><p className="whitespace-pre-wrap text-sm">{criterion.feedback}</p></div>)}</section>}
           </div>
         )}
@@ -189,12 +152,8 @@ export default function InterviewWorkspace() {
       ) : (
         i && (
           <>
-            {preparing && <QuestionPreparation interviewId={id} autoGenerate={generateOnOpen}
-              onClose={() => { setPreparing(false); setGenerateOnOpen(false); }}
-              onViewResume={() => { setGenerateOnOpen(false); setViewingResume(true); }} />}
-            {viewingResume && <ResumeDialog interview={i} onClose={() => setViewingResume(false)}
-              backLabel={preparing ? 'Back to questions' : 'Back to interview'}
-              onGenerate={['scheduled', 'in_progress'].includes(i.status) ? () => { setViewingResume(false); setGenerateOnOpen(true); setPreparing(true); } : undefined} />}
+            {preparing && <QuestionPreparation interviewId={id} onClose={() => setPreparing(false)} />}
+            {viewingResume && <ResumeDialog interview={i} onClose={() => setViewingResume(false)} backLabel="Back to interview" />}
             <div className="card mb-5 flex flex-wrap gap-3 items-center">
               <button className="btn-primary" disabled={!['scheduled', 'in_progress'].includes(i.status)} onClick={() => setPreparing(true)}>Prepare questions</button>
               <button className="btn-outline" disabled={!i.candidateResume && !i.candidateResumeUrl} onClick={() => setViewingResume(true)}>View resume</button>
@@ -214,17 +173,15 @@ export default function InterviewWorkspace() {
               </button>
               {action.error && <p role="alert">{apiError(action.error)}</p>}
             </div>
-            {i.status === 'completed' && tab !== 'feedback' && <section className="card mb-5 flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Interview ended</h2><button className="btn-primary" onClick={() => { setOpenFinalFeedback(true); setTab('feedback'); }}>{i.finalFeedback ? 'Edit feedback' : 'Submit feedback'}</button></section>}
+            {i.status === 'completed' && tab !== 'feedback' && <div className="space-y-3 mb-5"><section className="card flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Interview ended</h2><button className="btn-primary" onClick={() => { setOpenFinalFeedback(true); setTab('feedback'); }}>{i.finalFeedback ? 'Edit feedback' : 'Submit feedback'}</button></section><InterviewFeedbackReportDownload interviewId={id} completed submitted={!!i.finalFeedback} /></div>}
             <div className="flex gap-3 mb-5 overflow-x-auto">
-              {['plan', 'live', 'ai', 'evaluation', 'feedback'].map((t) => (
+              {['live', 'ai', 'evaluation', 'feedback'].map((t) => (
                 <button
                   className={`${tab === t ? 'btn-primary' : 'btn-outline'} shrink-0`}
                   key={t}
                   onClick={() => setTab(t)}
                 >
-                  {t === 'plan'
-                    ? 'Interview plan'
-                    : t === 'live'
+                  {t === 'live'
                       ? 'Live room'
                       : t === 'ai' ? 'AI Tools'
                       : t === 'feedback' ? 'Feedback'
@@ -233,21 +190,6 @@ export default function InterviewWorkspace() {
               ))}
             </div>
             <div hidden={tab !== 'feedback'}><InterviewFeedback key={id} interview={i} openFinal={openFinalFeedback} /></div>
-            {tab === 'plan' &&
-              (plan.isLoading ? (
-                <Spinner />
-              ) : plan.error ? (
-                <p role="alert">{apiError(plan.error)}</p>
-              ) : (
-                <PlanEditor
-                  key={
-                    plan.data?.id + ':' + JSON.stringify(plan.data?.sections)
-                  }
-                  id={id}
-                  plan={plan.data ?? null}
-                  duration={i.timeLimitMinutes}
-                />
-              ))}
             {tab === 'ai' && <InterviewAgentsPanel key={id} id={id} status={i.status} />}
             {tab === 'live' && (
               <>
@@ -256,10 +198,6 @@ export default function InterviewWorkspace() {
                   interview={i}
                   live={live}
                   evaluations={evaluations.data ?? []}
-                  plan={plan.data ?? null}
-                  planLoading={plan.isLoading}
-                  planError={plan.error ? apiError(plan.error) : undefined}
-                  onOpenPlan={() => setTab('plan')}
                   communication={<RoomTools socket={live.socket} interviewer />}
                   onQuestion={(questionId) =>
                     action.mutate({
@@ -313,12 +251,6 @@ export default function InterviewWorkspace() {
                       </button>
                     </div>
                     <div className="prose prose-invert max-w-none text-sm">
-                      {question.questionId < 0 && (
-                        <p>
-                          Plan discussion question: ask it verbally and record
-                          the candidate answer below.
-                        </p>
-                      )}
                       <ReactMarkdown>
                         {question.question.statement}
                       </ReactMarkdown>
@@ -348,7 +280,6 @@ export default function InterviewWorkspace() {
                       latestSubmission={i.submissions.find(
                         (s) => s.questionId === targetId,
                       )}
-                      planSkills={plan.data?.requiredSkills ?? []}
                     />
                   )
                 )}
@@ -358,266 +289,6 @@ export default function InterviewWorkspace() {
         )
       )}
     </AdminLayout>
-  );
-}
-function PlanEditor({
-  id,
-  plan,
-  duration,
-}: {
-  id: number;
-  plan: InterviewPlan | null;
-  duration: number;
-}) {
-  const client = useQueryClient();
-  const [input, setInput] = useState<PlanInput>(
-    plan ?? {
-      jobRequirements: '',
-      candidateExperience: '',
-      requiredSkills: [
-        'React',
-        'JavaScript',
-        'DSA',
-        'Debugging',
-        'Communication',
-      ],
-      durationMinutes: duration,
-    },
-  );
-  const [skills, setSkills] = useState(input.requiredSkills.join(', '));
-  const [includeSelectedQuestions, setIncludeSelectedQuestions] = useState(false);
-  const [sections, setSections] = useState<PlanSection[]>(plan?.sections ?? []);
-  const [saved, setSaved] = useState(false);
-  const total = sections.reduce((sum, s) => sum + s.minutes, 0);
-  const mutate = useMutation({
-    mutationFn: (mode: 'generate' | 'save') =>
-      apiData<InterviewPlan>(
-        `/interview-workflows/${id}/plan${mode === 'generate' ? '/generate' : ''}`,
-        mode === 'generate' ? 'post' : 'put',
-        {
-          ...input,
-          ...(mode === 'generate' ? { includeSelectedQuestions } : {}),
-          requiredSkills: skills
-            .split(',')
-            .map((s) => s.trim())
-            .filter(Boolean),
-          ...(mode === 'save' ? { sections } : {}),
-        },
-      ),
-    onSuccess: async (result) => {
-      setSections(result.sections);
-      setSaved(true);
-      await client.invalidateQueries({ queryKey: workflowKeys.plan(id) });
-      await client.invalidateQueries({ queryKey: ['interview', id] });
-    },
-  });
-  const update = (index: number, data: Partial<PlanSection>) => {
-    setSaved(false);
-    setSections((all) =>
-      all.map((s, n) => (n === index ? { ...s, ...data } : s)),
-    );
-  };
-  return (
-    <div className="space-y-5">
-      <div className="card grid md:grid-cols-2 gap-4">
-        <label className="label">
-          Job requirements
-          <textarea
-            className="input mt-2"
-            rows={4}
-            value={input.jobRequirements}
-            onChange={(e) => {
-              setSaved(false);
-              setInput((v) => ({ ...v, jobRequirements: e.target.value }));
-            }}
-          />
-        </label>
-        <label className="label">
-          Candidate experience
-          <textarea
-            className="input mt-2"
-            rows={4}
-            value={input.candidateExperience}
-            onChange={(e) => {
-              setSaved(false);
-              setInput((v) => ({ ...v, candidateExperience: e.target.value }));
-            }}
-          />
-        </label>
-        <label className="label">
-          Required skills
-          <input
-            className="input mt-2"
-            value={skills}
-            onChange={(e) => {
-              setSaved(false);
-              setSkills(e.target.value);
-            }}
-          />
-        </label>
-        <label className="label">
-          Interview duration
-          <input
-            className="input mt-2"
-            type="number"
-            min={5}
-            max={240}
-            value={input.durationMinutes}
-            onChange={(e) => {
-              setSaved(false);
-              setInput((v) => ({
-                ...v,
-                durationMinutes: Number(e.target.value),
-              }));
-            }}
-          />
-        </label>
-        <button
-          className="btn-primary"
-          disabled={
-            mutate.isPending ||
-            !input.jobRequirements.trim() ||
-            !input.candidateExperience.trim()
-          }
-          onClick={() => mutate.mutate('generate')}
-        >
-          {mutate.isPending ? 'Working…' : 'Generate interview plan'}
-        </button>
-        <label className="flex items-start gap-2 text-sm md:col-span-2">
-          <input type="checkbox" checked={includeSelectedQuestions} disabled={mutate.isPending} onChange={event => { setIncludeSelectedQuestions(event.target.checked); setSaved(false); }} />
-          <span>Use questions selected for this interview (optional)<span className="block text-xs text-surface-400">Generate the plan around the currently assigned interview questions. Leave unchecked to plan from job requirements, experience and skills only.</span></span>
-        </label>
-        <button
-          className="btn-outline"
-          onClick={() => {
-            setSaved(false);
-            setSections((v) => [
-              ...v,
-              {
-                skill: '',
-                minutes: 5,
-                objective: '',
-                questions: [''],
-                followUps: [],
-              },
-            ]);
-          }}
-        >
-          Add section manually
-        </button>
-      </div>
-      {sections.length > 0 && (
-        <div className="card space-y-4">
-          <h2 className="font-semibold">
-            Editable interview plan · {total}/{input.durationMinutes} minutes
-          </h2>
-          {sections.map((s, n) => (
-            <div
-              key={n}
-              className="border border-surface-700 rounded-lg p-4 space-y-3"
-            >
-              <div className="flex gap-3">
-                <label className="label flex-1">
-                  Skill
-                  <input
-                    className="input mt-2"
-                    value={s.skill}
-                    onChange={(e) => update(n, { skill: e.target.value })}
-                  />
-                </label>
-                <label className="label w-28">
-                  Minutes
-                  <input
-                    type="number"
-                    min={1}
-                    className="input mt-2"
-                    value={s.minutes}
-                    onChange={(e) =>
-                      update(n, { minutes: Number(e.target.value) })
-                    }
-                  />
-                </label>
-                <button
-                  className="btn-ghost"
-                  onClick={() => {
-                    setSaved(false);
-                    setSections((v) => v.filter((_, i) => i !== n));
-                  }}
-                >
-                  Remove
-                </button>
-                <button
-                  className="btn-ghost"
-                  disabled={n === 0}
-                  onClick={() => {
-                    const next = [...sections];
-                    [next[n - 1], next[n]] = [next[n], next[n - 1]];
-                    setSections(next);
-                    setSaved(false);
-                  }}
-                >
-                  ↑
-                </button>
-              </div>
-              <label className="label">
-                Objective
-                <input
-                  className="input mt-2"
-                  value={s.objective}
-                  onChange={(e) => update(n, { objective: e.target.value })}
-                />
-              </label>
-              <label className="label">
-                Questions (one per line)
-                <textarea
-                  rows={3}
-                  className="input mt-2"
-                  value={s.questions.join('\n')}
-                  onChange={(e) =>
-                    update(n, { questions: e.target.value.split('\n') })
-                  }
-                />
-              </label>
-              <label className="label">
-                Follow-ups (one per line)
-                <textarea
-                  rows={2}
-                  className="input mt-2"
-                  value={s.followUps.join('\n')}
-                  onChange={(e) =>
-                    update(n, {
-                      followUps: e.target.value.split('\n').filter(Boolean),
-                    })
-                  }
-                />
-              </label>
-            </div>
-          ))}
-          <button
-            className="btn-primary"
-            disabled={mutate.isPending || total !== input.durationMinutes}
-            onClick={() => mutate.mutate('save')}
-          >
-            Save edited plan
-          </button>
-          {total !== input.durationMinutes && (
-            <p className="text-amber-700">
-              Adjust section times to match the interview duration.
-            </p>
-          )}
-        </div>
-      )}
-      {mutate.error && (
-        <p role="alert" className="text-red-600">
-          {apiError(mutate.error)}
-        </p>
-      )}
-      {saved && (
-        <p role="status" className="text-emerald-700">
-          Plan saved.
-        </p>
-      )}
-    </div>
   );
 }
 function readQuestionFeedback(notes?: string): string {
@@ -632,7 +303,6 @@ export function EvaluationEditor({
   answer,
   code,
   latestSubmission,
-  planSkills,
   questionFeedback = '',
 }: {
   id: number;
@@ -641,7 +311,6 @@ export function EvaluationEditor({
   answer: string;
   code: string;
   latestSubmission?: { id: number; score: number; results: string };
-  planSkills: string[];
   questionFeedback?: string;
 }) {
   const client = useQueryClient();
@@ -655,7 +324,6 @@ export function EvaluationEditor({
     existing?.skills ??
       [
         ...new Set([
-          ...planSkills,
           'React',
           'JavaScript',
           'DSA',

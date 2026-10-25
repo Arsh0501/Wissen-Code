@@ -25,6 +25,7 @@ const room = {
   questions: [{ questionId: 12 }],
 };
 beforeEach(() => socket.handlers.clear());
+const writtenQuestion = { id: 13, title: 'Resume architecture discussion', statement: 'Describe the private resume project.', questionType: 'written', tags: '[]' };
 function renderRoom() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/interview/room-token']}>
@@ -32,6 +33,34 @@ function renderRoom() {
   </MemoryRouter></QueryClientProvider>);
   return client;
 }
+
+it('hides written question content and answer controls when loading an active interview', async () => {
+  vi.mocked(api.request).mockResolvedValue({ data: { ...room, currentQuestionId: 13, currentQuestion: writtenQuestion } });
+  renderRoom();
+  await screen.findByRole('heading', { name: room.title });
+  expect(screen.queryByText(writtenQuestion.title)).not.toBeInTheDocument();
+  expect(screen.queryByText(writtenQuestion.statement)).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Shared code')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Save answer for interviewer' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Run code' })).not.toBeInTheDocument();
+  expect(screen.getByText('Room tools')).toBeInTheDocument();
+});
+
+it('hides the coding area for a written question and restores it for the next coding question', async () => {
+  vi.mocked(api.request).mockResolvedValue({ data: room });
+  renderRoom();
+  await screen.findByLabelText('Shared code');
+  await act(async () => socket.handlers.get('QUESTION_CHANGED')!({ questionId: 13, question: writtenQuestion }));
+  expect(screen.queryByText(writtenQuestion.title)).not.toBeInTheDocument();
+  expect(screen.queryByText('Two Sum')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Shared code')).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Your answer')).not.toBeInTheDocument();
+  await act(async () => socket.handlers.get('QUESTION_CHANGED')!({ questionId: 12, question: room.currentQuestion, code: 'print("next")', languageId: 71 }));
+  expect(screen.getByRole('heading', { name: 'Two Sum' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Shared code')).toHaveValue('print("next")');
+  expect(screen.getByRole('button', { name: 'Run code' })).toBeInTheDocument();
+});
 
 it('renders after the initial request finishes and loads saved code without a socket connection', async () => {
   let finish: (value: any) => void = () => {};

@@ -230,6 +230,7 @@ model InviteLink {
   id           Int       @id @default(autoincrement())
   token        String    @unique // random, URL-safe; the secret part of the link
   assessmentId Int
+  recipientEmail String? // Personalized email invitations; null for general share links.
   label        String    @default("")
   maxUses      Int?      // null = unlimited
   expiresAt    DateTime? // null = never
@@ -296,7 +297,6 @@ model Interview {
   notes              InterviewNote[]
   events             InterviewEvent[]
   transcriptSegments InterviewTranscriptSegment[]
-  plan               InterviewPlan?
   evaluations        InterviewEvaluation[]
   feedbackReport     InterviewFeedbackReport?
   followUps          InterviewFollowUp[]
@@ -472,18 +472,6 @@ model AIQuestionDraft {
   approvedAt DateTime?
   questionId Int? @unique
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model InterviewPlan {
-  id Int @id @default(autoincrement())
-  interviewId Int @unique
-  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
-  jobRequirements String
-  candidateExperience String
-  requiredSkills Json
-  durationMinutes Int
-  sections Json
   updatedAt DateTime @updatedAt
 }
 

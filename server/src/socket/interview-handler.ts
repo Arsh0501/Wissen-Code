@@ -534,12 +534,12 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
           throw new Error('Question is not assigned to this interview');
         // Update question status in InterviewQuestion junction table
         await prisma.interviewQuestion.updateMany({
-          where: { interviewId },
+          where: { interviewId, status: 'active' },
           data: { status: 'pending' },
         });
 
         await prisma.interviewQuestion.updateMany({
-          where: { interviewId, questionId: question.id },
+          where: { interviewId, questionId: question.id, status: { in: ['pending', 'active'] } },
           data: { status: 'active' },
         });
 

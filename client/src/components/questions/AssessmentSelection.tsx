@@ -136,7 +136,7 @@ export default function AssessmentSelection({
                   .filter((id) => !prev.some((q) => q.questionId === id))
                   .map((questionId) => ({
                     questionId,
-                    marks: { easy: 10, medium: 20, hard: 30 }[
+                    marks: names.get(questionId)?.questionType === 'mcq' ? 1 : { easy: 10, medium: 20, hard: 30 }[
                       names.get(questionId)?.difficulty || 'medium'
                     ],
                   })),

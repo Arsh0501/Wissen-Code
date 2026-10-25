@@ -52,7 +52,7 @@ interface AuthContextType {
   authError: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   // Use a token issued elsewhere (e.g. joining through an invite link)
-  signInWithToken: (user: AuthUser, token: string) => void;
+  signInWithToken: (user: AuthUser, token: string, refreshToken?: string) => void;
   logout: () => void;
   updateProfile: (updates: Pick<AuthUser, 'name'>) => Promise<void>;
 }
@@ -77,9 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signInWithToken = useCallback((nextUser: AuthUser, token: string) => {
+  const signInWithToken = useCallback((nextUser: AuthUser, token: string, refreshToken?: string) => {
     setAuthError(null);
-    localStorage.removeItem('wissen-refresh-token');
+    if (refreshToken) localStorage.setItem('wissen-refresh-token', refreshToken);
+    else localStorage.removeItem('wissen-refresh-token');
     setUser(nextUser);
     persistUser(nextUser, token);
   }, []);

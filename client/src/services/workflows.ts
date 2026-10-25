@@ -23,9 +23,20 @@ export interface QuestionContent {
   expectedSolutionPython: string;
   solutionExplanation: string;
 }
+export interface MCQContent {
+  title: string;
+  statement: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  questionType: 'mcq';
+  topics: string[];
+  requiredSkills: string[];
+  options: { id: string; text: string }[];
+  correctOptionId: string;
+  solutionExplanation: string;
+}
 export interface QuestionDraft {
   id: number;
-  content: QuestionContent;
+  content: QuestionContent | MCQContent;
   revision: number;
   status: string;
   questionId: number | null;
@@ -56,23 +67,6 @@ export interface QuestionExecution {
   actualOutput?: string;
   details?: string;
   fix?: string;
-}
-export interface PlanSection {
-  skill: string;
-  minutes: number;
-  objective: string;
-  questions: string[];
-  followUps: string[];
-}
-export interface PlanInput {
-  jobRequirements: string;
-  candidateExperience: string;
-  requiredSkills: string[];
-  durationMinutes: number;
-}
-export interface InterviewPlan extends PlanInput {
-  id: number;
-  sections: PlanSection[];
 }
 export interface SkillRating {
   skill: string;
@@ -119,6 +113,5 @@ export function retryWorkflowRequest(failureCount: number, error: Error) {
 export const workflowKeys = {
   drafts: ['ai-drafts'],
   interviews: ['interviews'],
-  plan: (id: number) => ['interview-plan', id],
   evaluations: (id: number) => ['interview-evaluations', id],
 };

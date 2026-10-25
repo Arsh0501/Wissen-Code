@@ -3,13 +3,12 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import UserAvatar from '../components/layout/UserAvatar';
 import { Save, Check, MessagesSquare, Video, ExternalLink } from 'lucide-react';
-import api, { apiError, getCandidateInterviews, type CandidateInterviewSummary } from '../services/api';
+import { apiError, getCandidateInterviews, type CandidateInterviewSummary } from '../services/api';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ProfilePage() {
   const { user, role, updateProfile } = useAuth();
-  const [verification, setVerification] = useState('');
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
   const [formError, setFormError] = useState<string | null>(null);
@@ -67,7 +66,6 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      <div className="card mb-5"><h3 className="font-semibold mb-3">Email verification</h3><button className="btn-outline" disabled={!!user.guest} onClick={async () => { try { const { data } = await api.post('/auth/request-verification'); setVerification(data.message); } catch (error) { setVerification(apiError(error)); } }}>Request verification email</button>{verification && <p role="status" className="mt-3 text-sm">{verification}</p>}</div>
       <div className="card">
         <div className="flex items-center gap-4 mb-6">
           <UserAvatar user={user} size="lg" />

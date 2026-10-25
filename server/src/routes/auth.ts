@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import prisma from '../prisma';
+import { sendOtpMail } from '../platform/verification-mail';
 import { authenticate, signToken } from '../middleware/auth';
 import { accessRoles, type AccessRole } from '../platform/permissions';
 
@@ -125,7 +126,11 @@ router.post('/register', async (req: Request, res: Response) => {
     if ('error' in sessionData) {
       return res.status(403).json({ error: sessionData.error });
     }
-    res.status(201).json(sessionData);
+    const verification = await sendOtpMail('email-verification', user).catch((error) => {
+      console.error('Verification OTP failed:', error instanceof Error ? error.message : error);
+      return { status: 'off' as const };
+    });
+    res.status(201).json({ ...sessionData, verification });
   } catch (error) {
     console.error('Error registering user:', error);
     res.status(500).json({ error: 'Failed to register' });

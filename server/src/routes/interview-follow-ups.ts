@@ -5,6 +5,7 @@ import prisma from '../prisma';
 import { adminOrInterviewer } from '../middleware/adminOnly';
 import { WorkflowError } from '../services/structured-ai';
 import { recordInterviewEvent } from '../socket/interview-handler';
+import { currentSubquestion, setCurrentSubquestion } from '../services/current-subquestion';
 
 const createSchema = z.object({
   requestId: z.uuid(),
@@ -43,6 +44,17 @@ router.get<QuestionParams>('/', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get<QuestionParams>('/current', async (req, res, next) => {
+  try {
+    const interviewId = Number(req.params.id), questionId = Number(req.params.questionId);
+    const interview = await prisma.interview.findFirst({ where: { id: interviewId, interviewerId: req.user!.id } });
+    if (!interview) throw new WorkflowError('Assigned interview not found.', 404);
+    const link = await prisma.interviewQuestion.findUnique({ where: { interviewId_questionId: { interviewId, questionId } } });
+    if (!link) throw new WorkflowError('Question not assigned to this interview.', 404);
+    res.json(currentSubquestion(link.notes));
+  } catch (error) { next(error); }
+});
+
 router.post<QuestionParams>('/', async (req, res, next) => {
   try {
     const input = createSchema.parse(req.body);
@@ -60,10 +72,22 @@ router.post<QuestionParams>('/', async (req, res, next) => {
         id: input.requestId, interviewId, questionId, question: input.question, createdById: req.user!.id,
         status: input.askNow ? 'asked' : 'pending', askedAt: input.askNow ? new Date() : null,
       } });
+      if (input.askNow) await setCurrentSubquestion(tx, interviewId, questionId, followUp);
       return { followUp, created: true };
     });
     if (result.created) await recordInterviewEvent(interviewId, input.askNow ? 'FOLLOW_UP_ASKED' : 'FOLLOW_UP_ADDED', 'interviewer', { questionId, followUpId: result.followUp.id, question: result.followUp.question });
     res.status(result.created ? 201 : 200).json(result.followUp);
+  } catch (error) { next(error); }
+});
+
+router.delete<QuestionParams>('/current', async (req, res, next) => {
+  try {
+    const interviewId = Number(req.params.id), questionId = Number(req.params.questionId);
+    await prisma.$transaction(async tx => {
+      await activeQuestion(tx, interviewId, questionId, req.user!.id, req.user!.accessRole ?? req.user!.role);
+      await setCurrentSubquestion(tx, interviewId, questionId, null);
+    });
+    res.json({ success: true });
   } catch (error) { next(error); }
 });
 
@@ -77,7 +101,9 @@ router.put<QuestionParams & { followUpId: string }>('/:followUpId', async (req, 
       if (!followUp) throw new WorkflowError('Follow-up not found for this question.', 404);
       if (followUp.status === status) return { followUp, changed: false };
       if (followUp.status !== 'pending') throw new WorkflowError('This follow-up has already been asked or dismissed.', 409);
-      return { followUp: await tx.interviewFollowUp.update({ where: { id: followUp.id }, data: { status, askedAt: status === 'asked' ? new Date() : null } }), changed: true };
+      const updated = await tx.interviewFollowUp.update({ where: { id: followUp.id }, data: { status, askedAt: status === 'asked' ? new Date() : null } });
+      if (status === 'asked') await setCurrentSubquestion(tx, interviewId, questionId, updated);
+      return { followUp: updated, changed: true };
     });
     if (result.changed) await recordInterviewEvent(interviewId, status === 'asked' ? 'FOLLOW_UP_ASKED' : 'FOLLOW_UP_DISMISSED', 'interviewer', { questionId, followUpId: result.followUp.id, question: result.followUp.question });
     res.json(result.followUp);

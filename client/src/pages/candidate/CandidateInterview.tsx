@@ -165,9 +165,10 @@ export default function CandidateInterview() {
     </main>
   );
   const activeQuestion = questionId === null ? null : question ?? r.currentQuestion;
+  const writtenQuestion = activeQuestion?.questionType === 'written';
   const manualAnswer =
     !!activeQuestion &&
-    ['mcq', 'written', 'project'].includes(activeQuestion.questionType ?? '');
+    ['mcq', 'project'].includes(activeQuestion.questionType ?? '');
   const codeAnswer = !!activeQuestion && ['coding', 'debugging', 'sql'].includes(activeQuestion.questionType || 'coding');
 
   const handleApplyStarterCode = (targetLangId: number) => {
@@ -182,7 +183,7 @@ export default function CandidateInterview() {
   };
 
   return (
-    <main className="min-h-screen p-5 bg-surface-950 text-surface-100">
+    <main className="min-h-screen min-w-0 max-w-full p-3 sm:p-5 bg-surface-950 text-surface-100">
       <header className="flex justify-between mb-5">
         <div>
           <h1 className="text-xl font-bold">{r.title}</h1>
@@ -194,12 +195,10 @@ export default function CandidateInterview() {
         <p>{connectionStatus === 'connecting' ? 'Connecting to the live interview…' : 'Live connection unavailable. Saved interview data remains visible.'}</p>
         <button className="btn-outline" onClick={() => { socket?.disconnect(); setConnectionStatus('connecting'); setError(''); socket?.connect(); }}>Reconnect</button>
       </div>}
-      <div className="grid lg:grid-cols-2 gap-5">
-        <section className="card space-y-4">
-          <h2 className="text-lg font-semibold">
-            {question?.title ||
-              r.currentQuestion?.title ||
-              'Waiting for a question'}
+      {!writtenQuestion && <div className="grid lg:grid-cols-2 gap-5 min-w-0">
+        <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
+          <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">
+            {activeQuestion?.title || 'Waiting for a question'}
           </h2>
           {activeQuestion && <QuestionDescription question={activeQuestion} />}
           {manualAnswer && activeQuestion && <>
@@ -228,7 +227,7 @@ export default function CandidateInterview() {
           </>}
         </section>
         {codeAnswer && (
-          <section className="card space-y-4">
+          <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
               <label className="label flex-1">
                 Code language
@@ -264,7 +263,7 @@ export default function CandidateInterview() {
               onCode={setCode}
               resetStarterCode={resetStarterCode}
             />
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <button
                 className="btn-outline"
                 disabled={
@@ -287,7 +286,7 @@ export default function CandidateInterview() {
             {output !== null && <ExecutionResults value={output} />}
           </section>
         )}
-      </div>
+      </div>}
       {error && (
         <p role="alert" className="text-red-600 mt-5">
           {error}

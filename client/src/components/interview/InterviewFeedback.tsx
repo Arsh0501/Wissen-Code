@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiData, workflowKeys } from '../../services/workflows';
 import { apiError } from '../../services/api';
@@ -32,6 +33,28 @@ export default function InterviewFeedback({ interview, openFinal = false }: {
   const [notice, setNotice] = useState('');
   const [reportDownloadError, setReportDownloadError] = useState('');
   const completed = interview.status === 'completed';
+  const dialogRef = useRef<HTMLElement>(null);
+  const submitting = useRef(false);
+
+  useEffect(() => {
+    if (!editing || !completed) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.querySelector<HTMLSelectElement>('select')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); if (!submitting.current) setEditing(false); }
+      if (event.key === 'Tab') {
+        const items = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]');
+        if (!items?.length) return;
+        const first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', keydown); previousFocus?.focus(); };
+  }, [editing, completed]);
 
   useEffect(() => {
     if (openFinal && completed) setEditing(true);
@@ -76,6 +99,7 @@ export default function InterviewFeedback({ interview, openFinal = false }: {
       }
     },
   });
+  submitting.current = save.isPending;
 
   function update(key: string, changes: Partial<FeedbackCriterion>) {
     setCriteria(previous => previous.map(criterion => criterion.key === key ? { ...criterion, ...changes } : criterion));
@@ -101,7 +125,7 @@ export default function InterviewFeedback({ interview, openFinal = false }: {
     return <section className="card">Interview feedback becomes available when the interview starts.</section>;
   }
   const valid = validFeedbackCriteria(criteria);
-  return <section aria-label="Interview feedback" className="card space-y-5">
+  return <><section aria-label="Interview feedback" className="card space-y-5">
     <div><h2 className="font-semibold">Interview feedback</h2><p className="text-sm text-surface-400 mt-1">A rating from 1–5 is required for every criterion. Supporting comments are optional.</p></div>
     <form className="space-y-5" onSubmit={event => {
       event.preventDefault();
@@ -144,21 +168,32 @@ export default function InterviewFeedback({ interview, openFinal = false }: {
           <div className="flex flex-wrap justify-between items-center gap-3"><div><h3 className="font-semibold">Interview ended</h3><p className="text-sm text-surface-400">Submit your final rating, recommendation and interview feedback.</p></div>
             {!editing && <button type="button" className="btn-primary" onClick={() => { save.reset(); setEditing(true); }}>{interview.finalFeedback || save.isSuccess && notice === 'Feedback saved successfully.' ? 'Edit feedback' : 'Submit feedback'}</button>}
           </div>
-          {editing && <>
-            <div className="grid sm:grid-cols-2 gap-4">
-              <label className="label">Overall rating<select className="input mt-2" required value={rating} onChange={event => { setRating(event.target.value); setDirty(true); }}><option value="">Select rating</option>{[1, 2, 3, 4, 5].map(value => <option key={value} value={value}>{value} / 5</option>)}</select></label>
-              <label className="label">Recommendation<select className="input mt-2" required value={recommendation} onChange={event => { setRecommendation(event.target.value); setDirty(true); }}><option value="">Select recommendation</option>{['Strong Hire', 'Hire', 'Leaning Hire', 'Leaning No Hire', 'No Hire', 'Strong No Hire'].map(value => <option key={value}>{value}</option>)}</select></label>
-            </div>
-            <label className="label">Final interview feedback<textarea className="input mt-2" rows={5} maxLength={20000} value={feedback} required onChange={event => { setFeedback(event.target.value); setDirty(true); }} placeholder="Summarize the observed strengths, concerns and supporting evidence." /></label>
-            <div className="flex flex-wrap gap-3"><button type="submit" className="btn-primary" disabled={!valid || !feedback.trim() || !rating || !recommendation}>Submit final feedback</button><button type="button" className="btn-outline" onClick={() => setEditing(false)}>Cancel</button></div>
-          </>}
         </section>}
       </fieldset>
     </form>
-    {save.error && <p role="alert" className="text-sm text-red-400">{apiError(save.error)}</p>}
+    {save.error && !editing && <p role="alert" className="text-sm text-red-400">{apiError(save.error)}</p>}
     {notice && <p role="status" className="text-sm text-emerald-600">{notice}</p>}
     {reportDownloadError && <p role="alert" className="text-sm text-amber-500">{reportDownloadError}</p>}
-    <InterviewFeedbackReportDownload interviewId={interview.id} submitted={completed && (!!interview.finalFeedback || notice === 'Feedback saved successfully.')} />
-    {dirty && !save.isPending && <p className="text-xs text-surface-400">Unsaved changes</p>}
-  </section>;
+    <InterviewFeedbackReportDownload interviewId={interview.id} completed={completed} submitted={completed && (!!interview.finalFeedback || notice === 'Feedback saved successfully.')} />
+    {dirty && !editing && !save.isPending && <p className="text-xs text-surface-400">Unsaved changes</p>}
+  </section>
+  {completed && editing && createPortal(<div className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-4">
+    <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="final-feedback-title" className="card w-full max-w-4xl max-h-[90dvh] overflow-y-auto space-y-4">
+      <div><h2 id="final-feedback-title" className="font-semibold">Interview ended</h2><p className="text-sm text-surface-400">Submit your final rating, recommendation and interview feedback.</p></div>
+      <form className="space-y-4" onSubmit={event => { event.preventDefault(); if (valid && feedback.trim() && rating && recommendation) save.mutate(true); }}>
+        <fieldset disabled={save.isPending} className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <label className="label">Overall rating<select className="input mt-2" required value={rating} onChange={event => { setRating(event.target.value); setDirty(true); }}><option value="">Select rating</option>{[1, 2, 3, 4, 5].map(value => <option key={value} value={value}>{value} / 5</option>)}</select></label>
+            <label className="label">Recommendation<select className="input mt-2" required value={recommendation} onChange={event => { setRecommendation(event.target.value); setDirty(true); }}><option value="">Select recommendation</option>{['Strong Hire', 'Hire', 'Leaning Hire', 'Leaning No Hire', 'No Hire', 'Strong No Hire'].map(value => <option key={value}>{value}</option>)}</select></label>
+          </div>
+          <label className="label block">Final interview feedback<textarea className="input mt-2 w-full" rows={5} maxLength={20000} value={feedback} required onChange={event => { setFeedback(event.target.value); setDirty(true); }} placeholder="Summarize the observed strengths, concerns and supporting evidence." /></label>
+          {!valid && <p className="text-sm text-amber-400">Required feedback criteria still need ratings. <button type="button" className="underline" onClick={() => setEditing(false)}>Complete required criteria</button></p>}
+          <div className="flex flex-wrap gap-3"><button type="submit" className="btn-primary" disabled={!valid || !feedback.trim() || !rating || !recommendation}>{save.isPending ? 'Submitting…' : 'Submit final feedback'}</button><button type="button" className="btn-outline" onClick={() => setEditing(false)}>Cancel</button></div>
+        </fieldset>
+      </form>
+      {save.error && <p role="alert" className="text-sm text-red-400">{apiError(save.error)}</p>}
+      {dirty && !save.isPending && <p className="text-xs text-surface-400">Unsaved changes</p>}
+    </section>
+  </div>, document.body)}
+  </>;
 }

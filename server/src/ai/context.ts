@@ -12,7 +12,6 @@ export async function interviewContext(id: number, authorId: number, maxChars = 
       submissions: { where: questionId === undefined ? {} : { questionId: questionId ?? undefined, submittedBy: 'candidate' }, select: { id: true, questionId: true, code: true, results: true, score: true, submittedBy: true }, orderBy: { createdAt: 'desc' }, take: 20 },
       notes: { select: { id: true, content: true }, orderBy: { createdAt: 'desc' }, take: 8 },
       events: { select: { id: true, eventType: true, actorRole: true, payload: true }, where: { eventType: { notIn: ['CODE_CHANGED', 'CURSOR_CHANGED'] } }, orderBy: { createdAt: 'desc' }, take: 20 },
-      plan: { select: { requiredSkills: true } },
     },
   });
   if (!interview)

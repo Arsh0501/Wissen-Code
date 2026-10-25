@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import prisma from '../prisma';
 import { AgentTool } from './gateway';
-import { questionContentSchema } from '../services/workflow-schemas';
+import { draftContentSchema } from '../services/workflow-schemas';
 import { executeCode, isMockMode } from '../services/judge0';
 import { verifyStarterDrivers } from '../services/coding-question-contract';
 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -71,9 +71,10 @@ export function questionTools(
       name: 'validateQuestion',
       description:
         'Validate question structure and verify its reference solution against all test cases with the real compiler.',
-      schema: z.object({ question: questionContentSchema }),
+      schema: z.object({ question: draftContentSchema }),
       execute: async ({ question }) => {
-        const q = questionContentSchema.parse(question);
+        const q = draftContentSchema.parse(question);
+        if (q.questionType === 'mcq') return { structurallyValid: true, verified: false, reason: 'Answer correctness requires independent semantic review, not compiler execution.' };
         if (mockMode())
           return {
             verified: false,
@@ -130,9 +131,9 @@ export function questionTools(
       name: 'saveDraftQuestion',
       description:
         'Save a question as a draft requiring validation and human approval. Never publishes to the active bank.',
-      schema: z.object({ question: questionContentSchema }),
+      schema: z.object({ question: draftContentSchema }),
       execute: async ({ question }) => {
-        const content = questionContentSchema.parse(question);
+        const content = draftContentSchema.parse(question);
         // Repeated tool calls and queue retries return the existing identical draft.
         const existing = await prisma.aIQuestionDraft.findFirst({
           where: { authorId, content: { equals: content } },

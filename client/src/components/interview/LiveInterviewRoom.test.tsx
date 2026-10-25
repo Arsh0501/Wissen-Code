@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 import userEvent from '@testing-library/user-event';
 import api from '../../services/api';
@@ -10,19 +10,45 @@ vi.mock('@monaco-editor/react', () => ({
   default: ({
     value,
     options,
+    onChange,
   }: {
     value: string;
     options: { readOnly: boolean };
+    onChange?: (value: string) => void;
   }) => (
     <textarea
       aria-label="Candidate code"
       readOnly={options.readOnly}
       value={value}
+      onChange={event => onChange?.(event.target.value)}
     />
   ),
 }));
+it('lets the interviewer edit shared code beside video and receive candidate updates', async () => {
+  vi.mocked(api.request).mockImplementation(async config => ({ data: config.url?.includes('ai-results') ? { configured: true, jobs: [], results: {} } : { revision: 0, turns: [], suggestions: [], segments: [], feedback: '' } }));
+  const handlers = new Map<string, (value: any) => void>();
+  const socket: any = { id: 'interviewer', connected: true,
+    on: vi.fn((event, handler) => handlers.set(event, handler)), off: vi.fn(),
+    timeout() { return this; },
+    emit: vi.fn((event, _body, callback) => { if (event === 'UPDATE_CODE') callback(null, { success: true, revision: 2 }); }),
+  };
+  const live = { socket, snapshot: {}, connection: 'connected', activity: 'idle', result: null, error: '', ai: { followUps: [], notes: [] }, updateDraft: vi.fn(), execute: vi.fn(), receiveAI: vi.fn(), reconnect: vi.fn() } as unknown as InterviewLiveState;
+  renderWithProviders(<LiveInterviewRoom interview={{ id: 20, candidateName: 'Candidate', candidateEmail: 'candidate@test.invalid', status: 'in_progress', startedAt: new Date().toISOString(), timeLimitMinutes: 30, currentQuestionId: 1, currentCode: 'print(1)', codeRevision: 1, currentLanguageId: 71, notes: [], questions: [{ questionId: 1, question: { id: 1, title: 'Sum', statement: 'Calculate a sum.', questionType: 'coding', tags: '[]' } as any }] }} live={live} evaluations={[]} onQuestion={vi.fn()} communication={<p>Video call</p>} />, { loggedInAs: adminUser });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Video, chat & board' }));
+  const editor = await screen.findByLabelText('Candidate code');
+  expect(editor).toBeVisible();
+  expect(editor).not.toHaveAttribute('readonly');
+  await user.clear(editor); await user.type(editor, 'print(2)');
+  await waitFor(() => expect(socket.emit).toHaveBeenCalledWith('UPDATE_CODE', { code: 'print(2)', languageId: 71, baseRevision: expect.any(Number) }, expect.any(Function)));
+  await act(async () => handlers.get('CODE_CHANGED')!({ code: 'print(3)', revision: 3, authorSocketId: 'candidate', authorName: 'Candidate', languageId: 71 }));
+  expect(editor).toHaveValue('print(3)');
+});
 it('shows a single feedback field for the current question and discards stale question snapshots', async () => {
-  vi.mocked(api.request).mockImplementation(async (config: any) => ({ data: config.url?.includes('ai-results') ? { configured: true, jobs: [], results: {} } : [] }));
+  vi.mocked(api.request).mockImplementation(async (config: any) => ({ data: config.url?.endsWith('/conversation') ? {
+    revision: 1, turns: [{ id: 'turn', question: 'Current prompt', transcript: '', segmentIds: [], startedAt: new Date().toISOString() }], segments: [], suggestions: [],
+    feedback: config.url.includes('/questions/1/') ? 'First question feedback' : 'Second question feedback',
+  } : config.url?.includes('ai-results') ? { configured: true, jobs: [], results: {} } : [] }));
   const first = { id: 1, title: 'Caching strategy', statement: 'Explain caching.', questionType: 'written', difficulty: 'easy', tags: '[]' };
   const second = { ...first, id: 2, title: 'Database strategy', statement: 'Explain indexing.' };
   const interview: any = { id: 20, candidateName: 'Candidate', candidateEmail: 'candidate@test.invalid', status: 'in_progress', startedAt: new Date().toISOString(), timeLimitMinutes: 30, currentQuestionId: 1, currentCode: '', currentLanguageId: 71, notes: [], questions: [
@@ -38,10 +64,21 @@ it('shows a single feedback field for the current question and discards stale qu
     return <LiveInterviewRoom {...props} live={{ ...live, snapshot }} />;
   }
   renderWithProviders(<TestRoom />, { loggedInAs: adminUser });
+  await screen.findByRole('textbox', { name: 'Your feedback for this question' });
   expect(screen.getAllByRole('textbox', { name: 'Your feedback for this question' })).toHaveLength(1);
   expect(screen.getByRole('textbox', { name: 'Your feedback for this question' })).toHaveValue('First question feedback');
+  const feedback = screen.getByRole('textbox', { name: 'Your feedback for this question' });
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: 'Video, chat & board' }));
+  expect(screen.getByRole('combobox', { name: 'Current question' })).toBeVisible();
+  expect(screen.getByRole('textbox', { name: 'Your feedback for this question' })).toBe(feedback);
+  expect(screen.getByRole('textbox', { name: 'Live transcript for this question' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Send transcript & suggest follow-ups' })).toBeVisible();
+  await user.click(screen.getByRole('button', { name: 'Question & code' }));
+  expect(screen.getByRole('textbox', { name: 'Your feedback for this question' })).toBe(feedback);
   act(() => updateSnapshot({ questionId: 2, question: first as any }));
   expect(screen.getByRole('heading', { name: 'Database strategy' })).toBeVisible();
+  await screen.findByRole('textbox', { name: 'Your feedback for this question' });
   expect(screen.getAllByRole('textbox', { name: 'Your feedback for this question' })).toHaveLength(1);
   expect(screen.getByRole('textbox', { name: 'Your feedback for this question' })).toHaveValue('Second question feedback');
   act(() => updateSnapshot({ questionId: 1, question: first as any }));
@@ -128,10 +165,10 @@ it('shows candidate code, timer and backend AI suggestions with ask/dismiss revi
   await user.click(screen.getByRole('button', { name: 'AI assistance' }));
   expect(screen.queryByRole('button', { name: 'Run candidate code' })).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Ask' }));
-  await user.click(screen.getByRole('button', { name: 'Question & code' }));
   await waitFor(() =>
-    expect(within(screen.getByRole('region', { name: 'Current question follow-ups' })).getByText('AI · Asked')).toBeVisible(),
+    expect(screen.getByText('asked')).toBeVisible(),
   );
+  await user.click(screen.getByRole('button', { name: 'Question & code' }));
   expect(api.request).toHaveBeenCalledWith(
     expect.objectContaining({
       url: '/ai/jobs/job-1/review',
@@ -141,7 +178,7 @@ it('shows candidate code, timer and backend AI suggestions with ask/dismiss revi
   );
 });
 
-it('displays the saved plan and keeps communication mounted when switching live sections', async () => {
+it('keeps communication mounted when switching sections without a planner', async () => {
   vi.mocked(api.request).mockImplementation(async config => ({
     data: config.url?.includes('ai-results')
       ? { configured: true, jobs: [], results: {} }
@@ -152,26 +189,15 @@ it('displays the saved plan and keeps communication mounted when switching live 
     error: '', ai: { followUps: [], notes: [] }, updateDraft: vi.fn(), execute: vi.fn(),
     receiveAI: vi.fn(), reconnect: vi.fn(),
   } as unknown as InterviewLiveState;
-  const plan = {
-    id: 7, jobRequirements: 'Build APIs', candidateExperience: '3 years',
-    requiredSkills: ['Java'], durationMinutes: 30,
-    sections: [{ skill: 'Java', minutes: 30, objective: 'Assess concurrency design', questions: ['How would you prevent a race condition?'], followUps: ['When would you use a lock?'] }],
-  };
-  const onOpenPlan = vi.fn();
   renderWithProviders(<LiveInterviewRoom
     interview={{ id: 20, candidateName: 'Candidate', candidateEmail: 'test@test.invalid', status: 'scheduled', timeLimitMinutes: 30, currentQuestionId: null, currentCode: '', currentLanguageId: 71, questions: [], notes: [] }}
-    live={live} evaluations={[]} onQuestion={vi.fn()} plan={plan} onOpenPlan={onOpenPlan}
+    live={live} evaluations={[]} onQuestion={vi.fn()}
     communication={<div data-testid="communication">Persistent video session</div>}
   />, { loggedInAs: adminUser });
   const user = userEvent.setup();
   const communication = screen.getByTestId('communication');
   expect(communication).not.toBeVisible();
-  await user.click(screen.getByRole('button', { name: 'Interview plan' }));
-  expect(screen.getByRole('region', { name: 'Saved interview plan' })).toBeVisible();
-  expect(screen.getByText('Assess concurrency design')).toBeVisible();
-  expect(screen.queryByRole('combobox', { name: 'Current question' })).not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Open plan editor' }));
-  expect(onOpenPlan).toHaveBeenCalledOnce();
+  expect(screen.queryByRole('button', { name: 'Interview plan' })).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Video, chat & board' }));
   expect(communication).toBeVisible();
   expect(screen.queryByRole('region', { name: 'Saved interview plan' })).not.toBeInTheDocument();
