@@ -1,3 +1,4 @@
+import { useTheme } from '../../context/ThemeContext';
 import { useEffect, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import Editor from '../CodeEditor';
@@ -16,6 +17,7 @@ type Page = {
   interview: { title: string; candidateName: string };
 };
 export default function InterviewReplay({ id }: { id: number }) {
+  const { theme } = useTheme();
   const query = useInfiniteQuery({
     queryKey: ['interview-replay', id],
     initialPageParam: 0,
@@ -126,7 +128,7 @@ export default function InterviewReplay({ id }: { id: number }) {
             <div className="lg:col-span-2 space-y-3">
               <Editor
                 height="360px"
-                theme="vs-dark"
+                theme={theme === 'dark' ? 'vs-dark' : 'light'}
                 language={
                   (
                     {

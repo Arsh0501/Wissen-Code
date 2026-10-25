@@ -1,0 +1,118 @@
+.first-steps {
+  padding: 24px;
+}
+.first-steps-head {
+  margin-bottom: 18px;
+}
+.first-steps-head .eyebrow {
+  margin-bottom: 6px;
+}
+.first-steps-head h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: rgb(var(--ink));
+}
+.first-steps-head p:last-child {
+  font-size: 13px;
+  color: rgb(var(--surface-500));
+  margin-top: 4px;
+}
+.first-steps-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+.first-step {
+  display: grid;
+  grid-template-columns: 26px 36px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgb(var(--surface-800));
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+.first-step:hover {
+  border-color: rgb(var(--surface-700));
+}
+.first-step.is-next {
+  background: rgb(128 85 223 / 0.06);
+  border-color: rgb(128 85 223 / 0.35);
+}
+.first-step.is-done {
+  opacity: 0.65;
+}
+.first-step.is-done strong {
+  text-decoration: line-through;
+}
+.first-step-num {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgb(var(--surface-700));
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--surface-400));
+  background: rgb(var(--surface-900));
+}
+.first-step.is-done .first-step-num {
+  background: #22c55e;
+  color: #fff;
+  border-color: #22c55e;
+}
+.first-step.is-next .first-step-num {
+  background: #8055df;
+  color: #fff;
+  border-color: #8055df;
+}
+.first-step-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgb(var(--surface-800));
+  color: rgb(var(--surface-400));
+}
+.first-step.is-next .first-step-icon {
+  background: rgb(128 85 223 / 0.12);
+  color: #7446c7;
+}
+:root[data-theme="dark"] .first-step.is-next .first-step-icon {
+  color: #c9aff5;
+}
+.first-step-copy strong {
+  display: block;
+  font-size: 14px;
+  color: rgb(var(--ink));
+}
+.first-step-copy p {
+  font-size: 12.5px;
+  color: rgb(var(--surface-500));
+  margin-top: 2px;
+}
+.first-step .btn-primary,
+.first-step .btn-outline {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .first-step {
+    grid-template-columns: 26px 1fr;
+  }
+  .first-step-icon {
+    display: none;
+  }
+  .first-step .btn-primary,
+  .first-step .btn-outline {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

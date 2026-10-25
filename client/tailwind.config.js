@@ -10,16 +10,16 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb',
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+          50: '#faf7ff',
+          100: '#f0e8ff',
+          200: '#e2d2fc',
+          300: '#c9aff5',
+          400: '#ad86ed',
+          500: '#9569e4',
+          600: '#8055df',
+          700: '#6b3fc4',
+          800: '#583398',
+          900: '#472b7a',
         },
         // Neutral scale driven by CSS variables (see index.css) — values are set for the light theme,
         // where low numbers are dark ink and high numbers are light backgrounds.

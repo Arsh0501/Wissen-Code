@@ -4,16 +4,15 @@ A coding assessment and interview platform built with React, TypeScript, Express
 
 ## Local setup
 
-Requires Node.js 22, PostgreSQL and Redis.
+Requires Node.js 22.12+ (`nvm use`), PostgreSQL and Redis.
 
 ```sh
 npm install
 npm run install:all
-cp server/.env.example server/.env
-cp client/.env.example client/.env.local
+npm run setup:local
 ```
 
-Set `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters in `server/.env`. Set `REDIS_URL` for background jobs and realtime delivery. The example configuration uses backend port 4001.
+`setup:local` generates a private random JWT secret and preserves existing database credentials. Set `DATABASE_URL` in `server/.env`. Set `REDIS_URL` for background jobs and realtime delivery. The example configuration uses backend port 4001.
 
 ```sh
 cd server
@@ -21,6 +20,7 @@ npm run db:generate
 npx prisma migrate deploy
 npm run db:seed-users
 cd ..
+npm run doctor
 npm run dev
 ```
 
@@ -34,7 +34,7 @@ Run `npm run worker` in a second terminal from `server` to process AI jobs. Set 
 
 ## Checks
 
-Run `npm test` and `npm run build` from the project root. Backend tests require a local PostgreSQL database and Redis and create temporary test records.
+Run `npm test` and `npm run build` from the project root. Backend tests use `NODE_ENV=test` and require a separate test database and Redis configuration. Copy `server/.env.test.example` to `server/.env.test`, set a separate random JWT secret, create the test database, and run `NODE_ENV=test npm run db:setup` before testing. They create temporary records.
 
 ## Docker
 
@@ -66,3 +66,5 @@ The Hiring Operations page includes candidate comparison, question analytics, ma
 The question bank supports coding, debugging, MCQ, SQL, written responses, and multi-file projects. Written and project answers require human scoring; projects do not run hosted build environments.
 
 Run `npm run worker:mail` for queued email and ATS delivery. Production uses `npm run worker:grading` and `ASYNC_GRADING=1` for durable assessment grading. See [production setup](docs/production.md) for HTTPS deployment, email, SSO, TURN, monitoring, backup/restore, and the remaining product boundaries.
+
+See [architecture and environment guide](docs/architecture.md) for runtime boundaries, environment precedence, database isolation, indexes and responsive layout conventions.

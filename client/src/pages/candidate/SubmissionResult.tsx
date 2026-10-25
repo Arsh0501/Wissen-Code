@@ -1,24 +1,25 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import BrandLogo from "../../components/landing/BrandLogo";
+import ThemeToggle from "../../components/ThemeToggle";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import {
   apiError,
   getSubmissionResults,
   finishSession,
-} from '../../services/api';
+} from "../../services/api";
 import {
   formatDate,
   formatDuration,
   scoreTextClass,
   PassFailBadge,
   Spinner,
-} from '../../components/ui';
+} from "../../components/ui";
 import type {
   SubmissionResult as SubmissionResultType,
   QuestionEvaluation,
-} from '../../types';
+} from "../../types";
 import {
-  Code2,
   CheckCircle,
   XCircle,
   Trophy,
@@ -29,7 +30,7 @@ import {
   EyeOff,
   ChevronDown,
   MinusCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
 function QuestionResult({
   q,
@@ -75,7 +76,7 @@ function QuestionResult({
             </p>
           </div>
           <ChevronDown
-            className={`w-4 h-4 text-surface-500 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-surface-500 transition-transform ${open ? "rotate-180" : ""}`}
           />
         </div>
       </button>
@@ -88,10 +89,10 @@ function QuestionResult({
               key={r.id}
               className={`flex items-center justify-center w-8 h-8 rounded-md ${
                 r.passed
-                  ? 'bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25'
-                  : 'bg-red-500/15 text-red-600 ring-1 ring-red-500/25'
+                  ? "bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25"
+                  : "bg-red-500/15 text-red-600 ring-1 ring-red-500/25"
               }`}
-              title={`Test ${i + 1}: ${r.statusDesc} (${r.testCase?.isSample ? 'sample' : 'hidden'})`}
+              title={`Test ${i + 1}: ${r.statusDesc} (${r.testCase?.isSample ? "sample" : "hidden"})`}
             >
               {r.passed ? (
                 <CheckCircle className="w-3.5 h-3.5" />
@@ -126,7 +127,7 @@ function QuestionResult({
                     <td className="py-1.5 text-surface-300">#{i + 1}</td>
                     <td className="py-1.5 text-surface-400">
                       {r.testCase?.isSample ? (
-                        'Sample'
+                        "Sample"
                       ) : (
                         <span className="inline-flex items-center gap-1">
                           <EyeOff className="w-3 h-3" /> Hidden
@@ -134,17 +135,17 @@ function QuestionResult({
                       )}
                     </td>
                     <td
-                      className={`py-1.5 ${r.passed ? 'text-emerald-600' : 'text-red-600'}`}
+                      className={`py-1.5 ${r.passed ? "text-emerald-600" : "text-red-600"}`}
                     >
                       {r.statusDesc}
                     </td>
                     <td className="py-1.5 text-right text-surface-400 tabular-nums">
-                      {r.executionTime != null ? `${r.executionTime}s` : '—'}
+                      {r.executionTime != null ? `${r.executionTime}s` : "—"}
                     </td>
                     <td className="py-1.5 text-right text-surface-400 tabular-nums">
                       {r.memoryUsed != null
                         ? `${Math.round(r.memoryUsed / 1024)} MB`
-                        : '—'}
+                        : "—"}
                     </td>
                   </tr>
                 ))}
@@ -163,7 +164,7 @@ export default function SubmissionResult() {
   const navigate = useNavigate();
   const [result, setResult] = useState<SubmissionResultType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!assessmentId || !candidateName) return;
@@ -173,7 +174,7 @@ export default function SubmissionResult() {
   async function loadResults(silent = false) {
     try {
       if (!silent) setLoading(true);
-      setError('');
+      setError("");
       setResult(
         await getSubmissionResults(parseInt(assessmentId!), candidateName),
       );
@@ -181,7 +182,7 @@ export default function SubmissionResult() {
       setError(
         apiError(
           error,
-          'Results are unavailable. If you just submitted, grading may still be processing.',
+          "Results are unavailable. If you just submitted, grading may still be processing.",
         ),
       );
     } finally {
@@ -202,13 +203,13 @@ export default function SubmissionResult() {
         <section className="card max-w-xl space-y-4">
           <h1 className="text-2xl font-semibold">
             {result.gradingFailed
-              ? 'Grading needs a retry'
-              : 'Your answers have been received'}
+              ? "Grading needs a retry"
+              : "Your answers have been received"}
           </h1>
           <p>
             {result.gradingFailed
-              ? 'The execution service could not finish grading. Your saved answers are preserved.'
-              : 'Grading is processing in the background. This page updates automatically.'}
+              ? "The execution service could not finish grading. Your saved answers are preserved."
+              : "Grading is processing in the background. This page updates automatically."}
           </p>
           {error && <p role="alert">{error}</p>}
           {result.gradingFailed && (
@@ -236,7 +237,7 @@ export default function SubmissionResult() {
           >
             Refresh status
           </button>
-          <button className="btn-outline" onClick={() => navigate('/')}>
+          <button className="btn-outline" onClick={() => navigate("/")}>
             Return to dashboard
           </button>
         </section>
@@ -253,15 +254,18 @@ export default function SubmissionResult() {
       )}
       <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
         <div className="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
-              <Code2 className="w-5 h-5 text-on-accent" />
-            </div>
-            <span className="text-lg font-bold text-white">Wissen Code</span>
+          <div className="result-brand">
+            <BrandLogo />
           </div>
-          <button onClick={() => navigate('/')} className="btn-outline text-sm">
-            <ArrowLeft className="w-4 h-4" /> Back to Dashboard
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={() => navigate("/")}
+              className="btn-outline text-sm"
+            >
+              <ArrowLeft className="w-4 h-4" /> Back to Dashboard
+            </button>
+          </div>
         </div>
       </header>
 
@@ -296,7 +300,7 @@ export default function SubmissionResult() {
               {e.assessment.name}
             </h2>
             <p className="text-surface-400">
-              Thank you,{' '}
+              Thank you,{" "}
               <span className="text-white font-medium">{e.candidateName}</span>.
               Your answers have been submitted
               {e.finishedAt && <> on {formatDate(e.finishedAt)}</>}.
@@ -323,7 +327,7 @@ export default function SubmissionResult() {
                 {(e.percentage ?? 0).toFixed(1)}%
               </p>
               <p className="text-surface-400 text-sm mt-2">
-                {e.marksObtained} of {e.totalMarks} marks · passing score{' '}
+                {e.marksObtained} of {e.totalMarks} marks · passing score{" "}
                 {e.assessment.passingScore}%
               </p>
 

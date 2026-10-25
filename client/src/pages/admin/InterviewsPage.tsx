@@ -1,18 +1,33 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import AdminLayout from '../../components/AdminLayout';
-import QuestionPicker from '../../components/questions/QuestionPicker';
-import { apiData, workflowKeys } from '../../services/workflows';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import AdminLayout from "../../components/AdminLayout";
+import QuestionPicker from "../../components/questions/QuestionPicker";
+import { apiData, workflowKeys } from "../../services/workflows";
 import {
   apiError,
   getQuestions,
   getAssessments,
   getReportData,
-} from '../../services/api';
-import { Question } from '../../types';
-import { Spinner } from '../../components/ui';
+} from "../../services/api";
+import { Question } from "../../types";
+import { EmptyState, Spinner } from "../../components/ui";
+import {
+  CalendarDays,
+  Video,
+  CheckCircle2,
+  CircleSlash,
+  Check,
+  Mail,
+} from "lucide-react";
+
+// datetime-local wants local wall-clock time without a zone suffix.
+const localNow = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+};
 export interface InterviewSummary {
   id: number;
   title: string;
@@ -28,30 +43,30 @@ export default function InterviewsPage() {
   const client = useQueryClient();
   const list = useQuery({
     queryKey: workflowKeys.interviews,
-    queryFn: () => apiData<InterviewSummary[]>('/interviews'),
+    queryFn: () => apiData<InterviewSummary[]>("/interviews"),
     refetchInterval: 30000,
   });
   const bank = useQuery({
-    queryKey: ['question-bank'],
+    queryKey: ["question-bank"],
     queryFn: () => getQuestions(),
   });
   const [creating, setCreating] = useState(false);
   const [step, setStep] = useState(0);
-  const [title, setTitle] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [title, setTitle] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [duration, setDuration] = useState(45);
-  const [scheduled, setScheduled] = useState('');
+  const [scheduled, setScheduled] = useState("");
   const [questionIds, setQuestions] = useState<number[]>([]);
   const [preview, setPreview] = useState<Question | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
-  const [validation, setValidation] = useState('');
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
-  const [candidateSearch, setCandidateSearch] = useState('');
-  const [candidateAssessment, setCandidateAssessment] = useState('');
+  const [validation, setValidation] = useState("");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [candidateAssessment, setCandidateAssessment] = useState("");
   const directory = useQuery({
-    queryKey: ['candidate-directory', candidateSearch],
+    queryKey: ["candidate-directory", candidateSearch],
     queryFn: () =>
       apiData<{ id: number; name: string; email: string }[]>(
         `/candidates?search=${encodeURIComponent(candidateSearch)}`,
@@ -59,12 +74,12 @@ export default function InterviewsPage() {
     enabled: creating && step === 1,
   });
   const assessmentList = useQuery({
-    queryKey: ['assessments'],
+    queryKey: ["assessments"],
     queryFn: getAssessments,
     enabled: creating && step === 1,
   });
   const assessmentCandidates = useQuery({
-    queryKey: ['assessment-candidates', Number(candidateAssessment)],
+    queryKey: ["assessment-candidates", Number(candidateAssessment)],
     queryFn: () =>
       apiData<{ candidates: { name: string }[] }>(
         `/assessments/${candidateAssessment}/candidates`,
@@ -76,7 +91,7 @@ export default function InterviewsPage() {
       getReportData(candidate, Number(candidateAssessment)),
     onSuccess: (data, candidate) => {
       setName(candidate);
-      setEmail(data.candidate?.email || '');
+      setEmail(data.candidate?.email || "");
     },
   });
   const candidates = [
@@ -111,8 +126,8 @@ export default function InterviewsPage() {
       let id = createdId;
       if (!id) {
         const result = await apiData<{ interview: InterviewSummary }>(
-          '/interviews',
-          'post',
+          "/interviews",
+          "post",
           {
             title,
             candidateName: name,
@@ -125,16 +140,16 @@ export default function InterviewsPage() {
         id = result.interview.id;
         setCreatedId(id);
       }
-      if (start) await apiData(`/interviews/${id}/start`, 'post', {});
+      if (start) await apiData(`/interviews/${id}/start`, "post", {});
       return { id, start };
     },
     onSuccess: async ({ id, start }) => {
       await client.invalidateQueries({ queryKey: workflowKeys.interviews });
-      navigate(`/admin/interviews/${id}${start ? '?tab=live' : ''}`);
+      navigate(`/admin/interviews/${id}${start ? "?tab=live" : ""}`);
     },
   });
   const start = useMutation({
-    mutationFn: (id: number) => apiData(`/interviews/${id}/start`, 'post', {}),
+    mutationFn: (id: number) => apiData(`/interviews/${id}/start`, "post", {}),
     onSuccess: async (_result, id) => {
       await client.invalidateQueries({ queryKey: workflowKeys.interviews });
       navigate(`/admin/interviews/${id}?tab=live`);
@@ -144,19 +159,19 @@ export default function InterviewsPage() {
     const error =
       step === 0
         ? !title.trim()
-          ? 'Enter an interview title.'
+          ? "Enter an interview title."
           : !Number.isInteger(duration) || duration < 5 || duration > 240
-            ? 'Duration must be 5–240 minutes.'
-            : ''
+            ? "Duration must be 5–240 minutes."
+            : ""
         : step === 1
           ? !name.trim()
-            ? 'Select or enter a candidate.'
+            ? "Select or enter a candidate."
             : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-              ? 'Enter a valid candidate email.'
-              : ''
+              ? "Enter a valid candidate email."
+              : ""
           : !questionIds.length
-            ? 'Select at least one question.'
-            : '';
+            ? "Select at least one question."
+            : "";
     setValidation(error);
     if (!error) setStep((v) => v + 1);
   }
@@ -170,10 +185,10 @@ export default function InterviewsPage() {
           disabled={create.isPending}
           onClick={() => {
             setCreating((v) => !v);
-            setValidation('');
+            setValidation("");
           }}
         >
-          {creating ? 'Close creation flow' : 'Create Interview'}
+          {creating ? "Close creation flow" : "Create Interview"}
         </button>
       }
     >
@@ -184,20 +199,34 @@ export default function InterviewsPage() {
             className="flex gap-2 flex-wrap"
           >
             {[
-              'Create Interview',
-              'Select Candidate',
-              'Select Questions',
-              'Start Interview',
+              "Create Interview",
+              "Select Candidate",
+              "Select Questions",
+              "Start Interview",
             ].map((label, index) => (
-              <span
+              <button
+                type="button"
                 key={label}
-                aria-current={step === index ? 'step' : undefined}
-                className={`badge px-3 py-2 ${step === index ? 'bg-primary-500/15 text-primary-700' : ''}`}
+                aria-current={step === index ? "step" : undefined}
+                disabled={index >= step || !!createdId || create.isPending}
+                onClick={() => {
+                  setStep(index);
+                  setValidation("");
+                }}
+                className={`interview-step badge px-3 py-2 ${step === index ? "is-current" : index < step ? "is-done" : ""}`}
               >
-                {index + 1}. {label}
-              </span>
+                {index < step ? (
+                  <Check size={13} strokeWidth={3} aria-hidden="true" />
+                ) : (
+                  `${index + 1}.`
+                )}{" "}
+                {label}
+              </button>
             ))}
           </nav>
+          <div className="interview-step-track" aria-hidden="true">
+            <span style={{ width: `${((step + 1) / 4) * 100}%` }} />
+          </div>
           {step === 0 && (
             <div className="grid md:grid-cols-2 gap-4">
               <label className="label">
@@ -224,9 +253,16 @@ export default function InterviewsPage() {
                 <input
                   type="datetime-local"
                   className="input mt-2"
+                  min={localNow()}
                   value={scheduled}
                   onChange={(e) => setScheduled(e.target.value)}
                 />
+                <span className="interview-mail-hint">
+                  <Mail size={14} aria-hidden="true" />
+                  {scheduled
+                    ? "The candidate gets an email invitation now and a reminder 30 minutes before."
+                    : "Add a time to email the candidate an invitation automatically."}
+                </span>
               </label>
             </div>
           )}
@@ -304,7 +340,7 @@ export default function InterviewsPage() {
                 {candidates.map((c) => (
                   <button
                     key={c.email}
-                    className={`p-3 rounded border text-left ${email === c.email ? 'border-primary-500' : 'border-surface-700'}`}
+                    className={`interview-candidate-option ${email === c.email ? "is-selected" : ""}`}
                     aria-pressed={email === c.email}
                     onClick={() => {
                       setName(c.name);
@@ -363,7 +399,7 @@ export default function InterviewsPage() {
                   onChange={setQuestions}
                   onPreview={setPreview}
                 />
-              )}{' '}
+              )}{" "}
               {preview && (
                 <div className="p-4 border border-surface-700 rounded space-y-3">
                   <div className="flex justify-between">
@@ -398,6 +434,25 @@ export default function InterviewsPage() {
                     {name} · {email}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-surface-500">Scheduled</dt>
+                  <dd>
+                    {scheduled
+                      ? new Date(scheduled).toLocaleString(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : "Not scheduled — start now or share the room link"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-surface-500">Email</dt>
+                  <dd>
+                    {scheduled
+                      ? "Invitation on save, reminder 30 min before"
+                      : "No automatic email"}
+                  </dd>
+                </div>
               </dl>
               <ol className="list-decimal pl-5 text-sm space-y-2">
                 {questionIds.map((id) => (
@@ -417,10 +472,10 @@ export default function InterviewsPage() {
                   onClick={() => create.mutate(true)}
                 >
                   {create.isPending
-                    ? 'Starting…'
+                    ? "Starting…"
                     : createdId
-                      ? 'Retry start interview'
-                      : 'Start Interview & enter live room'}
+                      ? "Retry start interview"
+                      : "Start Interview & enter live room"}
                 </button>
                 <button
                   className="btn-outline"
@@ -428,8 +483,8 @@ export default function InterviewsPage() {
                   onClick={() => create.mutate(false)}
                 >
                   {createdId
-                    ? 'Open saved interview'
-                    : 'Save scheduled interview'}
+                    ? "Open saved interview"
+                    : "Save scheduled interview"}
                 </button>
               </div>
             </div>
@@ -445,16 +500,16 @@ export default function InterviewsPage() {
               disabled={!step || create.isPending || !!createdId}
               onClick={() => {
                 setStep((v) => v - 1);
-                setValidation('');
+                setValidation("");
               }}
             >
               Back
             </button>
             {step < 3 && (
               <button className="btn-outline" onClick={next}>
-                Next:{' '}
+                Next:{" "}
                 {
-                  ['Select Candidate', 'Select Questions', 'Start Interview'][
+                  ["Select Candidate", "Select Questions", "Start Interview"][
                     step
                   ]
                 }
@@ -464,14 +519,24 @@ export default function InterviewsPage() {
         </section>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        {['scheduled', 'in_progress', 'completed', 'cancelled'].map((value) => (
+        {["scheduled", "in_progress", "completed", "cancelled"].map((value) => (
           <button
-            className={`card text-left ${status === value ? 'ring-2 ring-primary-500' : ''}`}
+            aria-pressed={status === value}
+            className={`interview-status-card card text-left ${status === value ? "ring-2 ring-primary-500" : ""}`}
             key={value}
-            onClick={() => setStatus((prev) => (prev === value ? '' : value))}
+            onClick={() => setStatus((prev) => (prev === value ? "" : value))}
           >
-            <span className="text-sm capitalize">
-              {value.replace(/_/g, ' ')}
+            <span className="interview-status-label text-sm capitalize">
+              {value.replace(/_/g, " ")}
+              {value === "scheduled" ? (
+                <CalendarDays size={18} />
+              ) : value === "in_progress" ? (
+                <Video size={18} />
+              ) : value === "completed" ? (
+                <CheckCircle2 size={18} />
+              ) : (
+                <CircleSlash size={18} />
+              )}
             </span>
             <strong className="block text-2xl mt-1">
               {list.data?.filter((i) => i.status === value).length ?? 0}
@@ -491,8 +556,8 @@ export default function InterviewsPage() {
           <button
             className="btn-outline"
             onClick={() => {
-              setStatus('');
-              setSearch('');
+              setStatus("");
+              setSearch("");
             }}
           >
             Clear filters
@@ -516,28 +581,37 @@ export default function InterviewsPage() {
       ) : (
         <div className="space-y-3">
           {!visible.length && (
-            <div className="card">
-              {list.data?.length
-                ? 'No interviews match these filters.'
-                : 'Create your first interview to get started.'}
-            </div>
+            <EmptyState
+              icon={CalendarDays}
+              title={
+                list.data?.length
+                  ? "No interviews match these filters."
+                  : "Great conversations start here."
+              }
+              body={
+                list.data?.length
+                  ? "Try another name or clear your filters."
+                  : "Create your first interview to get started."
+              }
+            />
           )}
-          {visible.map((i) => (
+          {visible.map((i, index) => (
             <article
-              className="card flex flex-wrap justify-between items-center gap-4"
+              className="interview-list-card card flex flex-wrap justify-between items-center gap-4"
+              style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
               key={i.id}
             >
               <div>
                 <h2 className="font-semibold">{i.title}</h2>
                 <p className="text-sm text-surface-500">
-                  {i.candidateName} · {i.timeLimitMinutes} min ·{' '}
-                  {i.status.replace(/_/g, ' ')}
+                  {i.candidateName} · {i.timeLimitMinutes} min ·{" "}
+                  {i.status.replace(/_/g, " ")}
                   {i.scheduledAt &&
                     ` · ${new Date(i.scheduledAt).toLocaleString()}`}
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                {i.status === 'scheduled' && (
+                {i.status === "scheduled" && (
                   <button
                     className="btn-primary"
                     disabled={start.isPending}
@@ -548,13 +622,13 @@ export default function InterviewsPage() {
                 )}
                 <Link
                   className="btn-outline"
-                  to={`/admin/interviews/${i.id}${i.status === 'in_progress' ? '?tab=live' : ''}`}
+                  to={`/admin/interviews/${i.id}${i.status === "in_progress" ? "?tab=live" : ""}`}
                 >
-                  {i.status === 'in_progress'
-                    ? 'Join live room'
-                    : i.status === 'completed'
-                      ? 'View evaluation'
-                      : 'Plan and review'}
+                  {i.status === "in_progress"
+                    ? "Join live room"
+                    : i.status === "completed"
+                      ? "View evaluation"
+                      : "Plan and review"}
                 </Link>
               </div>
             </article>

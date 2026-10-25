@@ -5,6 +5,8 @@ COPY package*.json ./
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 RUN npm ci
 COPY prisma ./prisma
+COPY prisma.config.ts ./
+COPY src/config ./src/config
 RUN npx prisma generate
 COPY tsconfig.json ./
 COPY src ./src

@@ -11,6 +11,7 @@ import {
   recordInterviewEvent,
 } from '../socket/interview-handler';
 import { INTERVIEW_EVENTS } from '../socket/types';
+import { queueInterviewInvitation } from '../platform/notifications';
 
 const router = Router();
 router.use('/:id', async (req, res, next) => {
@@ -289,9 +290,17 @@ router.post('/', adminOnly, async (req: Request, res: Response) => {
       },
     });
 
+    // Scheduling is what notifies the candidate; mail failures must not undo the interview.
+    const invitationQueued = interview.scheduledAt
+      ? await queueInterviewInvitation(interview, interviewerId).catch((error) => {
+          console.error('Interview invitation failed:', error instanceof Error ? error.message : error);
+          return false;
+        })
+      : false;
     res.status(201).json({
       success: true,
       interview,
+      invitationQueued,
       candidateJoinUrl: `/interview/${interview.roomToken}`,
     });
   } catch (error: any) {

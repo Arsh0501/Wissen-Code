@@ -14,6 +14,7 @@ import type {
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '/api',
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -216,6 +217,9 @@ export async function getDashboard(): Promise<DashboardData> {
 
 // Extracts the server's error message from an axios error
 export function apiError(err: any, fallback = 'Something went wrong'): string {
+  if (err?.code === 'ECONNABORTED') return 'The request timed out. Please try again.';
+  if (err?.isAxiosError && !err.response)
+    return 'Unable to reach the server. Check your connection and try again.';
   return err?.response?.data?.error || err?.message || fallback;
 }
 
@@ -226,7 +230,7 @@ export async function runCode(params: {
   languageId: number;
   stdin?: string;
 }): Promise<RunCodeResponse> {
-  const { data } = await api.post('/judge/run', params);
+  const { data } = await api.post('/judge/run', params, { timeout: 180000 });
   return data;
 }
 
@@ -235,7 +239,7 @@ export async function runTests(params: {
   languageId: number;
   questionId: number;
 }): Promise<RunTestsResponse> {
-  const { data } = await api.post('/judge/run-tests', params);
+  const { data } = await api.post('/judge/run-tests', params, { timeout: 180000 });
   return data;
 }
 
@@ -256,7 +260,7 @@ export async function submitAssessment(params: {
     code: string;
   }[];
 }): Promise<SubmissionResult> {
-  const { data } = await api.post('/submissions', params);
+  const { data } = await api.post('/submissions', params, { timeout: 11 * 60 * 1000 });
   return data;
 }
 
@@ -360,7 +364,7 @@ export async function recordPaste(
 }
 
 export async function finishSession(sessionId: number): Promise<any> {
-  const { data } = await api.post(`/attempts/${sessionId}/submit`);
+  const { data } = await api.post(`/attempts/${sessionId}/submit`, {}, { timeout: 11 * 60 * 1000 });
   return data;
 }
 

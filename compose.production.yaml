@@ -9,6 +9,9 @@ services:
       ASYNC_GRADING: '1'
       JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
       TRUST_PROXY: '1'
+      EXECUTION_CONCURRENCY: ${EXECUTION_CONCURRENCY:-16}
+      AUTH_RATE_LIMIT_PER_IP: ${AUTH_RATE_LIMIT_PER_IP:-600}
+      AUTH_RATE_LIMIT_PER_ACCOUNT: ${AUTH_RATE_LIMIT_PER_ACCOUNT:-20}
       MONITORING_TOKEN: ${MONITORING_TOKEN:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-}
@@ -21,6 +24,7 @@ services:
   worker:
     restart: unless-stopped
     environment:
+      NODE_ENV: production
       JUDGE_MODE: live
       JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
   grading-worker:
@@ -33,6 +37,8 @@ services:
       JUDGE_MODE: live
       JUDGE0_API_URL: ${JUDGE0_API_URL:-https://ce.judge0.com}
       JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
+      EXECUTION_CONCURRENCY: ${EXECUTION_CONCURRENCY:-16}
+      GRADING_CONCURRENCY: ${GRADING_CONCURRENCY:-8}
       ATS_WEBHOOK_URL: ${ATS_WEBHOOK_URL:-}
       ATS_WEBHOOK_SECRET: ${ATS_WEBHOOK_SECRET:-}
     depends_on:

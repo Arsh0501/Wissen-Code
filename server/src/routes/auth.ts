@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import prisma from '../prisma';
 import { authenticate, signToken } from '../middleware/auth';
 
+import { sendOtpMail } from '../platform/notifications';
 const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -90,7 +91,7 @@ router.post('/register', async (req: Request, res: Response) => {
     const existing = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
-    if (existing) {
+    if (existing && !existing.isGuest) {
       return res
         .status(409)
         .json({ error: 'An account with this email already exists' });
@@ -99,14 +100,27 @@ router.post('/register', async (req: Request, res: Response) => {
     const finalRole = 'candidate';
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: {
-        name: name.trim(),
-        email: email.toLowerCase(),
-        password: passwordHash,
-        role: finalRole,
-      },
-    });
+    // A guest row (created when this email opened an invite link) has no usable
+    // password; signing up with that email upgrades it into a full account so the
+    // guest's assessment history stays attached. Email ownership is confirmed by OTP.
+    const user = existing
+      ? await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: name.trim(),
+            password: passwordHash,
+            isGuest: false,
+            emailVerifiedAt: null,
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            name: name.trim(),
+            email: email.toLowerCase(),
+            password: passwordHash,
+            role: finalRole,
+          },
+        });
 
     const sessionData = await createSessionForUser(
       user.id,
@@ -117,7 +131,14 @@ router.post('/register', async (req: Request, res: Response) => {
     if ('error' in sessionData) {
       return res.status(403).json({ error: sessionData.error });
     }
-    res.status(201).json(sessionData);
+    // The account works immediately; the OTP confirms the address in the background.
+    const verification = await sendOtpMail('email-verification', user).catch(
+      (error) => {
+        console.error('Verification OTP failed:', error instanceof Error ? error.message : error);
+        return { status: 'off' as const, expiresInSeconds: 0 };
+      },
+    );
+    res.status(201).json({ ...sessionData, verification });
   } catch (error) {
     console.error('Error registering user:', error);
     res.status(500).json({ error: 'Failed to register' });
@@ -147,6 +168,20 @@ router.post('/login', async (req: Request, res: Response) => {
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    // Each portal only signs in its own audience; tell the client where to go instead.
+    const { audience } = req.body;
+    const portal = user.role === 'candidate' ? 'candidate' : 'hiring';
+    if ((audience === 'hiring' || audience === 'candidate') && audience !== portal) {
+      return res.status(403).json({
+        error:
+          portal === 'candidate'
+            ? 'This is the hiring team sign-in. Candidates sign in from the candidate space.'
+            : 'This is the candidate sign-in. Team members sign in from the hiring workspace.',
+        code: 'WRONG_PORTAL',
+        portal,
+      });
     }
 
     const sessionData = await createSessionForUser(

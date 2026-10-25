@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { filterQuestions } from '../../components/questions/QuestionPicker';
-import AssessmentSelection from '../../components/questions/AssessmentSelection';
-import AdminLayout from '../../components/AdminLayout';
-import { Spinner, EmptyState, parseJsonArray } from '../../components/ui';
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { filterQuestions } from "../../components/questions/QuestionPicker";
+import AssessmentSelection from "../../components/questions/AssessmentSelection";
+import AdminLayout from "../../components/AdminLayout";
+import { Spinner, EmptyState, parseJsonArray } from "../../components/ui";
 import {
   getQuestions,
   getQuestion,
@@ -13,8 +13,8 @@ import {
   importQuestionFromMd,
   getExportMdUrl,
   apiError,
-} from '../../services/api';
-import type { Question } from '../../types';
+} from "../../services/api";
+import type { Question } from "../../types";
 import {
   Plus,
   Edit,
@@ -27,29 +27,29 @@ import {
   X,
   Download,
   EyeOff,
-} from 'lucide-react';
+} from "lucide-react";
 
 export default function QuestionBank() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const bank = useQuery({
-    queryKey: ['question-bank'],
+    queryKey: ["question-bank"],
     queryFn: () => getQuestions(),
   });
   const questions = bank.data ?? [];
   const loading = bank.isLoading;
-  const [actionError, setError] = useState('');
+  const [actionError, setError] = useState("");
   const error =
     actionError ||
-    (bank.error ? apiError(bank.error, 'Failed to load questions') : '');
+    (bank.error ? apiError(bank.error, "Failed to load questions") : "");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
-  const [questionType, setQuestionType] = useState('');
+  const [questionType, setQuestionType] = useState("");
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState('');
+  const [previewError, setPreviewError] = useState("");
   const [previewId, setPreviewId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [difficulty, setDifficulty] = useState('');
-  const [tag, setTag] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [difficulty, setDifficulty] = useState("");
+  const [tag, setTag] = useState("");
   const [showNewDropdown, setShowNewDropdown] = useState(false);
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<Question | null>(null);
@@ -59,16 +59,16 @@ export default function QuestionBank() {
   async function handleDelete(q: Question) {
     const used = q._count?.assessments ?? 0;
     const msg = used
-      ? `"${q.title}" is used in ${used} assessment${used === 1 ? '' : 's'}. Deleting it removes it from those assessments and deletes candidates' answers to it. Continue?`
+      ? `"${q.title}" is used in ${used} assessment${used === 1 ? "" : "s"}. Deleting it removes it from those assessments and deletes candidates' answers to it. Continue?`
       : `Delete "${q.title}"? This cannot be undone.`;
     if (!confirm(msg)) return;
     try {
       await deleteQuestion(q.id);
-      await client.invalidateQueries({ queryKey: ['question-bank'] });
+      await client.invalidateQueries({ queryKey: ["question-bank"] });
       setSelectedIds((ids) => ids.filter((id) => id !== q.id));
       if (preview?.id === q.id) setPreview(null);
     } catch (err) {
-      setError(apiError(err, 'Failed to delete question'));
+      setError(apiError(err, "Failed to delete question"));
     }
   }
 
@@ -77,16 +77,16 @@ export default function QuestionBank() {
     setPreviewId(id);
     setPreview(null);
     setPreviewLoading(true);
-    setPreviewError('');
+    setPreviewError("");
     try {
       const question = await client.fetchQuery({
-        queryKey: ['question', id],
+        queryKey: ["question", id],
         queryFn: () => getQuestion(id),
       });
       if (request === previewRequest.current) setPreview(question);
     } catch (err) {
       if (request === previewRequest.current)
-        setPreviewError(apiError(err, 'Failed to load question'));
+        setPreviewError(apiError(err, "Failed to load question"));
     } finally {
       if (request === previewRequest.current) setPreviewLoading(false);
     }
@@ -98,18 +98,18 @@ export default function QuestionBank() {
     const dialog = document.querySelector<HTMLElement>(
       '[aria-label="Question preview"]',
     );
-    dialog?.querySelector<HTMLElement>('button, a')?.focus();
+    dialog?.querySelector<HTMLElement>("button, a")?.focus();
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         event.preventDefault();
         previewRequest.current++;
         setPreview(null);
         setPreviewId(null);
       }
-      if (event.key !== 'Tab' || !dialog) return;
+      if (event.key !== "Tab" || !dialog) return;
       const nodes = Array.from(
         dialog.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled)',
+          "button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled)",
         ),
       );
       const first = nodes[0],
@@ -122,9 +122,9 @@ export default function QuestionBank() {
         first?.focus();
       }
     };
-    document.addEventListener('keydown', keydown);
+    document.addEventListener("keydown", keydown);
     return () => {
-      document.removeEventListener('keydown', keydown);
+      document.removeEventListener("keydown", keydown);
       previous?.focus();
     };
   }, [preview?.id]);
@@ -138,9 +138,9 @@ export default function QuestionBank() {
   );
   const counts = useMemo(
     () => ({
-      easy: questions.filter((q) => q.difficulty === 'easy').length,
-      medium: questions.filter((q) => q.difficulty === 'medium').length,
-      hard: questions.filter((q) => q.difficulty === 'hard').length,
+      easy: questions.filter((q) => q.difficulty === "easy").length,
+      medium: questions.filter((q) => q.difficulty === "medium").length,
+      hard: questions.filter((q) => q.difficulty === "hard").length,
     }),
     [questions],
   );
@@ -158,12 +158,12 @@ export default function QuestionBank() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.md')) {
-      alert('Please select a Markdown (.md) file');
+    if (!file.name.endsWith(".md")) {
+      alert("Please select a Markdown (.md) file");
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      alert('File is too large. Maximum size is 2MB.');
+      alert("File is too large. Maximum size is 2MB.");
       return;
     }
 
@@ -174,14 +174,14 @@ export default function QuestionBank() {
       const text = await file.text();
       const data = await importQuestionFromMd(text);
       if (data.warnings && data.warnings.length > 0) {
-        alert('Import warnings:\n' + data.warnings.join('\n'));
+        alert("Import warnings:\n" + data.warnings.join("\n"));
       }
-      navigate('/admin/questions/new', { state: { prefill: data } });
+      navigate("/admin/questions/new", { state: { prefill: data } });
     } catch (err: any) {
-      alert('Import failed: ' + apiError(err, 'Failed to import MD file'));
+      alert("Import failed: " + apiError(err, "Failed to import MD file"));
     } finally {
       setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -197,7 +197,7 @@ export default function QuestionBank() {
             className="btn-primary text-sm"
           >
             <Plus className="w-4 h-4" />
-            {importing ? 'Importing...' : 'New Question'}
+            {importing ? "Importing..." : "New Question"}
             <ChevronDown className="w-4 h-4 ml-1" />
           </button>
           {showNewDropdown && (
@@ -286,15 +286,20 @@ export default function QuestionBank() {
         >
           <option value="">All question types</option>
           <option value="coding">Coding</option>
-          <option value="debugging">Debugging</option>{['mcq', 'sql', 'written', 'project'].map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+          <option value="debugging">Debugging</option>
+          {["mcq", "sql", "written", "project"].map((type) => (
+            <option key={type} value={type}>
+              {type.toUpperCase()}
+            </option>
+          ))}
         </select>
         {(searchTerm || difficulty || tag || questionType) && (
           <button
             onClick={() => {
-              setSearchTerm('');
-              setDifficulty('');
-              setTag('');
-              setQuestionType('');
+              setSearchTerm("");
+              setDifficulty("");
+              setTag("");
+              setQuestionType("");
             }}
             className="btn-ghost text-sm"
           >
@@ -419,7 +424,7 @@ export default function QuestionBank() {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-sm capitalize">
-                      {q.questionType || 'coding'}
+                      {q.questionType || "coding"}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`badge-${q.difficulty}`}>
@@ -449,7 +454,7 @@ export default function QuestionBank() {
                       {q._count?.assessments ? (
                         <span className="text-surface-300">
                           {q._count.assessments} assessment
-                          {q._count.assessments === 1 ? '' : 's'}
+                          {q._count.assessments === 1 ? "" : "s"}
                         </span>
                       ) : (
                         <span className="text-surface-600">—</span>
@@ -489,8 +494,8 @@ export default function QuestionBank() {
       )}
 
       {previewId && !preview && (
-        <div className="card mb-4" role={previewError ? 'alert' : 'status'}>
-          {previewLoading ? 'Loading question preview…' : previewError}
+        <div className="card mb-4" role={previewError ? "alert" : "status"}>
+          {previewLoading ? "Loading question preview…" : previewError}
           <button
             className="btn-outline ml-3"
             disabled={previewLoading}
@@ -519,7 +524,7 @@ export default function QuestionBank() {
             aria-modal="true"
             aria-label="Question preview"
             onKeyDown={(e) => {
-              if (e.key === 'Escape') {
+              if (e.key === "Escape") {
                 previewRequest.current++;
                 setPreview(null);
                 setPreviewId(null);
@@ -540,7 +545,7 @@ export default function QuestionBank() {
                     <span key={t}>#{t}</span>
                   ))}
                   <span>
-                    · {preview.timeLimit}s ·{' '}
+                    · {preview.timeLimit}s ·{" "}
                     {Math.round(preview.memoryLimit / 1024)} MB
                   </span>
                 </div>
@@ -548,7 +553,7 @@ export default function QuestionBank() {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => {
-                    const token = localStorage.getItem('wissen-token');
+                    const token = localStorage.getItem("wissen-token");
                     fetch(getExportMdUrl(preview.id), {
                       headers: {
                         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -557,7 +562,7 @@ export default function QuestionBank() {
                       .then((res) => res.blob())
                       .then((blob) => {
                         const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
+                        const a = document.createElement("a");
                         a.href = url;
                         a.download = `question-${preview.id}.md`;
                         a.click();
@@ -565,7 +570,7 @@ export default function QuestionBank() {
                       })
                       .catch((err) => {
                         console.error(err);
-                        alert('Failed to export markdown');
+                        alert("Failed to export markdown");
                       });
                   }}
                   className="btn-ghost p-2"
@@ -605,15 +610,43 @@ export default function QuestionBank() {
                 }
               >
                 {selectedIds.includes(preview.id)
-                  ? 'Deselect question'
-                  : 'Select question'}
+                  ? "Deselect question"
+                  : "Select question"}
               </button>
               <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
                 <ReactMarkdown>{preview.statement}</ReactMarkdown>
-                {preview.settings?.options && <ul className="space-y-2 mt-4">{preview.settings.options.map(o => <li className="sample-box" key={o.id}>{o.text}{preview.settings?.correctOptionIds?.includes(o.id) && <span className="text-emerald-600 ml-3">Correct answer</span>}</li>)}</ul>}
-                {preview.settings?.rubric && <div className="sample-box mt-4 whitespace-pre-wrap">Scoring rubric: {preview.settings.rubric}</div>}
-                {preview.settings?.sqlSchema && <pre className="sample-box mt-4">{preview.settings.sqlSchema}</pre>}
-                {preview.settings?.files?.map(f => <details key={f.path} className="mt-3"><summary>{f.path}</summary><pre className="sample-box whitespace-pre-wrap">{f.content}</pre></details>)}
+                {preview.settings?.options && (
+                  <ul className="space-y-2 mt-4">
+                    {preview.settings.options.map((o) => (
+                      <li className="sample-box" key={o.id}>
+                        {o.text}
+                        {preview.settings?.correctOptionIds?.includes(o.id) && (
+                          <span className="text-emerald-600 ml-3">
+                            Correct answer
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {preview.settings?.rubric && (
+                  <div className="sample-box mt-4 whitespace-pre-wrap">
+                    Scoring rubric: {preview.settings.rubric}
+                  </div>
+                )}
+                {preview.settings?.sqlSchema && (
+                  <pre className="sample-box mt-4">
+                    {preview.settings.sqlSchema}
+                  </pre>
+                )}
+                {preview.settings?.files?.map((f) => (
+                  <details key={f.path} className="mt-3">
+                    <summary>{f.path}</summary>
+                    <pre className="sample-box whitespace-pre-wrap">
+                      {f.content}
+                    </pre>
+                  </details>
+                ))}
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-white mb-2">
@@ -655,8 +688,8 @@ export default function QuestionBank() {
                 </h3>
                 <p className="text-sm text-surface-400">
                   {preview.starterCodes?.length
-                    ? preview.starterCodes.map((s) => s.languageName).join(', ')
-                    : 'None'}
+                    ? preview.starterCodes.map((s) => s.languageName).join(", ")
+                    : "None"}
                 </p>
               </div>
             </div>

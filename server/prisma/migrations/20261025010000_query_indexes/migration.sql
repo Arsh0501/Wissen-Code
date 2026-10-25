@@ -1,0 +1,38 @@
+-- Add indexes for existing list, relation, session, queue and cleanup queries.
+-- Additive only: no tables or candidate data are replaced.
+CREATE INDEX "User_role_createdAt_idx" ON "User"("role", "createdAt");
+CREATE INDEX "UserSession_userId_expiresAt_idx" ON "UserSession"("userId", "expiresAt");
+CREATE INDEX "UserSession_expiresAt_idx" ON "UserSession"("expiresAt");
+CREATE INDEX "Question_createdAt_idx" ON "Question"("createdAt");
+CREATE INDEX "Question_difficulty_createdAt_idx" ON "Question"("difficulty", "createdAt");
+CREATE INDEX "Question_questionType_createdAt_idx" ON "Question"("questionType", "createdAt");
+CREATE INDEX "TestCase_questionId_isSample_idx" ON "TestCase"("questionId", "isSample");
+CREATE INDEX "Assessment_createdAt_idx" ON "Assessment"("createdAt");
+CREATE INDEX "Assessment_status_createdAt_idx" ON "Assessment"("status", "createdAt");
+CREATE INDEX "AssessmentQuestion_questionId_idx" ON "AssessmentQuestion"("questionId");
+CREATE INDEX "AssessmentQuestion_assessmentId_orderIndex_idx" ON "AssessmentQuestion"("assessmentId", "orderIndex");
+CREATE INDEX "Submission_assessmentId_candidateName_createdAt_idx" ON "Submission"("assessmentId", "candidateName", "createdAt");
+CREATE INDEX "Submission_sessionId_questionId_idx" ON "Submission"("sessionId", "questionId");
+CREATE INDEX "Submission_questionId_createdAt_idx" ON "Submission"("questionId", "createdAt");
+CREATE INDEX "TestCaseResult_submissionId_idx" ON "TestCaseResult"("submissionId");
+CREATE INDEX "TestCaseResult_testCaseId_idx" ON "TestCaseResult"("testCaseId");
+CREATE INDEX "AssessmentSession_candidateUserId_startedAt_idx" ON "AssessmentSession"("candidateUserId", "startedAt");
+CREATE INDEX "AssessmentSession_gradingStatus_gradingStartedAt_idx" ON "AssessmentSession"("gradingStatus", "gradingStartedAt");
+CREATE INDEX "InviteRedemption_userId_idx" ON "InviteRedemption"("userId");
+CREATE INDEX "Interview_candidateId_idx" ON "Interview"("candidateId");
+CREATE INDEX "Interview_currentQuestionId_idx" ON "Interview"("currentQuestionId");
+CREATE INDEX "Interview_scheduledAt_idx" ON "Interview"("scheduledAt");
+CREATE INDEX "InterviewQuestion_questionId_idx" ON "InterviewQuestion"("questionId");
+CREATE INDEX "InterviewQuestion_interviewId_orderIndex_idx" ON "InterviewQuestion"("interviewId", "orderIndex");
+CREATE INDEX "InterviewSubmission_questionId_idx" ON "InterviewSubmission"("questionId");
+CREATE INDEX "InterviewNote_authorId_idx" ON "InterviewNote"("authorId");
+CREATE INDEX "InterviewEvent_interviewId_id_idx" ON "InterviewEvent"("interviewId", "id");
+CREATE INDEX "AIQuestionDraft_authorId_createdAt_idx" ON "AIQuestionDraft"("authorId", "createdAt");
+CREATE INDEX "AIQuestionDraft_status_updatedAt_idx" ON "AIQuestionDraft"("status", "updatedAt");
+CREATE INDEX "AccountToken_expiresAt_idx" ON "AccountToken"("expiresAt");
+CREATE INDEX "OutboundMessage_authorId_kind_createdAt_idx" ON "OutboundMessage"("authorId", "kind", "createdAt");
+CREATE INDEX "AuditEvent_actorId_createdAt_idx" ON "AuditEvent"("actorId", "createdAt");
+CREATE INDEX "IntegrityReview_assessmentId_idx" ON "IntegrityReview"("assessmentId");
+CREATE INDEX "AssessmentAccommodation_candidateUserId_idx" ON "AssessmentAccommodation"("candidateUserId");
+CREATE INDEX "OIDCRequest_expiresAt_idx" ON "OIDCRequest"("expiresAt");
+CREATE INDEX "OIDCIdentity_userId_idx" ON "OIDCIdentity"("userId");

@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
-import DashboardCommandCenter from '../../components/DashboardCommandCenter';
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import AdminLayout from "../../components/AdminLayout";
+import DashboardCommandCenter from "../../components/DashboardCommandCenter";
 import {
   PassFailBadge,
   StatCard,
@@ -11,9 +11,10 @@ import {
   formatDate,
   formatPercent,
   scoreTextClass,
-} from '../../components/ui';
-import { getDashboard, apiError } from '../../services/api';
-import type { DashboardData } from '../../types';
+} from "../../components/ui";
+import { getDashboard, apiError } from "../../services/api";
+import type { DashboardData } from "../../types";
+import FirstSteps from "../../components/FirstSteps";
 import {
   ClipboardList,
   Users,
@@ -26,12 +27,12 @@ import {
   Clock,
   BarChart3,
   Search,
-} from 'lucide-react';
+} from "lucide-react";
 
 function ScoreDistribution({
   buckets,
 }: {
-  buckets: DashboardData['scoreDistribution'];
+  buckets: DashboardData["scoreDistribution"];
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...buckets.map((b) => b.count));
@@ -71,7 +72,7 @@ function ScoreDistribution({
           {ticks.map((t) => (
             <div
               key={t}
-              className={`absolute inset-x-0 border-t ${t === 0 ? 'border-surface-600' : 'border-surface-800'}`}
+              className={`absolute inset-x-0 border-t ${t === 0 ? "border-surface-600" : "border-surface-800"}`}
               style={{ bottom: `${(t / axisMax) * 100}%` }}
             />
           ))}
@@ -84,11 +85,11 @@ function ScoreDistribution({
                 onMouseLeave={() => setHover(null)}
               >
                 <div
-                  className={`w-full max-w-[44px] rounded-t transition-opacity ${hover !== null && hover !== i ? 'opacity-50' : ''}`}
+                  className={`w-full max-w-[44px] rounded-t transition-opacity ${hover !== null && hover !== i ? "opacity-50" : ""}`}
                   style={{
                     height: `${(b.count / axisMax) * 100}%`,
                     minHeight: b.count ? 2 : 0,
-                    background: '#60a5fa',
+                    background: "#60a5fa",
                   }}
                 />
                 {i === peak && hover === null && b.count > 0 && (
@@ -110,10 +111,10 @@ function ScoreDistribution({
                   >
                     <div className="text-surface-400">Score {b.range}</div>
                     <div className="text-white font-semibold tabular-nums">
-                      {b.count} candidate{b.count === 1 ? '' : 's'}
+                      {b.count} candidate{b.count === 1 ? "" : "s"}
                       {total > 0 && (
                         <span className="text-surface-400 font-normal">
-                          {' '}
+                          {" "}
                           · {Math.round((b.count / total) * 100)}%
                         </span>
                       )}
@@ -141,30 +142,30 @@ function ScoreDistribution({
 
 export default function AssessmentDashboard() {
   const dashboard = useQuery({
-    queryKey: ['assessment-dashboard'],
+    queryKey: ["assessment-dashboard"],
     queryFn: getDashboard,
     refetchInterval: 30000,
   });
   const data = dashboard.data;
   const error = dashboard.error
-    ? apiError(dashboard.error, 'Failed to load dashboard')
-    : '';
-  const [filter, setFilter] = useState('all');
-  const [search, setSearch] = useState('');
-  const lifecycle = (a: DashboardData['assessments'][number]) =>
-    a.status === 'draft'
-      ? 'draft'
-      : a.status === 'archived'
-        ? 'completed'
-        : a.availability === 'closed'
-          ? 'expired'
-          : a.availability === 'upcoming'
-            ? 'scheduled'
-            : 'active';
+    ? apiError(dashboard.error, "Failed to load dashboard")
+    : "";
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const lifecycle = (a: DashboardData["assessments"][number]) =>
+    a.status === "draft"
+      ? "draft"
+      : a.status === "archived"
+        ? "completed"
+        : a.availability === "closed"
+          ? "expired"
+          : a.availability === "upcoming"
+            ? "scheduled"
+            : "active";
   const visible =
     data?.assessments.filter(
       (a) =>
-        (filter === 'all' || lifecycle(a) === filter) &&
+        (filter === "all" || lifecycle(a) === filter) &&
         a.name.toLowerCase().includes(search.trim().toLowerCase()),
     ) ?? [];
 
@@ -200,25 +201,28 @@ export default function AssessmentDashboard() {
         <div className="dashboard-stack space-y-6 animate-fade-in">
           <DashboardCommandCenter
             active={
-              data.assessments.filter((a) => lifecycle(a) === 'active').length
+              data.assessments.filter((a) => lifecycle(a) === "active").length
             }
             inProgress={data.totals.inProgress}
             completed={data.totals.candidatesCompleted}
             onExplore={() => {
-              setSearch('');
-              setFilter('active');
+              setSearch("");
+              setFilter("active");
               document
-                .getElementById('dashboard-assessments-title')
+                .getElementById("dashboard-assessments-title")
                 ?.scrollIntoView({
                   behavior: window.matchMedia(
-                    '(prefers-reduced-motion: reduce)',
+                    "(prefers-reduced-motion: reduce)",
                   ).matches
-                    ? 'auto'
-                    : 'smooth',
-                  block: 'start',
+                    ? "auto"
+                    : "smooth",
+                  block: "start",
                 });
             }}
           />
+          {data.totals.assessments === 0 && (
+            <FirstSteps questions={data.totals.questions} />
+          )}
           <div>
             <h2 className="text-sm font-semibold text-surface-200 mb-3">
               Overview
@@ -247,7 +251,7 @@ export default function AssessmentDashboard() {
                 hint={
                   data.totals.highestScore !== null
                     ? `Highest ${formatPercent(data.totals.highestScore, 0)}`
-                    : 'No attempts yet'
+                    : "No attempts yet"
                 }
               />
               <StatCard
@@ -304,15 +308,15 @@ export default function AssessmentDashboard() {
                 className="flex gap-1 overflow-x-auto pb-1"
               >
                 {[
-                  'all',
-                  'draft',
-                  'active',
-                  'scheduled',
-                  'completed',
-                  'expired',
+                  "all",
+                  "draft",
+                  "active",
+                  "scheduled",
+                  "completed",
+                  "expired",
                 ].map((status) => {
                   const count =
-                    status === 'all'
+                    status === "all"
                       ? data.assessments.length
                       : data.assessments.filter((a) => lifecycle(a) === status)
                           .length;
@@ -321,13 +325,13 @@ export default function AssessmentDashboard() {
                       key={status}
                       aria-pressed={filter === status}
                       onClick={() => setFilter(status)}
-                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${filter === status ? 'bg-primary-500/10 text-primary-700' : 'text-surface-500 hover:bg-surface-950 hover:text-surface-200'}`}
+                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${filter === status ? "bg-primary-500/10 text-primary-700" : "text-surface-500 hover:bg-surface-950 hover:text-surface-200"}`}
                     >
                       <span className="capitalize">
-                        {status === 'all' ? 'All assessments' : status}
+                        {status === "all" ? "All assessments" : status}
                       </span>
                       <span
-                        className={`rounded-md px-1.5 py-0.5 tabular-nums ${filter === status ? 'bg-primary-500/10' : 'bg-surface-800/70'}`}
+                        className={`rounded-md px-1.5 py-0.5 tabular-nums ${filter === status ? "bg-primary-500/10" : "bg-surface-800/70"}`}
                       >
                         {count}
                       </span>
@@ -341,21 +345,21 @@ export default function AssessmentDashboard() {
                 icon={ClipboardList}
                 title={
                   data.assessments.length
-                    ? 'No assessments match'
-                    : 'No assessments yet'
+                    ? "No assessments match"
+                    : "No assessments yet"
                 }
                 body={
                   data.assessments.length
-                    ? 'Try another search or assessment status.'
-                    : 'Create an assessment to start inviting candidates.'
+                    ? "Try another search or assessment status."
+                    : "Create an assessment to start inviting candidates."
                 }
                 action={
                   data.assessments.length ? (
                     <button
                       className="btn-outline"
                       onClick={() => {
-                        setSearch('');
-                        setFilter('all');
+                        setSearch("");
+                        setFilter("all");
                       }}
                     >
                       Clear filters
@@ -411,7 +415,7 @@ export default function AssessmentDashboard() {
                             {a.name}
                           </Link>
                           <p className="text-xs text-surface-500 flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3" /> {a.timeLimitMinutes}{' '}
+                            <Clock className="w-3 h-3" /> {a.timeLimitMinutes}{" "}
                             min · pass at {a.passingScore}%
                             {a.endAt && (
                               <> · closes {formatDate(a.endAt, false)}</>
@@ -420,7 +424,7 @@ export default function AssessmentDashboard() {
                         </td>
                         <td className="px-3 py-3">
                           <span
-                            className={`badge capitalize ${lifecycle(a) === 'active' ? 'bg-emerald-500/10 text-emerald-700' : lifecycle(a) === 'scheduled' ? 'bg-primary-500/10 text-primary-700' : lifecycle(a) === 'expired' ? 'bg-amber-500/10 text-amber-700' : 'bg-surface-800 text-surface-400'}`}
+                            className={`badge capitalize ${lifecycle(a) === "active" ? "bg-emerald-500/10 text-emerald-700" : lifecycle(a) === "scheduled" ? "bg-primary-500/10 text-primary-700" : lifecycle(a) === "expired" ? "bg-amber-500/10 text-amber-700" : "bg-surface-800 text-surface-400"}`}
                           >
                             {lifecycle(a)}
                           </span>
@@ -438,7 +442,7 @@ export default function AssessmentDashboard() {
                           {a.stats?.candidatesCompleted ?? 0}
                         </td>
                         <td
-                          className={`px-3 py-3 text-right tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : 'text-surface-500'}`}
+                          className={`px-3 py-3 text-right tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : "text-surface-500"}`}
                         >
                           {formatPercent(a.stats?.averageScore)}
                         </td>
@@ -513,7 +517,7 @@ export default function AssessmentDashboard() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          {r.status === 'completed' &&
+                          {r.status === "completed" &&
                           r.overallScore !== null ? (
                             <>
                               <span

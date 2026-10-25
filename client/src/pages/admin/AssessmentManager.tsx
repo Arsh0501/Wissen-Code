@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
-import ShareLinksModal from '../../components/ShareLinksModal';
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import AdminLayout from "../../components/AdminLayout";
+import ShareLinksModal from "../../components/ShareLinksModal";
 import {
   AvailabilityBadge,
   Spinner,
@@ -10,15 +10,15 @@ import {
   formatPercent,
   scoreTextClass,
   parseJsonArray,
-} from '../../components/ui';
+} from "../../components/ui";
 import {
   getAssessments,
   deleteAssessment,
   updateAssessment,
   duplicateAssessment,
   apiError,
-} from '../../services/api';
-import type { Assessment, Availability, AssessmentStatus } from '../../types';
+} from "../../services/api";
+import type { Assessment, Availability, AssessmentStatus } from "../../types";
 import {
   Plus,
   Trash2,
@@ -37,22 +37,22 @@ import {
   Code2,
   MoreHorizontal,
   Link2,
-} from 'lucide-react';
+} from "lucide-react";
 
-const FILTERS: { key: 'all' | Availability; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'open', label: 'Live' },
-  { key: 'upcoming', label: 'Scheduled' },
-  { key: 'draft', label: 'Drafts' },
-  { key: 'closed', label: 'Closed' },
-  { key: 'archived', label: 'Archived' },
+const FILTERS: { key: "all" | Availability; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "open", label: "Live" },
+  { key: "upcoming", label: "Scheduled" },
+  { key: "draft", label: "Drafts" },
+  { key: "closed", label: "Closed" },
+  { key: "archived", label: "Archived" },
 ];
 
 const LANGUAGE_NAMES: Record<number, string> = {
-  71: 'Python',
-  62: 'Java',
-  54: 'C++',
-  63: 'JavaScript',
+  71: "Python",
+  62: "Java",
+  54: "C++",
+  63: "JavaScript",
 };
 
 export default function AssessmentManager() {
@@ -60,9 +60,9 @@ export default function AssessmentManager() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [shareFor, setShareFor] = useState<Assessment | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'all' | Availability>('all');
-  const [search, setSearch] = useState('');
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState<"all" | Availability>("all");
+  const [search, setSearch] = useState("");
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
@@ -75,7 +75,7 @@ export default function AssessmentManager() {
       setLoading(true);
       setAssessments(await getAssessments());
     } catch (err) {
-      setError(apiError(err, 'Failed to load assessments'));
+      setError(apiError(err, "Failed to load assessments"));
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function AssessmentManager() {
   async function run(id: number, action: () => Promise<unknown>) {
     setMenuFor(null);
     setBusyId(id);
-    setError('');
+    setError("");
     try {
       await action();
       await loadData();
@@ -101,7 +101,7 @@ export default function AssessmentManager() {
   function handleDelete(a: Assessment) {
     const taken = a.stats?.candidatesStarted ?? 0;
     const warning = taken
-      ? `Delete "${a.name}"? ${taken} candidate result${taken === 1 ? '' : 's'} will be permanently deleted too.`
+      ? `Delete "${a.name}"? ${taken} candidate result${taken === 1 ? "" : "s"} will be permanently deleted too.`
       : `Delete "${a.name}"? This cannot be undone.`;
     if (!confirm(warning)) return;
     run(a.id, () => deleteAssessment(a.id));
@@ -110,14 +110,14 @@ export default function AssessmentManager() {
   const counts = Object.fromEntries(
     FILTERS.map((f) => [
       f.key,
-      f.key === 'all'
+      f.key === "all"
         ? assessments.length
         : assessments.filter((a) => a.availability === f.key).length,
     ]),
   );
   const visible = assessments.filter(
     (a) =>
-      (filter === 'all' || a.availability === filter) &&
+      (filter === "all" || a.availability === filter) &&
       a.name.toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -147,11 +147,11 @@ export default function AssessmentManager() {
               onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors ${
                 filter === f.key
-                  ? 'bg-surface-700 text-white'
-                  : 'text-surface-400 hover:text-white'
+                  ? "bg-surface-700 text-white"
+                  : "text-surface-400 hover:text-white"
               }`}
             >
-              {f.label}{' '}
+              {f.label}{" "}
               <span className="text-surface-500 text-xs tabular-nums">
                 {counts[f.key]}
               </span>
@@ -197,9 +197,9 @@ export default function AssessmentManager() {
             return (
               <div
                 key={a.id}
-                className={`card p-5 ${busyId === a.id ? 'opacity-60 pointer-events-none' : ''}`}
+                className={`assessment-list-card card p-5 ${busyId === a.id ? "opacity-60 pointer-events-none" : ""}`}
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex flex-col lg:flex-row items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link
@@ -217,19 +217,19 @@ export default function AssessmentManager() {
                     )}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-surface-400">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes}{' '}
+                        <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes}{" "}
                         min
                       </span>
                       <span className="flex items-center gap-1">
-                        <Target className="w-3.5 h-3.5" />{' '}
-                        {a._count?.questions ?? 0} questions · {totalMarks}{' '}
+                        <Target className="w-3.5 h-3.5" />{" "}
+                        {a._count?.questions ?? 0} questions · {totalMarks}{" "}
                         marks · pass {a.passingScore}%
                       </span>
                       {(a.startAt || a.endAt) && (
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3.5 h-3.5" />
-                          {a.startAt ? formatDate(a.startAt) : 'Now'} →{' '}
-                          {a.endAt ? formatDate(a.endAt) : 'no deadline'}
+                          {a.startAt ? formatDate(a.startAt) : "Now"} →{" "}
+                          {a.endAt ? formatDate(a.endAt) : "no deadline"}
                         </span>
                       )}
                       {a.shuffleQuestions && (
@@ -239,8 +239,8 @@ export default function AssessmentManager() {
                       )}
                       {langs.length > 0 && (
                         <span className="flex items-center gap-1">
-                          <Code2 className="w-3.5 h-3.5" />{' '}
-                          {langs.map((l) => LANGUAGE_NAMES[l]).join(', ')}
+                          <Code2 className="w-3.5 h-3.5" />{" "}
+                          {langs.map((l) => LANGUAGE_NAMES[l]).join(", ")}
                         </span>
                       )}
                       {!a.showResults && (
@@ -252,7 +252,7 @@ export default function AssessmentManager() {
                   </div>
 
                   {/* Stats */}
-                  <div className="flex gap-6 text-center">
+                  <div className="assessment-card-stats grid grid-cols-3 gap-4 text-center w-full lg:w-auto shrink-0">
                     <div>
                       <p className="text-lg font-semibold text-white tabular-nums">
                         {a.stats?.candidatesCompleted ?? 0}
@@ -263,7 +263,7 @@ export default function AssessmentManager() {
                     </div>
                     <div>
                       <p
-                        className={`text-lg font-semibold tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : 'text-surface-500'}`}
+                        className={`text-lg font-semibold tabular-nums ${a.stats?.averageScore != null ? scoreTextClass(a.stats.averageScore) : "text-surface-500"}`}
                       >
                         {formatPercent(a.stats?.averageScore, 0)}
                       </p>
@@ -289,14 +289,14 @@ export default function AssessmentManager() {
                         key={aq.id}
                         className="badge bg-surface-800 text-surface-400 ring-1 ring-surface-700 text-xs"
                       >
-                        {aq.question.title}{' '}
+                        {aq.question.title}{" "}
                         <span className="text-surface-600 ml-1">
                           {aq.marks}
                         </span>
                       </span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="assessment-card-actions flex flex-wrap items-center gap-2">
                     <Link
                       to={`/admin/submissions/${a.id}`}
                       className="btn-outline text-sm"
@@ -323,15 +323,15 @@ export default function AssessmentManager() {
                     >
                       <Edit className="w-4 h-4" /> Edit
                     </button>
-                    {a.status === 'draft' && (
+                    {a.status === "draft" && (
                       <button
-                        onClick={() => setStatus(a, 'published')}
+                        onClick={() => setStatus(a, "published")}
                         className="btn-primary text-sm"
                         disabled={!a._count?.questions}
                         title={
                           a._count?.questions
-                            ? 'Make visible to candidates'
-                            : 'Add questions first'
+                            ? "Make visible to candidates"
+                            : "Add questions first"
                         }
                       >
                         <Rocket className="w-4 h-4" /> Publish
@@ -362,24 +362,24 @@ export default function AssessmentManager() {
                             >
                               <Copy className="w-4 h-4" /> Duplicate
                             </button>
-                            {a.status === 'published' && (
+                            {a.status === "published" && (
                               <button
-                                onClick={() => setStatus(a, 'draft')}
+                                onClick={() => setStatus(a, "draft")}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
                               >
                                 <EyeOff className="w-4 h-4" /> Unpublish
                               </button>
                             )}
-                            {a.status !== 'archived' ? (
+                            {a.status !== "archived" ? (
                               <button
-                                onClick={() => setStatus(a, 'archived')}
+                                onClick={() => setStatus(a, "archived")}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
                               >
                                 <Archive className="w-4 h-4" /> Archive
                               </button>
                             ) : (
                               <button
-                                onClick={() => setStatus(a, 'draft')}
+                                onClick={() => setStatus(a, "draft")}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
                               >
                                 <Archive className="w-4 h-4" /> Restore as draft

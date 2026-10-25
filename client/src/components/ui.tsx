@@ -176,8 +176,8 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="text-center py-14 px-5 max-w-lg mx-auto">
-      <div className="w-16 h-16 rounded-2xl bg-primary-500/5 border border-primary-500/10 flex items-center justify-center mx-auto mb-5">
+    <div className="workspace-empty text-center py-14 px-5 max-w-lg mx-auto">
+      <div className="workspace-empty-icon w-16 h-16 rounded-2xl bg-primary-500/5 border border-primary-500/10 flex items-center justify-center mx-auto mb-5">
         <Icon className="w-7 h-7 text-primary-600" />
       </div>
       <h3 className="text-lg font-semibold text-surface-200 mb-2">{title}</h3>

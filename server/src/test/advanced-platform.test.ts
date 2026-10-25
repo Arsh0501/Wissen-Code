@@ -3,7 +3,7 @@ import { buildReportData } from '../routes/admin-reports';
 import { ExecutionLimiter } from '../platform/execution-limit';
 import { verifyAccessToken } from '../middleware/auth';
 import axios from 'axios';
-import 'dotenv/config';
+import '../config/environment';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
@@ -32,6 +32,7 @@ import { createSessionForUser } from '../routes/auth';
 import { authenticate } from '../middleware/auth';
 import { staffPermissions } from '../platform/permissions';
 import { gradeAnswer, computeEvaluation } from '../services/grading';
+import { whenInlineGradingIdle } from '../platform/inline-grading';
 
 test('multiple choice grading requires exact unique choices and never exposes answer keys in nested payloads', () => {
   const settings = {
@@ -119,10 +120,18 @@ test('calendar fields escape newlines and webhook signatures bind ID, timestamp,
 });
 
 test('durable email outbox claims concurrent delivery once and records provider failures for retry', async () => {
+  // Force the HTTP provider path so the injected transport is exercised even when a
+  // developer's .env has real SMTP/Gmail credentials (Prisma loads .env in tests too).
+  const smtpKeys = [
+    'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS',
+    'GOOGLE_MAIL_USER', 'GOOGLE_MAIL_CLIENT_ID', 'GOOGLE_MAIL_CLIENT_SECRET', 'GOOGLE_MAIL_REFRESH_TOKEN',
+  ] as const;
   const previous = {
     key: process.env.RESEND_API_KEY,
     from: process.env.MAIL_FROM,
+    smtp: Object.fromEntries(smtpKeys.map((k) => [k, process.env[k]])),
   };
+  for (const k of smtpKeys) delete process.env[k];
   process.env.RESEND_API_KEY = 'test-only-not-a-real-key';
   process.env.MAIL_FROM = 'Wissen <sender@test.invalid>';
   const first = await prisma.outboundMessage.create({
@@ -178,6 +187,8 @@ test('durable email outbox claims concurrent delivery once and records provider 
     else process.env.RESEND_API_KEY = previous.key;
     if (previous.from === undefined) delete process.env.MAIL_FROM;
     else process.env.MAIL_FROM = previous.from;
+    for (const k of smtpKeys)
+      if (previous.smtp[k] !== undefined) process.env[k] = previous.smtp[k];
   }
 });
 
@@ -369,7 +380,8 @@ test('assessment API supports MCQ, rubric review, accommodations, key redaction,
       'POST',
       {},
     );
-    assert.equal(submit.status, 200);
+    assert.equal(submit.status, 202);
+    await whenInlineGradingIdle();
     const subs = await prisma.submission.findMany({
       where: { sessionId: session.sessionId },
     });
