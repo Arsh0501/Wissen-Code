@@ -6,6 +6,7 @@ import { structuredAI, WorkflowError } from '../services/structured-ai';
 import {
   generationSchema,
   questionContentSchema,
+  starterCodesFrom,
   validationSchema,
 } from '../services/workflow-schemas';
 import { executeCode, isMockMode } from '../services/judge0';
@@ -28,6 +29,11 @@ export function createAIWorkflowRouter(
       void handler(req, res).catch(next);
     };
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  // Prompts carry a short excerpt per existing question; exact-duplicate checks use full text.
+  const excerpt = (q: { title: string; statement: string }) => ({
+    title: q.title,
+    statement: q.statement.length > 240 ? `${q.statement.slice(0, 240)}…` : q.statement,
+  });
   const serialize = (d: any) => ({
     ...d,
     content: questionContentSchema.parse(d.content),
@@ -57,14 +63,17 @@ export function createAIWorkflowRouter(
     input: z.infer<typeof generationSchema>,
     authorId: number,
   ) {
-    const bank = await prisma.question.findMany({
-      select: { title: true, statement: true },
-      take: 100,
-    });
+    const bank = (
+      await prisma.question.findMany({
+        select: { title: true, statement: true },
+        orderBy: { id: 'desc' },
+        take: 150,
+      })
+    ).map(excerpt);
     const output = await ai(
       'generated_questions',
       z.object({ questions: z.array(questionContentSchema) }),
-      'Generate original, unambiguous coding/debugging questions matching every requested constraint. Include at least one sample and one hidden edge case, exact stdin/stdout specifications, a correct Python reference solution and explanation. Do not repeat supplied bank questions. Return exactly the requested count.',
+      'Generate original, unambiguous coding/debugging questions matching every requested constraint. Include at least one sample and one hidden edge case, exact stdin/stdout specifications, a correct Python reference solution and explanation. Provide starter code that reads stdin and prints stdout in Python (starterCodePython), C++ (starterCodeCpp), Java (starterCodeJava, class Main) and JavaScript (starterCodeJavaScript, Node.js). Do not repeat supplied bank questions. Return exactly the requested count.',
       { ...input, existingQuestions: bank, _authorId: authorId },
     );
     if (
@@ -230,8 +239,10 @@ export function createAIWorkflowRouter(
       'Independently validate all seven checks exactly once: duplicate, correctness, ambiguity, difficulty, testCases, expectedSolution, edgeCases. A passed duplicate check means no duplicate. Solve the problem and examine every expected output and reference solution. Compare to existing questions for semantic duplicates. Cite concrete evidence for each check; any uncertainty must fail that check.',
       {
         question: content,
-        bank,
-        otherDrafts: otherDrafts.map((d) => d.content),
+        bank: bank.map(excerpt),
+        otherDrafts: otherDrafts
+          .slice(0, 20)
+          .map((d) => excerpt(questionContentSchema.parse(d.content))),
       },
     );
     const keys = [
@@ -379,11 +390,7 @@ export function createAIWorkflowRouter(
             ]),
             settings: { aiGenerated: true, executionVerified: verified },
             testCases: { create: q.testCases },
-            starterCodes: {
-              create: [
-                { languageId: 71, languageName: 'Python', code: q.starterCodePython },
-              ],
-            },
+            starterCodes: { create: starterCodesFrom(q) },
           },
         });
         return tx.aIQuestionDraft.update({
