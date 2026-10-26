@@ -77,7 +77,7 @@ const EMPTY_FORM: AssessmentInput = {
   shuffleQuestions: false,
   allowedLanguages: [],
   showResults: true,
-  requireCamera: false,
+  requireCamera: true,
   questions: [],
   questionCount: 4,
   difficulty: 'mixed',

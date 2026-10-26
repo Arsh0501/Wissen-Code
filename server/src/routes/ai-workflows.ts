@@ -536,6 +536,7 @@ export function createAIWorkflowRouter(
           topics: JSON.stringify([]),
           requiredSkills: JSON.stringify(profile.skills.slice(0, 8)),
           allowedEmails: JSON.stringify(input.candidateEmail ? [input.candidateEmail.toLowerCase()] : []),
+          requireCamera: true,
           questions: {
             create: chosen.map((q, i) => ({
               questionId: q.id,
