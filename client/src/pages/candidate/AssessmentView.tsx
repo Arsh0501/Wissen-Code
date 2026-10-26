@@ -24,6 +24,7 @@ import {
   TabSwitchWarning,
   TabSwitchStatus,
 } from '../../components/exam/TabSwitchWarning';
+import { CameraCheck, CameraTile } from '../../components/exam/CameraProctor';
 import type {
   Assessment,
   QuestionState,
@@ -300,6 +301,8 @@ export default function AssessmentView() {
     count: number;
     awayMs: number;
   } | null>(null);
+
+  const [cameraReady, setCameraReady] = useState(false);
 
   // Session state
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -1241,8 +1244,18 @@ export default function AssessmentView() {
                   Final grading runs against hidden test cases, not just the
                   samples shown.
                 </li>
+                {assessment.requireCamera && (
+                  <li className="text-amber-700">
+                    Your camera must stay on. Covering or switching it off is
+                    recorded for the reviewer.
+                  </li>
+                )}
               </ul>
             </div>
+
+            {assessment.requireCamera && (
+              <CameraCheck onReady={setCameraReady} />
+            )}
 
             {startError && (
               <div
@@ -1255,7 +1268,7 @@ export default function AssessmentView() {
 
             {/* Start button */}
             <button
-              disabled={starting}
+              disabled={starting || (!!assessment.requireCamera && !cameraReady)}
               onClick={handleStartAssessment}
               className="btn-primary w-full py-3.5 text-base font-semibold shadow-lg shadow-primary-600/30"
             >
@@ -1499,6 +1512,12 @@ export default function AssessmentView() {
 
   return (
     <div className="exam-shell h-screen flex flex-col bg-surface-950 overflow-hidden">
+      {assessment.requireCamera && (
+        <CameraTile
+          sessionId={sessionId}
+          active={(phase === 'in-progress' || phase === 'review') && !submitting}
+        />
+      )}
       {/* TOP HEADER BAR */}
       <header className="exam-header flex-none h-14 bg-surface-900 border-b border-surface-800 flex items-center px-4 z-30">
         <div className="exam-brand flex items-center gap-2.5 min-w-[180px]">

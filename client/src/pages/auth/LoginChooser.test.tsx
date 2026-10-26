@@ -3,10 +3,10 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import LoginChooser from "./LoginChooser";
 
-vi.mock("../context/AuthContext", () => ({
+vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({ isLoggedIn: false }),
 }));
-vi.mock("../context/ThemeContext", () => ({
+vi.mock("../../context/ThemeContext", () => ({
   useTheme: () => ({ theme: "light", toggle: vi.fn() }),
 }));
 

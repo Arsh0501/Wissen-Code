@@ -155,6 +155,18 @@ try {
     'confirm.*submit|submit.*assessment|confirm submission',
   );
   await waitText(candidatePage, 'Assessment Submitted');
+  // Submit answers immediately and grades in the background; wait for grading to finish.
+  stage = 'wait for background grading';
+  const gradingDeadline = Date.now() + 30000;
+  let gradedSession;
+  while (Date.now() < gradingDeadline) {
+    gradedSession = await prisma.assessmentSession.findFirst({
+      where: { assessmentId: assessment.id, candidateUserId: candidate.user.id },
+    });
+    if (gradedSession?.gradingStatus === 'completed') break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  assert.equal(gradedSession?.gradingStatus, 'completed', 'Grading did not complete in time');
   const graded = await prisma.submission.findFirstOrThrow({
     where: { assessmentId: assessment.id, candidateName: candidate.user.name },
   });

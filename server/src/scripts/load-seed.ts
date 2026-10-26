@@ -1,6 +1,6 @@
-import './config/environment';
+import '../config/environment';
 import bcrypt from 'bcryptjs';
-import prisma from './prisma';
+import prisma from '../prisma';
 
 /**
  * Creates N throwaway candidate accounts and one open assessment for load testing.

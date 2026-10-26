@@ -27,6 +27,7 @@ import {
   ArrowLeft,
   Edit,
   FileSpreadsheet,
+  Activity,
 } from 'lucide-react';
 
 type SortKey = 'score' | 'name' | 'submitted';
@@ -128,6 +129,12 @@ export default function SubmissionsViewer() {
         <>
           <Link to="/admin/assessments" className="btn-ghost text-sm">
             <ArrowLeft className="w-4 h-4" /> Assessments
+          </Link>
+          <Link
+            to={`/admin/assessments/${assessmentId}/monitor`}
+            className="btn-outline text-sm"
+          >
+            <Activity className="w-4 h-4" /> Live monitor
           </Link>
           <Link
             to={`/admin/assessments/${assessmentId}/edit`}

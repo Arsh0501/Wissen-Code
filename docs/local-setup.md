@@ -105,7 +105,8 @@ Each developer uses their own Gmail app password. Do not share one.
 
 | Variable | Notes |
 | --- | --- |
-| `OPENAI_API_KEY`, `OPENAI_MODEL` | AI question generation. Needs `npm run worker` in a second terminal |
+| `OPENAI_API_KEY`, `OPENAI_MODEL` | AI question generation and interview AI. Interview jobs need `npm run worker` in a second terminal |
+| `OPENAI_BASE_URL`, `OPENAI_API_STYLE` | Use a free OpenAI-compatible provider instead of OpenAI: Groq (`https://api.groq.com/openai/v1`, model `openai/gpt-oss-120b`), Gemini (`https://generativelanguage.googleapis.com/v1beta/openai/`, model `gemini-2.5-flash`) or local Ollama. A base URL switches the gateway to Chat Completions automatically |
 | `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | Company SSO for staff |
 | `WEBRTC_ICE_SERVERS` | JSON array of STUN/TURN servers for interview video |
 | `ATS_WEBHOOK_URL`, `ATS_WEBHOOK_SECRET` | Signed webhooks to an ATS |
@@ -118,6 +119,7 @@ Each developer uses their own Gmail app password. Do not share one.
 | --- | --- |
 | `API_PROXY_TARGET` | `http://localhost:4001`, Vite dev proxy |
 | `VITE_API_URL` | Leave empty locally (defaults to `/api`) |
+| `VITE_PROCTOR_WASM_URL`, `VITE_PROCTOR_MODEL_URL` | Optional self-hosted MediaPipe runtime/model for camera proctoring; defaults load from jsDelivr and Google's model bucket |
 
 ## 4. What works without the optional parts
 

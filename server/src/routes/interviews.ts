@@ -25,9 +25,11 @@ router.use('/:id', async (req, res, next) => {
     });
     if (!interview)
       return res.status(404).json({ error: 'Interview not found' });
+    // Staff must be the assigned interviewer, except workspace admins who oversee all rooms.
     if (
       req.user?.role === 'admin'
-        ? req.user.id !== interview.interviewerId
+        ? req.user.accessRole !== 'admin' &&
+          req.user.id !== interview.interviewerId
         : req.user?.id !== interview.candidateId
     )
       return res
@@ -320,8 +322,10 @@ router.post('/', adminOnly, async (req: Request, res: Response) => {
 // 3. GET /api/interviews — List interviews (for interviewers/admins)
 router.get('/', adminOnly, async (req: Request, res: Response) => {
   try {
+    // Workspace admins oversee every interview; interviewers and recruiters see their own.
     const interviews = await prisma.interview.findMany({
-      where: { interviewerId: req.user!.id },
+      where:
+        req.user!.accessRole === 'admin' ? {} : { interviewerId: req.user!.id },
       orderBy: { createdAt: 'desc' },
       include: {
         interviewer: { select: { id: true, name: true, email: true } },

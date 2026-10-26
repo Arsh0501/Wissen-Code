@@ -22,6 +22,7 @@ import {
   Target,
   ListChecks,
   FileText,
+  Camera as CameraIcon,
 } from 'lucide-react';
 
 interface FailedCase {
@@ -93,6 +94,20 @@ interface ReportDataType {
       line_count: number;
       occurred_at: string;
     }[];
+  };
+  camera?: {
+    required: boolean;
+    count: number;
+    flagged_count: number;
+    flags?: {
+      no_face: number;
+      multiple_faces: number;
+      looking_away: number;
+      eyes_off_screen: number;
+      camera_lost: number;
+      tab_return: number;
+    };
+    snapshots: { id: number; taken_at: string; reason: string; image: string }[];
   };
 }
 
@@ -815,9 +830,21 @@ function ProctoringSection({
   report: ReportDataType;
   formatDate: (d: string) => string;
 }) {
-  const { tab_switches: tabs, paste_events: pastes } = report;
-  const needsReview = tabs.limit_exceeded || pastes.large_count > 0;
-  const minor = !needsReview && (tabs.count > 0 || pastes.count > 0);
+  const { tab_switches: tabs, paste_events: pastes, camera } = report;
+  const cameraMissing = !!camera?.required && camera.count === 0;
+  const flags = camera?.flags;
+  const behaviourFlags = flags
+    ? flags.no_face + flags.multiple_faces + flags.looking_away + flags.eyes_off_screen
+    : 0;
+  const cameraLost = (flags?.camera_lost ?? 0) > 0;
+  const needsReview =
+    tabs.limit_exceeded ||
+    pastes.large_count > 0 ||
+    cameraMissing ||
+    cameraLost ||
+    (flags?.multiple_faces ?? 0) > 0 ||
+    behaviourFlags >= 4;
+  const minor = !needsReview && (tabs.count > 0 || pastes.count > 0 || behaviourFlags > 0);
   const verdict = needsReview
     ? {
         label: 'Review recommended',
@@ -950,6 +977,84 @@ function ProctoringSection({
         Only the size of each paste is recorded, never its content. Pastes
         include text copied from within the editor itself.
       </p>
+
+      {camera?.required && (
+        <div className="card p-0 overflow-hidden mt-4">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
+            <h4 className="font-medium text-white text-sm flex items-center gap-2">
+              <CameraIcon className="w-4 h-4 text-surface-500" /> Camera snapshots
+            </h4>
+            {cameraMissing ? (
+              <span className="badge bg-red-500/10 text-red-700 ring-1 ring-red-500/25">
+                Camera required · no frames received
+              </span>
+            ) : (
+              <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700 tabular-nums">
+                {camera.count} frame{camera.count === 1 ? '' : 's'}
+                {camera.flagged_count ? ` · ${camera.flagged_count} flagged` : ''}
+              </span>
+            )}
+          </div>
+          {flags && (
+            <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-surface-800 border-b border-surface-800">
+              <Metric label="No face" value={flags.no_face} alert={flags.no_face > 0} />
+              <Metric label="Extra people" value={flags.multiple_faces} alert={flags.multiple_faces > 0} />
+              <Metric label="Looked away" value={flags.looking_away} alert={flags.looking_away >= 3} />
+              <Metric label="Eyes off screen" value={flags.eyes_off_screen} alert={flags.eyes_off_screen >= 3} />
+              <Metric label="Camera lost" value={flags.camera_lost} alert={flags.camera_lost > 0} />
+              <Metric label="Back from tab" value={flags.tab_return} />
+            </div>
+          )}
+          {camera.snapshots.length === 0 ? (
+            <p className="text-sm text-surface-500 text-center py-6">
+              No camera frames were captured.
+            </p>
+          ) : (
+            <div className="p-4 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {camera.snapshots.map((f) => (
+                <figure key={f.id} className="min-w-0">
+                  <img
+                    src={f.image}
+                    alt={`Camera frame at ${formatDate(f.taken_at)}`}
+                    loading="lazy"
+                    className={`w-full aspect-[4/3] object-cover rounded-md ring-1 ${f.reason === 'interval' || f.reason === 'start' ? 'ring-surface-700' : 'ring-amber-500/60'}`}
+                  />
+                  <figcaption className="text-[10px] text-surface-500 mt-1 truncate">
+                    {new Date(f.taken_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                    {f.reason !== 'interval' && f.reason !== 'start' && (
+                      <span className={f.reason === 'tab-return' || f.reason === 'looking-away' || f.reason === 'eyes-off-screen' ? 'text-amber-700' : 'text-red-700'}>
+                        {' · '}
+                        {{
+                          'tab-return': 'back from tab',
+                          'camera-lost': 'camera lost',
+                          'no-face': 'no face',
+                          'multiple-faces': 'extra person',
+                          'looking-away': 'looked away',
+                          'eyes-off-screen': 'eyes off screen',
+                        }[f.reason] ?? f.reason}
+                      </span>
+                    )}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+          {camera.count > camera.snapshots.length && (
+            <p className="text-xs text-surface-500 px-4 pb-3">
+              Showing {camera.snapshots.length} of {camera.count} frames (evenly
+              sampled, flagged frames always included).
+            </p>
+          )}
+          <p className="text-xs text-surface-500 px-4 pb-3">
+            Behaviour flags are raised on the candidate's device from face landmarks and
+            gaze, after the signal lasts a few seconds. They are evidence for your review,
+            not an automatic verdict.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

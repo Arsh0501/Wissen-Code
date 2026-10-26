@@ -13,6 +13,18 @@ if (secret.length < 32) {
   chmodSync(target, 0o600);
   console.log('Generated a private local JWT secret. Existing sessions must sign in again.');
 } else if (!existsSync(target)) writeFileSync(target, content, { mode: 0o600 });
+const testTarget = new URL('server/.env.test', root);
+if (!existsSync(testTarget)) {
+  const example = new URL('server/.env.test.example', root);
+  if (existsSync(example)) {
+    const testContent = readFileSync(example, 'utf8').replace(
+      /^JWT_SECRET\s*=.*$/m,
+      `JWT_SECRET="${randomBytes(48).toString('hex')}"`,
+    );
+    writeFileSync(testTarget, testContent, { mode: 0o600 });
+    console.log('Created server/.env.test for the test suite (separate database wissen_code_test).');
+  }
+}
 const client = new URL('client/.env.local', root);
 if (!existsSync(client)) writeFileSync(client, readFileSync(new URL('client/.env.example', root)));
 console.log(`Local configuration ready in ${fileURLToPath(root)}. Database credentials were preserved.`);

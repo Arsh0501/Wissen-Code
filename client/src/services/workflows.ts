@@ -8,6 +8,9 @@ export interface QuestionContent {
   requiredSkills: string[];
   testCases: { input: string; expectedOutput: string; isSample: boolean }[];
   starterCodePython: string;
+  starterCodeCpp?: string;
+  starterCodeJava?: string;
+  starterCodeJavaScript?: string;
   expectedSolutionPython: string;
   solutionExplanation: string;
 }

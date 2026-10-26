@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
-import ShareLinksModal from "../../components/ShareLinksModal";
+import ShareLinksModal from "../../components/assessments/ShareLinksModal";
 import {
   AvailabilityBadge,
   Spinner,
@@ -37,6 +37,8 @@ import {
   Code2,
   MoreHorizontal,
   Link2,
+  Sparkles,
+  Activity,
 } from "lucide-react";
 
 const FILTERS: { key: "all" | Availability; label: string }[] = [
@@ -127,6 +129,9 @@ export default function AssessmentManager() {
       subtitle="Create, configure and publish coding assessments"
       actions={
         <>
+          <Link to="/admin/assessments/ai" className="btn-outline text-sm">
+            <Sparkles className="w-4 h-4" /> Create with AI
+          </Link>
           <Link to="/admin/assessments/new" className="btn-primary text-sm">
             <Plus className="w-4 h-4" /> New Assessment
           </Link>
@@ -298,15 +303,22 @@ export default function AssessmentManager() {
                   </div>
                   <div className="assessment-card-actions flex flex-wrap items-center gap-2">
                     <Link
+                      to={`/admin/assessments/${a.id}/monitor`}
+                      className={`btn-outline text-sm ${a.stats?.inProgress ? "ring-1 ring-sky-500/40" : ""}`}
+                      title="Who is writing now, who finished, shortlist and automation"
+                    >
+                      <Activity className="w-4 h-4" /> Live
+                      {!!a.stats?.inProgress && (
+                        <span className="text-xs text-sky-600">
+                          {a.stats.inProgress} now
+                        </span>
+                      )}
+                    </Link>
+                    <Link
                       to={`/admin/submissions/${a.id}`}
                       className="btn-outline text-sm"
                     >
                       <Users className="w-4 h-4" /> Results
-                      {!!a.stats?.inProgress && (
-                        <span className="text-xs text-sky-600">
-                          +{a.stats.inProgress} live
-                        </span>
-                      )}
                     </Link>
                     <button
                       onClick={() => setShareFor(a)}

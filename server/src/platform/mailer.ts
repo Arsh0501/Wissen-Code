@@ -58,15 +58,23 @@ const escapeHtml = (s: string) =>
   );
 
 export function formatMailTime(date: Date) {
-  return new Intl.DateTimeFormat('en-IN', {
-    timeZone: process.env.MAIL_TIMEZONE || 'Asia/Kolkata',
+  const options: Intl.DateTimeFormatOptions = {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',
-  }).format(date);
+  };
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      ...options,
+      timeZone: process.env.MAIL_TIMEZONE || 'Asia/Kolkata',
+    }).format(date);
+  } catch {
+    // A mistyped MAIL_TIMEZONE must not break every email; fall back to UTC.
+    return new Intl.DateTimeFormat('en-IN', { ...options, timeZone: 'UTC' }).format(date);
+  }
 }
 
 // Bodies stay plain text in the outbox; the HTML version is derived at send time so every
@@ -108,11 +116,18 @@ export function renderEmail(subject: string, body: string, sentAt = new Date()) 
   return { html, text };
 }
 
+export interface MailAttachment {
+  filename: string;
+  contentType: string;
+  content: string; // base64
+}
+
 export async function sendWithNodemailer(input: {
   id: string;
   to: string;
   subject: string;
   body: string;
+  attachments?: MailAttachment[];
 }) {
   const { html, text } = renderEmail(input.subject, input.body);
   const info = await mailTransport().sendMail({
@@ -121,6 +136,12 @@ export async function sendWithNodemailer(input: {
     subject: input.subject,
     text,
     html,
+    attachments: input.attachments?.map((a) => ({
+      filename: a.filename,
+      contentType: a.contentType,
+      content: a.content,
+      encoding: 'base64',
+    })),
     // Stable Message-ID lets receiving servers collapse duplicates after a worker retry.
     messageId: `<${input.id}@wissen-code>`,
   });

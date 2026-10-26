@@ -1,5 +1,6 @@
 import { asynchronousGrading, enqueueGrading } from '../platform/grading-jobs';
 import { enqueueInlineGrading } from '../platform/inline-grading';
+import { notifyCompletion } from '../platform/batch';
 import { queueWebhook } from '../platform/webhooks';
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
@@ -360,13 +361,13 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
 
     // Reaching the limit ends the test — enforced here so it can't be bypassed client-side
     if (count >= MAX_TAB_SWITCHES) {
-      if (asynchronousGrading()) {
-        await prisma.assessmentSession.updateMany({
-          where: { id: session.id, finishedAt: null },
-          data: { finishedAt: new Date() },
-        });
-        await enqueueGrading(session.id);
-      } else await finalizeSession(session.id);
+      await prisma.assessmentSession.updateMany({
+        where: { id: session.id, finishedAt: null },
+        data: { finishedAt: new Date() },
+      });
+      // Same path as /submit: answers are locked now, grading runs in the background.
+      if (asynchronousGrading()) await enqueueGrading(session.id);
+      else enqueueInlineGrading(session.id, finalizeSession);
       return res.json({ count, limit: MAX_TAB_SWITCHES, autoSubmitted: true });
     }
 
@@ -374,6 +375,66 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error recording tab switch:', error);
     res.status(500).json({ error: 'Failed to record tab switch' });
+  }
+});
+
+// POST /api/attempts/:id/snapshot — Store a small camera frame for proctoring review
+const SNAPSHOT_MAX_BYTES = 200 * 1024;
+const SNAPSHOT_MIN_GAP_MS = 10000;
+const SNAPSHOT_MAX_PER_SESSION = 400; // ~4 h at one frame per 45 s plus flags
+// 'interval' is the routine frame; everything else is evidence the exam page flagged on-device.
+const SNAPSHOT_REASONS = [
+  'interval',
+  'start',
+  'tab-return',
+  'camera-lost',
+  'no-face',
+  'multiple-faces',
+  'looking-away',
+  'eyes-off-screen',
+];
+router.post('/:id/snapshot', async (req: Request, res: Response) => {
+  try {
+    const raw = typeof req.body.image === 'string' ? req.body.image : '';
+    const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    if (!match)
+      return res.status(400).json({ error: 'image must be a JPEG data URL' });
+    const image = Buffer.from(match[1], 'base64');
+    if (!image.length || image.length > SNAPSHOT_MAX_BYTES)
+      return res.status(413).json({ error: 'Snapshot too large' });
+    const reason = SNAPSHOT_REASONS.includes(req.body.reason)
+      ? String(req.body.reason)
+      : 'interval';
+
+    const session = await getWritableSession(req, res);
+    if (!session) return;
+
+    const [last, stored] = await Promise.all([
+      prisma.proctorSnapshot.findFirst({
+        where: { sessionId: session.id },
+        orderBy: { takenAt: 'desc' },
+        select: { takenAt: true },
+      }),
+      prisma.proctorSnapshot.count({ where: { sessionId: session.id } }),
+    ]);
+    // Hard cap per attempt keeps a misbehaving client from filling the database.
+    if (stored >= SNAPSHOT_MAX_PER_SESSION)
+      return res.status(429).json({ error: 'Snapshot limit reached for this attempt' });
+    // Routine frames at most every 10 s; flagged frames at most every 5 s, whatever the reason.
+    const minGap = reason === 'interval' ? SNAPSHOT_MIN_GAP_MS : SNAPSHOT_MIN_GAP_MS / 2;
+    if (last && Date.now() - last.takenAt.getTime() < minGap)
+      return res.status(429).json({ error: 'Snapshot rate exceeded' });
+
+    await prisma.proctorSnapshot.create({
+      data: { sessionId: session.id, image, reason },
+    });
+    const count = await prisma.proctorSnapshot.count({
+      where: { sessionId: session.id },
+    });
+    res.json({ count });
+  } catch (error: any) {
+    console.error('Error storing snapshot:', error);
+    res.status(500).json({ error: 'Failed to store snapshot' });
   }
 });
 
@@ -478,6 +539,9 @@ export async function finalizeSession(
     });
     void queueWebhook('assessment.completed', session.id).catch((error) =>
       console.error('Webhook enqueue failed:', error.message),
+    );
+    void notifyCompletion(session.id).catch((error) =>
+      console.error('Completion email failed:', error instanceof Error ? error.message : error),
     );
     return {
       status: 'finished',

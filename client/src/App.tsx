@@ -1,18 +1,18 @@
 import { lazy, Suspense } from "react";
 const TeamPage = lazy(() => import("./pages/admin/TeamPage"));
 const OperationsPage = lazy(() => import("./pages/admin/OperationsPage"));
-const AccountAction = lazy(() => import("./pages/AccountAction"));
+const AccountAction = lazy(() => import("./pages/auth/AccountAction"));
 import type { ReactElement } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import AppShell from "./components/layout/AppShell";
-const LandingPage = lazy(() => import("./pages/LandingPage"));
-const LoginPage = lazy(() => import("./pages/LoginPage"));
-const LoginChooser = lazy(() => import("./pages/LoginChooser"));
+const LandingPage = lazy(() => import("./pages/public/LandingPage"));
+const LoginPage = lazy(() => import("./pages/auth/LoginPage"));
+const LoginChooser = lazy(() => import("./pages/auth/LoginChooser"));
 const CandidateWelcome = lazy(
   () => import("./pages/candidate/CandidateWelcome"),
 );
-const InvitePage = lazy(() => import("./pages/InvitePage"));
+const InvitePage = lazy(() => import("./pages/public/InvitePage"));
 const AssessmentDashboard = lazy(
   () => import("./pages/admin/AssessmentDashboard"),
 );
@@ -30,7 +30,9 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const QuestionForm = lazy(() => import("./pages/admin/QuestionForm"));
 const AssessmentManager = lazy(() => import("./pages/admin/AssessmentManager"));
 const AssessmentForm = lazy(() => import("./pages/admin/AssessmentForm"));
+const AIAssessmentPage = lazy(() => import("./pages/admin/AIAssessmentPage"));
 const SubmissionsViewer = lazy(() => import("./pages/admin/SubmissionsViewer"));
+const AssessmentMonitor = lazy(() => import("./pages/admin/AssessmentMonitor"));
 const CandidateReport = lazy(() => import("./pages/admin/CandidateReport"));
 const ExamDashboard = lazy(() => import("./pages/candidate/ExamDashboard"));
 const AssessmentView = lazy(() => import("./pages/candidate/AssessmentView"));
@@ -182,6 +184,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/admin/assessments/ai"
+          element={
+            <RequireAdmin>
+              <AIAssessmentPage />
+            </RequireAdmin>
+          }
+        />
+        <Route
           path="/admin/assessments/:id/edit"
           element={
             <RequireAdmin>
@@ -194,6 +204,14 @@ function AppRoutes() {
           element={
             <RequireAdmin>
               <SubmissionsViewer />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/assessments/:id/monitor"
+          element={
+            <RequireAdmin>
+              <AssessmentMonitor />
             </RequireAdmin>
           }
         />

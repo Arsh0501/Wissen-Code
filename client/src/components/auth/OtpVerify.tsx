@@ -6,7 +6,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { ArrowRight, Check, MailCheck, RotateCw } from "lucide-react";
-import api from "../services/api";
+import api from "../../services/api";
 import "./OtpVerify.css";
 
 const LENGTH = 6;

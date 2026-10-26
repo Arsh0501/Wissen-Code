@@ -37,6 +37,7 @@ import {
   Code2,
   BarChart3,
   Check,
+  Camera,
 } from 'lucide-react';
 
 const LANGUAGES = [
@@ -76,6 +77,7 @@ const EMPTY_FORM: AssessmentInput = {
   shuffleQuestions: false,
   allowedLanguages: [],
   showResults: true,
+  requireCamera: true,
   questions: [],
   questionCount: 4,
   difficulty: 'mixed',
@@ -246,6 +248,7 @@ export default function AssessmentForm() {
             shuffleQuestions: a.shuffleQuestions,
             allowedLanguages: parseJsonArray<number>(a.allowedLanguages),
             showResults: a.showResults,
+            requireCamera: a.requireCamera ?? false,
             questions: a.questions.map((aq) => ({
               questionId: aq.questionId,
               marks: aq.marks,
@@ -847,6 +850,13 @@ export default function AssessmentForm() {
               checked={form.showResults}
               onChange={(v) => set('showResults', v)}
             />
+            <Toggle
+              icon={Camera}
+              label="Require camera (proctoring)"
+              hint="Candidates must turn their camera on to start. A small frame is saved every ~45 seconds and whenever they return to the tab; you see them in the candidate report."
+              checked={!!form.requireCamera}
+              onChange={(v) => set('requireCamera', v)}
+            />
             <div className="p-4 rounded-lg bg-surface-800/50 border border-surface-700">
               <p className="text-sm font-medium text-surface-100 flex items-center gap-2">
                 <Code2 className="w-5 h-5 text-primary-600" /> Allowed languages
@@ -977,6 +987,7 @@ export default function AssessmentForm() {
                   : 'All',
               ],
               ['Results to candidate', form.showResults ? 'Shown' : 'Hidden'],
+              ['Camera', form.requireCamera ? 'Required' : 'Not required'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4">
                 <span className="text-surface-500">{k}</span>

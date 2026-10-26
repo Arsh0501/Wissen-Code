@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
-import DashboardCommandCenter from "../../components/DashboardCommandCenter";
+import DashboardCommandCenter from "../../components/dashboard/DashboardCommandCenter";
 import {
   PassFailBadge,
   StatCard,
@@ -14,7 +14,7 @@ import {
 } from "../../components/ui";
 import { getDashboard, apiError } from "../../services/api";
 import type { DashboardData } from "../../types";
-import FirstSteps from "../../components/FirstSteps";
+import FirstSteps from "../../components/dashboard/FirstSteps";
 import {
   ClipboardList,
   Users,

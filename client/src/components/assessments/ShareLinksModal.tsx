@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { listInvites, createInvite, revokeInvite, inviteUrl, apiError } from '../services/api';
-import type { InviteLink } from '../services/api';
-import { formatDate } from './ui';
+import { listInvites, createInvite, revokeInvite, inviteUrl, apiError } from '../../services/api';
+import type { InviteLink } from '../../services/api';
+import { formatDate } from '../ui';
 import { Link2, Copy, Check, X, Plus, Users, Ban, ChevronDown, AlertTriangle } from 'lucide-react';
 
 const STATE_BADGE: Record<InviteLink['state'], { label: string; className: string }> = {

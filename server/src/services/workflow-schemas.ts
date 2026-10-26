@@ -17,6 +17,9 @@ export const questionContentSchema = z.object({
     .min(2)
     .max(30),
   starterCodePython: z.string(),
+  starterCodeCpp: z.string().optional(),
+  starterCodeJava: z.string().optional(),
+  starterCodeJavaScript: z.string().optional(),
   expectedSolutionPython: z.string().min(1),
   solutionExplanation: z.string().min(10),
 });
@@ -93,3 +96,33 @@ export const evaluationSchema = z.object({
 export const observationResponseSchema = z.object({
   observations: z.array(observationSchema).max(30),
 });
+
+/**
+ * What the model must return when writing a question: every starter is required, because
+ * strict JSON-schema output (OpenAI and Groq) rejects optional keys. Stored drafts keep using
+ * questionContentSchema, where older rows may lack the non-Python starters.
+ */
+export const questionGenerationSchema = questionContentSchema.extend({
+  starterCodeCpp: z.string(),
+  starterCodeJava: z.string(),
+  starterCodeJavaScript: z.string(),
+});
+
+/** Judge0 ids for the starter-code languages the exam offers. */
+export const STARTER_LANGUAGES = [
+  { key: 'starterCodePython', languageId: 71, languageName: 'Python' },
+  { key: 'starterCodeCpp', languageId: 54, languageName: 'C++' },
+  { key: 'starterCodeJava', languageId: 62, languageName: 'Java' },
+  { key: 'starterCodeJavaScript', languageId: 63, languageName: 'JavaScript' },
+] as const;
+export function starterCodesFrom(q: {
+  starterCodePython: string;
+  starterCodeCpp?: string;
+  starterCodeJava?: string;
+  starterCodeJavaScript?: string;
+}) {
+  return STARTER_LANGUAGES.flatMap(({ key, languageId, languageName }) => {
+    const code = (q as Record<string, string | undefined>)[key];
+    return code && code.trim() ? [{ languageId, languageName, code }] : [];
+  });
+}

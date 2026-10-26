@@ -442,7 +442,7 @@ export async function buildReportData(
   // Fetch assessment
   const assessment = await prisma.assessment.findUnique({
     where: { id: assessmentId },
-    select: { id: true, name: true, timeLimitMinutes: true },
+    select: { id: true, name: true, timeLimitMinutes: true, requireCamera: true },
   });
 
   if (!assessment) return null;
@@ -503,10 +503,40 @@ export async function buildReportData(
           occurredAt: true,
         },
       },
+      snapshots: {
+        orderBy: { takenAt: 'asc' },
+        select: { id: true, takenAt: true, reason: true },
+      },
     },
   });
   const tabSwitches = session?.tabSwitches ?? [];
   const pasteEvents = session?.pasteEvents ?? [];
+  // Camera frames: keep the payload bounded by sampling evenly, never dropping flagged frames.
+  // Only the sampled frames' bytes are loaded.
+  const allSnapshots = session?.snapshots ?? [];
+  const SNAPSHOT_LIMIT = 48;
+  const flagged = allSnapshots.filter((s) => s.reason !== 'interval');
+  const regular = allSnapshots.filter((s) => s.reason === 'interval');
+  const room = Math.max(0, SNAPSHOT_LIMIT - flagged.length);
+  const step = regular.length > room && room > 0 ? regular.length / room : 1;
+  const sampled =
+    regular.length > room
+      ? Array.from({ length: room }, (_, i) => regular[Math.floor(i * step)])
+      : regular;
+  const sampledMeta = [...flagged, ...sampled].sort(
+    (a, b) => a.takenAt.getTime() - b.takenAt.getTime(),
+  );
+  const frameBytes = sampledMeta.length
+    ? new Map(
+        (
+          await prisma.proctorSnapshot.findMany({
+            where: { id: { in: sampledMeta.map((s) => s.id) } },
+            select: { id: true, image: true },
+          })
+        ).map((s) => [s.id, s.image]),
+      )
+    : new Map<number, Uint8Array>();
+  const snapshots = sampledMeta.map((s) => ({ ...s, image: frameBytes.get(s.id) ?? Buffer.alloc(0) }));
 
   // Candidates are linked to user accounts by name; seeded demo candidates have no account
   const user = await prisma.user.findFirst({
@@ -626,6 +656,27 @@ export async function buildReportData(
       events: tabSwitches.map((e) => ({
         duration_ms: e.durationMs,
         occurred_at: e.leftAt.toISOString(),
+      })),
+    },
+    // Camera proctoring frames captured by the exam page (when the assessment requires a camera)
+    camera: {
+      required: assessment.requireCamera,
+      count: allSnapshots.length,
+      flagged_count: flagged.length,
+      // On-device behaviour signals (face landmarks + gaze) raised by the exam page
+      flags: {
+        no_face: allSnapshots.filter((s) => s.reason === 'no-face').length,
+        multiple_faces: allSnapshots.filter((s) => s.reason === 'multiple-faces').length,
+        looking_away: allSnapshots.filter((s) => s.reason === 'looking-away').length,
+        eyes_off_screen: allSnapshots.filter((s) => s.reason === 'eyes-off-screen').length,
+        camera_lost: allSnapshots.filter((s) => s.reason === 'camera-lost').length,
+        tab_return: allSnapshots.filter((s) => s.reason === 'tab-return').length,
+      },
+      snapshots: snapshots.map((s) => ({
+        id: s.id,
+        taken_at: s.takenAt.toISOString(),
+        reason: s.reason,
+        image: `data:image/jpeg;base64,${Buffer.from(s.image).toString('base64')}`,
       })),
     },
     // REAL data — every paste into the code editor during the session

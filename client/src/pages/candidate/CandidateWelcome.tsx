@@ -9,7 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import BrandLogo from "../../components/landing/BrandLogo";
-import BrandScene from "../../components/BrandScene";
+import BrandScene from "../../components/brand/BrandScene";
 import ThemeToggle from "../../components/ThemeToggle";
 import { useAuth } from "../../context/AuthContext";
 

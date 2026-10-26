@@ -1,9 +1,9 @@
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Link2 } from "lucide-react";
-import { AdminMascot, CandidateMascot } from "../components/RoleMascots";
-import { useAuth } from "../context/AuthContext";
-import BrandLogo from "../components/landing/BrandLogo";
-import ThemeToggle from "../components/ThemeToggle";
+import { AdminMascot, CandidateMascot } from "../../components/auth/RoleMascots";
+import { useAuth } from "../../context/AuthContext";
+import BrandLogo from "../../components/landing/BrandLogo";
+import ThemeToggle from "../../components/ThemeToggle";
 import "./LoginChooser.css";
 
 /** First stop after "Log in": pick the candidate door or the hiring-team door. */

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import prisma from '../prisma';
-import { nodemailerConfigured, renderEmail, sendWithNodemailer } from './mailer';
+import { Prisma } from '@prisma/client';
+import { nodemailerConfigured, renderEmail, sendWithNodemailer , type MailAttachment } from './mailer';
 
 export function appURL(path: string) {
   return new URL(
@@ -20,9 +21,17 @@ export async function enqueueMail(
   body: string,
   authorId?: number,
   scheduledAt = new Date(),
+  attachments: MailAttachment[] = [],
 ) {
   return prisma.outboundMessage.create({
-    data: { recipient, subject, body, authorId, scheduledAt },
+    data: {
+      recipient,
+      subject,
+      body,
+      authorId,
+      scheduledAt,
+      attachments: attachments as unknown as Prisma.InputJsonValue,
+    },
   });
 }
 export function tokenHash(raw: string) {
@@ -90,6 +99,7 @@ export async function deliverOutbox(
           to: message.recipient,
           subject: message.subject,
           body: message.body,
+          attachments: (message.attachments as unknown as MailAttachment[]) ?? [],
         });
       } else {
         const { html, text } = renderEmail(message.subject, message.body);
@@ -107,6 +117,9 @@ export async function deliverOutbox(
             subject: message.subject,
             text,
             html,
+            attachments: ((message.attachments as unknown as MailAttachment[]) ?? []).map(
+              (a) => ({ filename: a.filename, content: a.content }),
+            ),
           }),
         });
         if (!response.ok)
