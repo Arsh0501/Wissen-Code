@@ -5,7 +5,6 @@ import { adminOnly } from '../middleware/adminOnly';
 import { monitorData, readAutomation, sendShortlist, shortlistCsv } from '../platform/batch';
 
 const router = Router();
-router.use(adminOnly);
 const wrap =
   (fn: (req: Request, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response, next: NextFunction) => {
@@ -20,6 +19,7 @@ const idParam = (req: Request) => {
 // Live view of a batch: who is in progress, who finished (with scores), who has not started.
 router.get(
   '/:id/monitor',
+  adminOnly,
   wrap(async (req, res) => {
     const data = await monitorData(idParam(req));
     if (!data) return res.status(404).json({ error: 'Assessment not found' });
@@ -29,6 +29,7 @@ router.get(
 
 router.put(
   '/:id/automation',
+  adminOnly,
   wrap(async (req, res) => {
     const id = idParam(req);
     const input = z
@@ -67,6 +68,7 @@ router.put(
 
 router.get(
   '/:id/shortlist.csv',
+  adminOnly,
   wrap(async (req, res) => {
     const id = idParam(req);
     const data = await monitorData(id);
@@ -83,6 +85,7 @@ router.get(
 
 router.post(
   '/:id/shortlist/send',
+  adminOnly,
   wrap(async (req, res) => {
     const id = idParam(req);
     const { to } = z.object({ to: z.string().email().optional() }).parse(req.body ?? {});
