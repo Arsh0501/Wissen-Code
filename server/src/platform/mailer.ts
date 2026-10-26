@@ -58,15 +58,23 @@ const escapeHtml = (s: string) =>
   );
 
 export function formatMailTime(date: Date) {
-  return new Intl.DateTimeFormat('en-IN', {
-    timeZone: process.env.MAIL_TIMEZONE || 'Asia/Kolkata',
+  const options: Intl.DateTimeFormatOptions = {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
     timeZoneName: 'short',
-  }).format(date);
+  };
+  try {
+    return new Intl.DateTimeFormat('en-IN', {
+      ...options,
+      timeZone: process.env.MAIL_TIMEZONE || 'Asia/Kolkata',
+    }).format(date);
+  } catch {
+    // A mistyped MAIL_TIMEZONE must not break every email; fall back to UTC.
+    return new Intl.DateTimeFormat('en-IN', { ...options, timeZone: 'UTC' }).format(date);
+  }
 }
 
 // Bodies stay plain text in the outbox; the HTML version is derived at send time so every

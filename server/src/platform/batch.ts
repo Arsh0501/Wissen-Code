@@ -3,6 +3,23 @@ import { summarizeCandidates } from '../services/stats';
 import { computeEvaluation } from '../services/grading';
 import { appURL, enqueueMail, mailConfigured } from './communication';
 import { sendNow } from './notifications';
+import type Redis from 'ioredis';
+import { redisConnection } from '../ai/queue';
+
+const NOTIFY_WINDOW_MS = 60000;
+// Short-lived connections: completion events are rare, and an idle client would keep the
+// process (and the test runner) alive.
+async function withRedis<T>(fn: (r: Redis) => Promise<T>): Promise<T> {
+  const r = redisConnection();
+  try {
+    return await fn(r);
+  } finally {
+    await r.quit().catch(() => r.disconnect());
+  }
+}
+// Team mail is a production side effect; the test suite inherits real SMTP settings from .env.
+const teamMailEnabled = () =>
+  mailConfigured() && (process.env.NODE_ENV !== 'test' || process.env.BATCH_MAIL_IN_TESTS === '1');
 
 /**
  * Batch assessment automation: live monitor data, shortlisting, CSV export and the
@@ -122,17 +139,17 @@ export async function monitorData(assessmentId: number) {
   const summaries = summarizeCandidates(assessment.questions, assessment.passingScore, submissions, sessions);
   const userIds = [...new Set(sessions.map((s) => s.candidateUserId).filter((x): x is number => !!x))];
   const users = await prisma.user.findMany({
-    where: { OR: [{ id: { in: userIds } }, { name: { in: summaries.map((c) => c.name) } }] },
-    select: { id: true, name: true, email: true },
+    where: { id: { in: userIds } },
+    select: { id: true, email: true },
   });
   const emailById = new Map(users.map((u) => [u.id, u.email]));
-  const emailByName = new Map(users.map((u) => [u.name, u.email]));
   const sessionById = new Map(sessions.map((s) => [s.id, s]));
   const now = Date.now();
 
   const rows: MonitorRow[] = summaries.map((c) => {
     const session = c.sessionId ? sessionById.get(c.sessionId) : undefined;
-    const email = (c.candidateUserId ? emailById.get(c.candidateUserId) : undefined) ?? emailByName.get(c.name) ?? null;
+    // Only an account id identifies a person; legacy name-keyed rows get no email rather than a guess.
+    const email = (c.candidateUserId ? emailById.get(c.candidateUserId) : undefined) ?? null;
     const limitMs = ((session?.durationMinutes ?? assessment.timeLimitMinutes) || 0) * 60000;
     const remaining =
       c.status === 'in-progress' && session
@@ -207,7 +224,7 @@ export async function monitorData(assessmentId: number) {
     row.shortlisted = true;
     row.rank = s.rank;
   }
-  const expected = Math.max(expectedEmails.size, rows.filter((r) => r.status !== 'not-started').length);
+  const expected = rows.length; // started attempts plus everyone still expected
   const completed = rows.filter((r) => r.status === 'completed');
   return {
     assessment: {
@@ -305,7 +322,7 @@ async function adminRecipients(extra: string[] = []) {
 
 /** Emails the team a one-screen summary + report link as soon as a candidate's grading finishes. */
 export async function notifyCompletion(sessionId: number) {
-  if (!mailConfigured()) return;
+  if (!teamMailEnabled()) return;
   const session = await prisma.assessmentSession.findUnique({
     where: { id: sessionId },
     select: {
@@ -329,29 +346,55 @@ export async function notifyCompletion(sessionId: number) {
     if (user?.email.endsWith('@loadtest.local')) return;
   }
   const evaluation = await computeEvaluation(session.assessmentId, session.candidateName, session.candidateUserId ?? undefined);
-  const data = await monitorData(session.assessmentId);
   const minutes = session.finishedAt ? Math.round((session.finishedAt.getTime() - session.startedAt.getTime()) / 60000) : null;
   const score = evaluation ? `${evaluation.percentage.toFixed(1)}% (${evaluation.marksObtained}/${evaluation.totalMarks} marks)` : 'pending';
   const verdict = evaluation ? (evaluation.passed ? 'PASSED' : 'did not pass') : 'grading';
   const flags = session.snapshots.length;
+  // At most one completion mail per assessment per minute: a deadline rush folds into one
+  // message instead of hundreds, and quotas stay free for OTP/invite mail.
+  const lastKey = `batch:notify:${session.assessmentId}:last`;
+  const pendingKey = `batch:notify:${session.assessmentId}:pending`;
+  const summaryLine = `${session.candidateName} — ${evaluation ? `${evaluation.percentage.toFixed(0)}%` : 'graded'}${evaluation?.passed ? ', passed' : ''}`;
+  const held = await withRedis(async (r) => {
+    const last = Number((await r.get(lastKey)) || 0);
+    if (Date.now() - last < NOTIFY_WINDOW_MS) {
+      await r.rpush(pendingKey, summaryLine);
+      await r.expire(pendingKey, 86400);
+      return null;
+    }
+    const lines = await r.lrange(pendingKey, 0, -1);
+    await r.del(pendingKey);
+    await r.set(lastKey, String(Date.now()), 'EX', 86400);
+    return lines;
+  });
+  if (held === null) return;
+  const alsoFinished = held;
+  const [completed, inProgress] = await Promise.all([
+    prisma.assessmentSession.count({ where: { assessmentId: session.assessmentId, finishedAt: { not: null } } }),
+    prisma.assessmentSession.count({ where: { assessmentId: session.assessmentId, finishedAt: null } }),
+  ]);
   const body = [
     `${session.candidateName} finished "${session.assessment.name}".`,
     '',
     `Score: ${score} — ${verdict} (pass mark ${session.assessment.passingScore}%)`,
     minutes !== null ? `Time taken: ${minutes} min` : '',
     `Integrity: ${session._count.tabSwitches} tab switch(es), ${flags} camera flag(s)${session._count.tabSwitches >= 3 || flags > automation.shortlist.maxFlags ? ' — review recommended' : ''}`,
-    data ? `Batch progress: ${data.counts.completed} completed, ${data.counts.inProgress} in progress, ${data.counts.notStarted} not started.` : '',
+    `Batch progress: ${completed} completed, ${inProgress} in progress.`,
+    alsoFinished.length ? '' : null,
+    alsoFinished.length ? `Also finished in the last minute (${alsoFinished.length}):` : null,
+    ...alsoFinished.slice(0, 25).map((l) => `  • ${l}`),
+    alsoFinished.length > 25 ? `  …and ${alsoFinished.length - 25} more (see the live monitor).` : null,
     '',
     `Open the full report: ${appURL(`/admin/reports/${encodeURIComponent(session.candidateName)}/${session.assessmentId}`)}`,
     `Live monitor: ${appURL(`/admin/assessments/${session.assessmentId}/monitor`)}`,
   ]
-    .filter((l) => l !== '')
+    .filter((l): l is string => l !== null)
     .join('\n');
   const ids: string[] = [];
   for (const to of await adminRecipients(automation.notifyEmails)) {
     const message = await enqueueMail(
       to,
-      `${session.candidateName} finished ${session.assessment.name}: ${evaluation ? `${evaluation.percentage.toFixed(0)}%` : 'graded'}`,
+      `${session.candidateName}${alsoFinished.length ? ` and ${alsoFinished.length} more` : ''} finished ${session.assessment.name}: ${evaluation ? `${evaluation.percentage.toFixed(0)}%` : 'graded'}`,
       body,
     );
     ids.push(message.id);
@@ -413,30 +456,86 @@ export async function sendShortlist(assessmentId: number, to?: string[], reason 
  * everyone expected has finished and nobody is mid-test), send the shortlist once.
  */
 export async function sweepAssessmentAutomation() {
-  if (!mailConfigured()) return 0;
+  if (!teamMailEnabled()) return 0;
+  await flushHeldCompletionMail().catch((error) =>
+    console.error('Completion digest failed:', error instanceof Error ? error.message : error),
+  );
   const candidates = await prisma.assessment.findMany({
     where: { status: 'published' },
-    select: { id: true, automation: true, endAt: true },
+    select: { id: true, automation: true, endAt: true, timeLimitMinutes: true },
   });
   let sent = 0;
   for (const a of candidates) {
-    const automation = readAutomation(a.automation);
-    if (!automation.autoShortlist || automation.shortlistSentAt) continue;
-    const data = await monitorData(a.id);
-    if (!data) continue;
-    const closed = !!a.endAt && a.endAt.getTime() < Date.now();
-    const everyoneDone =
-      data.counts.expected > 0 &&
-      data.counts.inProgress === 0 &&
-      data.counts.notStarted === 0 &&
-      data.counts.grading === 0;
-    if (!closed && !everyoneDone) continue;
-    await sendShortlist(a.id, undefined, closed ? 'assessment closed' : 'all candidates finished');
-    await prisma.assessment.update({
-      where: { id: a.id },
-      data: { automation: { ...(a.automation as object), shortlistSentAt: new Date().toISOString() } },
-    });
-    sent++;
+    try {
+      const automation = readAutomation(a.automation);
+      if (!automation.autoShortlist || automation.shortlistSentAt) continue;
+      const data = await monitorData(a.id);
+      if (!data) continue;
+      const now = Date.now();
+      const closed = !!a.endAt && a.endAt.getTime() < now;
+      const settled = data.counts.inProgress === 0 && data.counts.grading === 0;
+      // After the deadline, late starters may still be writing and grading may be queued; wait
+      // for that to settle, with a hard stop one time limit (+30 min) after close.
+      const closedLongAgo =
+        closed && a.endAt!.getTime() + (a.timeLimitMinutes + 30) * 60000 < now;
+      const everyoneDone = data.counts.expected > 0 && data.counts.notStarted === 0 && settled;
+      if (!(closed && settled) && !closedLongAgo && !everyoneDone) continue;
+      await sendShortlist(a.id, undefined, closed ? 'assessment closed' : 'all candidates finished');
+      await prisma.assessment.update({
+        where: { id: a.id },
+        data: { automation: { ...(a.automation as object), shortlistSentAt: new Date().toISOString() } },
+      });
+      sent++;
+    } catch (error) {
+      // One broken assessment must not stop the others from being shortlisted.
+      console.error(`Auto-shortlist failed for assessment ${a.id}:`, error instanceof Error ? error.message : error);
+    }
   }
   return sent;
+}
+
+/** Completion mails held back by the per-minute throttle go out as one digest. */
+async function flushHeldCompletionMail() {
+  await withRedis(async (r) => {
+  let cursor = '0';
+  do {
+    const [next, keys] = await r.scan(cursor, 'MATCH', 'batch:notify:*:pending', 'COUNT', 100);
+    cursor = next;
+    for (const pendingKey of keys) {
+      const assessmentId = Number(pendingKey.split(':')[2]);
+      const lastKey = `batch:notify:${assessmentId}:last`;
+      const last = Number((await r.get(lastKey)) || 0);
+      if (Date.now() - last < NOTIFY_WINDOW_MS) continue;
+      const lines = await r.lrange(pendingKey, 0, -1);
+      if (!lines.length) {
+        await r.del(pendingKey);
+        continue;
+      }
+      const assessment = await prisma.assessment.findUnique({
+        where: { id: assessmentId },
+        select: { name: true, automation: true },
+      });
+      await r.del(pendingKey);
+      await r.set(lastKey, String(Date.now()), 'EX', 86400);
+      if (!assessment) continue;
+      const automation = readAutomation(assessment.automation);
+      const body = [
+        `${lines.length} candidate(s) finished "${assessment.name}" in the last minute:`,
+        '',
+        ...lines.slice(0, 50).map((l) => `  • ${l}`),
+        lines.length > 50 ? `  …and ${lines.length - 50} more.` : '',
+        '',
+        `Live monitor: ${appURL(`/admin/assessments/${assessmentId}/monitor`)}`,
+      ]
+        .filter((l) => l !== '')
+        .join('\n');
+      const ids: string[] = [];
+      for (const to of await adminRecipients(automation.notifyEmails)) {
+        const message = await enqueueMail(to, `${lines.length} candidates finished ${assessment.name}`, body);
+        ids.push(message.id);
+      }
+      sendNow(ids);
+    }
+  } while (cursor !== '0');
+  });
 }

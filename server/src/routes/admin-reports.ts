@@ -505,13 +505,14 @@ export async function buildReportData(
       },
       snapshots: {
         orderBy: { takenAt: 'asc' },
-        select: { id: true, takenAt: true, reason: true, image: true },
+        select: { id: true, takenAt: true, reason: true },
       },
     },
   });
   const tabSwitches = session?.tabSwitches ?? [];
   const pasteEvents = session?.pasteEvents ?? [];
   // Camera frames: keep the payload bounded by sampling evenly, never dropping flagged frames.
+  // Only the sampled frames' bytes are loaded.
   const allSnapshots = session?.snapshots ?? [];
   const SNAPSHOT_LIMIT = 48;
   const flagged = allSnapshots.filter((s) => s.reason !== 'interval');
@@ -522,9 +523,20 @@ export async function buildReportData(
     regular.length > room
       ? Array.from({ length: room }, (_, i) => regular[Math.floor(i * step)])
       : regular;
-  const snapshots = [...flagged, ...sampled].sort(
+  const sampledMeta = [...flagged, ...sampled].sort(
     (a, b) => a.takenAt.getTime() - b.takenAt.getTime(),
   );
+  const frameBytes = sampledMeta.length
+    ? new Map(
+        (
+          await prisma.proctorSnapshot.findMany({
+            where: { id: { in: sampledMeta.map((s) => s.id) } },
+            select: { id: true, image: true },
+          })
+        ).map((s) => [s.id, s.image]),
+      )
+    : new Map<number, Uint8Array>();
+  const snapshots = sampledMeta.map((s) => ({ ...s, image: frameBytes.get(s.id) ?? Buffer.alloc(0) }));
 
   // Candidates are linked to user accounts by name; seeded demo candidates have no account
   const user = await prisma.user.findFirst({

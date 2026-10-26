@@ -31,6 +31,19 @@ export function createAIWorkflowRouter(
       void handler(req, res).catch(next);
     };
   const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) {
+    const results: R[] = new Array(items.length);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (next < items.length) {
+          const i = next++;
+          results[i] = await fn(items[i]);
+        }
+      }),
+    );
+    return results;
+  }
   // Prompts carry a short excerpt per existing question; exact-duplicate checks use full text.
   const excerpt = (q: { title: string; statement: string }) => ({
     title: q.title,
@@ -116,10 +129,18 @@ export function createAIWorkflowRouter(
       );
       const added: { id: number; questionId: number; title: string; verified: boolean }[] = [];
       const needsReview: { id: number; title: string; failed: string[]; reason: string }[] = [];
-      for (const draft of drafts) {
+      // Validate a few drafts at a time so a batch finishes within the client's window.
+      const validations = await mapWithConcurrency(drafts, 3, (draft) =>
+        validateDraftRecord(draft).then(
+          (validated) => ({ validated, error: null as unknown }),
+          (error: unknown) => ({ validated: null, error }),
+        ),
+      );
+      for (const [index, draft] of drafts.entries()) {
         const title = questionContentSchema.parse(draft.content).title;
         try {
-          const validated = await validateDraftRecord(draft);
+          const { validated, error } = validations[index];
+          if (!validated) throw error;
           const validation = validated.validation as any;
           if (!validation?.passed) {
             needsReview.push({
@@ -395,8 +416,8 @@ export function createAIWorkflowRouter(
     if (input.resumeText?.trim()) return input.resumeText.trim().slice(0, 15000);
     if (input.resumePdfBase64) {
       const buffer = Buffer.from(input.resumePdfBase64.replace(/^data:[^,]*,/, ''), 'base64');
-      if (buffer.length > 8 * 1024 * 1024)
-        throw new WorkflowError('Resume PDF must be under 8 MB.', 413);
+      if (buffer.length > 6 * 1024 * 1024)
+        throw new WorkflowError('Resume PDF must be under 6 MB.', 413);
       try {
         const parsed = await pdfParse(buffer);
         return parsed.text.replace(/\s+\n/g, '\n').trim().slice(0, 15000);

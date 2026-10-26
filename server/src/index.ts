@@ -6,7 +6,7 @@ import { initSocketServer } from './socket';
 import { isMockMode } from './services/judge0';
 import { deliverOutbox } from './platform/communication';
 import { deliverWebhooks } from './platform/webhooks';
-import { sweepUngradedAttempts } from './platform/inline-grading';
+import { sweepUngradedAttempts, whenInlineGradingIdle } from './platform/inline-grading';
 import { sweepAssessmentAutomation } from './platform/batch';
 import { finalizeSession } from './routes/attempts';
 import { asynchronousGrading } from './platform/grading-jobs';
@@ -29,6 +29,12 @@ async function shutdown() {
   if (outboxTimer) clearTimeout(outboxTimer);
   const deadline = setTimeout(() => process.exit(1), 15000);
   deadline.unref();
+  // Let attempts that are being graded right now finish (bounded), so a restart does not
+  // leave them stuck in "grading" until the 15-minute reclaim window passes.
+  await Promise.race([
+    whenInlineGradingIdle(),
+    new Promise((resolve) => setTimeout(resolve, 10000)),
+  ]);
   server.close(async () => {
     await prisma.$disconnect();
     clearTimeout(deadline);

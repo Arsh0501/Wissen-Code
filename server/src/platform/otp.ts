@@ -18,14 +18,19 @@ const key = (purpose: OtpPurpose, email: string, suffix = 'code') =>
  * lives in Redis for 10 minutes from first issue, so a resend within that window delivers the
  * same code and any earlier email stays valid.
  */
-export async function issueOtp(purpose: OtpPurpose, email: string) {
+export async function issueOtp(purpose: OtpPurpose, email: string, attempt = 0): Promise<{ code: string; reused: boolean; expiresInSeconds: number }> {
   const r = redis();
   const candidate = crypto.randomInt(0, 1_000_000).toString().padStart(6, '0');
   // SET NX keeps the first code; the TTL is never extended by later requests.
   const created = await r.set(key(purpose, email), candidate, 'EX', OTP_TTL_SECONDS, 'NX');
   const code = created ? candidate : await r.get(key(purpose, email));
   const ttl = await r.ttl(key(purpose, email));
-  if (!code || ttl <= 0) return issueOtp(purpose, email); // expired between calls
+  if (!code || ttl <= 0) {
+    // Expired between calls, or a key that lost its TTL (-1): clear it and start over once.
+    if (attempt >= 2) throw new Error('Could not issue a verification code');
+    if (ttl === -1) await r.del(key(purpose, email));
+    return issueOtp(purpose, email, attempt + 1);
+  }
   if (created) await r.del(key(purpose, email, 'fails'));
   return { code, reused: !created, expiresInSeconds: ttl };
 }

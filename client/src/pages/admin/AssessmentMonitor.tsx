@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import AdminLayout from '../../components/AdminLayout';
@@ -55,10 +55,13 @@ export default function AssessmentMonitor() {
   const [autoShortlist, setAutoShortlist] = useState(false);
   const [notifyEmails, setNotifyEmails] = useState('');
   const [message, setMessage] = useState('');
+  const seeded = useRef(false);
   useEffect(() => {
     const a = monitor.data?.automation;
-    if (!a) return;
-    setRule((r) => r ?? a.shortlist);
+    // Seed the form from the server once; later 10 s refetches must not clobber unsaved edits.
+    if (!a || seeded.current) return;
+    seeded.current = true;
+    setRule(a.shortlist);
     setNotify(a.notifyOnCompletion);
     setAutoShortlist(a.autoShortlist);
     setNotifyEmails(a.notifyEmails.join(', '));
@@ -75,8 +78,9 @@ export default function AssessmentMonitor() {
           .filter(Boolean),
         shortlist: rule ?? undefined,
       }),
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       setMessage('Automation saved.');
+      setRule(saved.shortlist);
       await client.invalidateQueries({ queryKey: ['assessment-monitor', assessmentId] });
     },
     onError: (e) => setMessage(apiError(e)),

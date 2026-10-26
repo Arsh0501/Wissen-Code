@@ -361,13 +361,13 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
 
     // Reaching the limit ends the test — enforced here so it can't be bypassed client-side
     if (count >= MAX_TAB_SWITCHES) {
-      if (asynchronousGrading()) {
-        await prisma.assessmentSession.updateMany({
-          where: { id: session.id, finishedAt: null },
-          data: { finishedAt: new Date() },
-        });
-        await enqueueGrading(session.id);
-      } else await finalizeSession(session.id);
+      await prisma.assessmentSession.updateMany({
+        where: { id: session.id, finishedAt: null },
+        data: { finishedAt: new Date() },
+      });
+      // Same path as /submit: answers are locked now, grading runs in the background.
+      if (asynchronousGrading()) await enqueueGrading(session.id);
+      else enqueueInlineGrading(session.id, finalizeSession);
       return res.json({ count, limit: MAX_TAB_SWITCHES, autoSubmitted: true });
     }
 
@@ -420,11 +420,9 @@ router.post('/:id/snapshot', async (req: Request, res: Response) => {
     // Hard cap per attempt keeps a misbehaving client from filling the database.
     if (stored >= SNAPSHOT_MAX_PER_SESSION)
       return res.status(429).json({ error: 'Snapshot limit reached for this attempt' });
-    if (
-      reason === 'interval' &&
-      last &&
-      Date.now() - last.takenAt.getTime() < SNAPSHOT_MIN_GAP_MS
-    )
+    // Routine frames at most every 10 s; flagged frames at most every 5 s, whatever the reason.
+    const minGap = reason === 'interval' ? SNAPSHOT_MIN_GAP_MS : SNAPSHOT_MIN_GAP_MS / 2;
+    if (last && Date.now() - last.takenAt.getTime() < minGap)
       return res.status(429).json({ error: 'Snapshot rate exceeded' });
 
     await prisma.proctorSnapshot.create({

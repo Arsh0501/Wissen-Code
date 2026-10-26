@@ -96,31 +96,27 @@ router.post('/register', async (req: Request, res: Response) => {
         .status(409)
         .json({ error: 'An account with this email already exists' });
     }
+    // A guest row (invite-link join) can only be claimed through the password-reset email,
+    // which proves control of the inbox; overwriting it here would let anyone take it over.
+    if (existing) {
+      return res.status(409).json({
+        error:
+          'This email already has an invite-based account. Use "Forgot password" to set a password and sign in.',
+        code: 'CLAIM_VIA_RESET',
+      });
+    }
 
     const finalRole = 'candidate';
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // A guest row (created when this email opened an invite link) has no usable
-    // password; signing up with that email upgrades it into a full account so the
-    // guest's assessment history stays attached. Email ownership is confirmed by OTP.
-    const user = existing
-      ? await prisma.user.update({
-          where: { id: existing.id },
-          data: {
-            name: name.trim(),
-            password: passwordHash,
-            isGuest: false,
-            emailVerifiedAt: null,
-          },
-        })
-      : await prisma.user.create({
-          data: {
-            name: name.trim(),
-            email: email.toLowerCase(),
-            password: passwordHash,
-            role: finalRole,
-          },
-        });
+    const user = await prisma.user.create({
+      data: {
+        name: name.trim(),
+        email: email.toLowerCase(),
+        password: passwordHash,
+        role: finalRole,
+      },
+    });
 
     const sessionData = await createSessionForUser(
       user.id,

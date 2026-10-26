@@ -18,6 +18,8 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return reply(503, 'The database is temporarily unavailable. Please try again shortly.');
   }
   if (error.status === 503) return reply(503, 'This service is temporarily unavailable. Please try again shortly.');
+  if (Number.isInteger(error.status) && error.status >= 400 && error.status < 500 && typeof error.message === 'string')
+    return reply(error.status, error.message);
   console.error(JSON.stringify({ requestId, event: 'request_failed', code: error.code || 'unknown' }));
   return reply(500, 'The request could not be completed. Please try again.');
 };

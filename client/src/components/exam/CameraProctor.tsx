@@ -156,6 +156,7 @@ export function CameraTile({
     if (!active || !sessionId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let startTimer: ReturnType<typeof setTimeout> | null = null;
     let faceMonitor: { stop: () => void } | null = null;
     (async () => {
       try {
@@ -177,7 +178,7 @@ export function CameraTile({
             void send('camera-lost');
           };
         });
-        setTimeout(() => void send('start'), 1500);
+        startTimer = setTimeout(() => void send('start'), 1500);
         timer = setInterval(() => void send('interval'), intervalMs);
         if (monitor && videoRef.current) {
           faceMonitor = createFaceMonitor({
@@ -203,6 +204,7 @@ export function CameraTile({
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      if (startTimer) clearTimeout(startTimer);
       faceMonitor?.stop();
       document.removeEventListener('visibilitychange', onVisible);
       streamRef.current?.getTracks().forEach((t) => t.stop());

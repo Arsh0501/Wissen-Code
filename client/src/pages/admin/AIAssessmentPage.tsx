@@ -21,7 +21,7 @@ import {
   X,
 } from 'lucide-react';
 
-const MAX_PDF_MB = 8;
+const MAX_PDF_MB = 6;
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

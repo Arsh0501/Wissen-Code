@@ -64,6 +64,7 @@ export default function LoginPage({
     candidate && params.get("mode") === "signup",
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [claimViaReset, setClaimViaReset] = useState(false);
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Holds the new session until the email is verified (or the user chooses to do it later).
@@ -101,6 +102,7 @@ export default function LoginPage({
         await login(email.trim(), password, audience);
       }
     } catch (error: any) {
+      setClaimViaReset(error.response?.data?.code === "CLAIM_VIA_RESET");
       setFormError(
         error.response?.data?.error ||
           "Unable to create your account. Please try again.",
@@ -305,6 +307,17 @@ export default function LoginPage({
                       className="text-sm text-red-600 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2"
                     >
                       {formError || authError}
+                      {claimViaReset && (
+                        <>
+                          {" "}
+                          <Link
+                            to={`/account/forgot?email=${encodeURIComponent(email.trim())}`}
+                            className="font-semibold underline"
+                          >
+                            Set a password by email
+                          </Link>
+                        </>
+                      )}
                     </p>
                   )}
                   <button
