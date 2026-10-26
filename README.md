@@ -48,11 +48,13 @@ Compose runs PostgreSQL, Redis, migrations, the API and the AI worker. Run the f
 
 ## Project structure
 
-- `client/src/pages`: administrator and candidate screens.
-- `client/src/components`: shared UI and workflow components.
+- `client/src/pages`: `auth/` (login, recovery), `public/` (landing, invites), `admin/` and `candidate/` screens.
+- `client/src/components`: shared UI (`ui.tsx`, layout), plus `auth/`, `dashboard/`, `exam/` (proctoring), `assessments/`, `interview/`, `landing/`, `questions/`.
 - `client/src/services`: API clients and workflow types.
 - `client/src/test`: test setup and fixtures.
 - `server/src/routes`: authenticated REST APIs.
+- `server/src/platform`: email outbox, OTP, notifications, grading queue, batch automation.
+- `server/src/scripts`: seeds and maintenance scripts (`db:seed`, `db:seed-users`, `db:seed-topics`, `db:seed-load`).
 - `server/src/ai`: OpenAI gateway, tools, workflows and background worker.
 - `server/src/socket`: live interview events.
 - `server/prisma`: database schema and migrations.

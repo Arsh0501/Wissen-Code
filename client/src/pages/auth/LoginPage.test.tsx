@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import api from "../services/api";
+import api from "../../services/api";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Routes, Route } from "react-router-dom";
@@ -8,7 +8,7 @@ import {
   renderWithProviders,
   adminUser,
   candidateUser,
-} from "../test/test-utils";
+} from "../../test/test-utils";
 
 function renderLoginPage() {
   return renderWithProviders(

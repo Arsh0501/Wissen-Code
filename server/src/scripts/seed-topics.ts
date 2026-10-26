@@ -1,8 +1,8 @@
-import './config/environment';
+import '../config/environment';
 import { z } from 'zod';
-import prisma from './prisma';
-import { structuredAI } from './services/structured-ai';
-import { questionGenerationSchema, starterCodesFrom } from './services/workflow-schemas';
+import prisma from '../prisma';
+import { structuredAI } from '../services/structured-ai';
+import { questionGenerationSchema, starterCodesFrom } from '../services/workflow-schemas';
 
 /**
  * Seeds the question bank with one AI-written coding question per topic.

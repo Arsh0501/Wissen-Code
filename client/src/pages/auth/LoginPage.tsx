@@ -1,7 +1,7 @@
-import api from "../services/api";
+import api from "../../services/api";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,11 +12,11 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import BrandScene from "../components/BrandScene";
-import BrandLogo from "../components/landing/BrandLogo";
+import BrandScene from "../../components/brand/BrandScene";
+import BrandLogo from "../../components/landing/BrandLogo";
 import "./LoginPage.css";
-import ThemeToggle from "../components/ThemeToggle";
-import OtpVerify from "../components/OtpVerify";
+import ThemeToggle from "../../components/ThemeToggle";
+import OtpVerify from "../../components/auth/OtpVerify";
 
 export type LoginAudience = "hiring" | "candidate";
 

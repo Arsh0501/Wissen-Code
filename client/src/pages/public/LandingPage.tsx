@@ -18,13 +18,13 @@ import {
   Video,
   X,
 } from "lucide-react";
-import ThemeToggle from "../components/ThemeToggle";
-import BrandLogo from "../components/landing/BrandLogo";
+import ThemeToggle from "../../components/ThemeToggle";
+import BrandLogo from "../../components/landing/BrandLogo";
 import HiringExperience, {
   type HiringExperienceHandle,
-} from "../components/landing/HiringExperience";
-import TalentCharacters from "../components/landing/TalentCharacters";
-import LandingFooter from "../components/landing/LandingFooter";
+} from "../../components/landing/HiringExperience";
+import TalentCharacters from "../../components/landing/TalentCharacters";
+import LandingFooter from "../../components/landing/LandingFooter";
 import "./LandingPage.css";
 import "./LandingMotion.css";
 

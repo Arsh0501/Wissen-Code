@@ -1,11 +1,11 @@
-import BrandLogo from "../components/landing/BrandLogo";
+import BrandLogo from "../../components/landing/BrandLogo";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { getPublicInvite, joinInvite, apiError } from "../services/api";
-import type { PublicInvite } from "../services/api";
-import { formatDate } from "../components/ui";
-import ThemeToggle from "../components/ThemeToggle";
+import { useAuth } from "../../context/AuthContext";
+import { getPublicInvite, joinInvite, apiError } from "../../services/api";
+import type { PublicInvite } from "../../services/api";
+import { formatDate } from "../../components/ui";
+import ThemeToggle from "../../components/ThemeToggle";
 import {
   Clock,
   FileText,

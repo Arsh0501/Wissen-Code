@@ -1,5 +1,5 @@
 import { ArrowRight, Sparkles } from "lucide-react";
-import BrandScene from "./BrandScene";
+import BrandScene from "../brand/BrandScene";
 
 export default function DashboardCommandCenter({
   active,

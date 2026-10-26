@@ -1,8 +1,8 @@
-import './config/environment';
+import '../config/environment';
 import { z } from 'zod';
-import prisma from './prisma';
-import { structuredAI } from './services/structured-ai';
-import { STARTER_LANGUAGES } from './services/workflow-schemas';
+import prisma from '../prisma';
+import { structuredAI } from '../services/structured-ai';
+import { STARTER_LANGUAGES } from '../services/workflow-schemas';
 
 /**
  * Adds C++, Java and JavaScript starter code to every question that only has Python.

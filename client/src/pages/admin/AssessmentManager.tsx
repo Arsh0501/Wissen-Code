@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AdminLayout from "../../components/AdminLayout";
-import ShareLinksModal from "../../components/ShareLinksModal";
+import ShareLinksModal from "../../components/assessments/ShareLinksModal";
 import {
   AvailabilityBadge,
   Spinner,

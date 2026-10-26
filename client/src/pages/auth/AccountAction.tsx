@@ -1,11 +1,11 @@
-import BrandLogo from "../components/landing/BrandLogo";
-import ThemeToggle from "../components/ThemeToggle";
-import { useAuth } from "../context/AuthContext";
+import BrandLogo from "../../components/landing/BrandLogo";
+import ThemeToggle from "../../components/ThemeToggle";
+import { useAuth } from "../../context/AuthContext";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
-import { apiData } from "../services/workflows";
-import { apiError } from "../services/api";
+import { apiData } from "../../services/workflows";
+import { apiError } from "../../services/api";
 export default function AccountAction() {
   const { signInWithToken, isLoggedIn } = useAuth();
   const action = useParams().action ?? "forgot";
@@ -16,7 +16,7 @@ export default function AccountAction() {
     mutationFn: async () => {
       if (action === "sso") {
         const session = await apiData<{
-          user: import("../context/AuthContext").AuthUser;
+          user: import("../../context/AuthContext").AuthUser;
           accessToken: string;
           refreshToken: string;
         }>("/auth/sso/session", "post");
