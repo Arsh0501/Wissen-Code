@@ -120,18 +120,33 @@ async function runAgentViaChat<T extends z.ZodType>(
   // tool use runs first in free-text mode and the structured answer is requested at the end.
   let toolPhase = toolDefs.length > 0;
   for (let round = 0; round < 10; round++) {
-    const completion = await client.chat.completions.create({
+    const request = {
       model,
       messages,
       ...(toolPhase
         ? { tools: toolDefs, parallel_tool_calls: false }
         : {
             response_format: {
-              type: 'json_schema',
+              type: 'json_schema' as const,
               json_schema: { name, schema: jsonSchema, strict: true },
             },
           }),
-    });
+    };
+    // Open models occasionally emit JSON the provider rejects against the schema; one or two
+    // fresh samples usually succeed, so retry those specific failures before giving up.
+    let completion: OpenAI.Chat.ChatCompletion | undefined;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        completion = await client.chat.completions.create(request);
+        break;
+      } catch (error: any) {
+        const detail = String(error?.error?.message || error?.message || '');
+        if (attempt < 3 && /Failed to (generate|validate) JSON|failed_generation/i.test(detail))
+          continue;
+        throw error;
+      }
+    }
+    if (!completion) throw new Error('AI response incomplete or refused');
     const choice = completion.choices[0];
     const calls = choice?.message?.tool_calls ?? [];
     if (calls.length > 4) throw new Error('AI tool call limit exceeded');

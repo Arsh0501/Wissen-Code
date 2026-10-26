@@ -92,6 +92,7 @@ export interface Assessment {
   shuffleQuestions: boolean;
   allowedLanguages: string; // JSON array of language IDs; empty = all
   showResults: boolean;
+  requireCamera?: boolean; // proctoring: camera must stay on during the attempt
   createdAt: string;
   updatedAt: string;
   questions: AssessmentQuestion[];
@@ -147,6 +148,7 @@ export interface AssessmentInput {
   shuffleQuestions: boolean;
   allowedLanguages: number[];
   showResults: boolean;
+  requireCamera?: boolean;
   questions: { questionId: number; marks: number }[];
 }
 

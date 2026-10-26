@@ -195,6 +195,8 @@ function parseAssessmentBody(body: any, isUpdate: boolean) {
   if (body.shuffleQuestions !== undefined)
     data.shuffleQuestions = !!body.shuffleQuestions;
   if (body.showResults !== undefined) data.showResults = !!body.showResults;
+  if (body.requireCamera !== undefined)
+    data.requireCamera = !!body.requireCamera;
   if (body.allowedLanguages !== undefined) {
     if (!Array.isArray(body.allowedLanguages))
       errors.push('allowedLanguages must be an array');

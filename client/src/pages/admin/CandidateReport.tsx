@@ -22,6 +22,7 @@ import {
   Target,
   ListChecks,
   FileText,
+  Camera as CameraIcon,
 } from 'lucide-react';
 
 interface FailedCase {
@@ -93,6 +94,12 @@ interface ReportDataType {
       line_count: number;
       occurred_at: string;
     }[];
+  };
+  camera?: {
+    required: boolean;
+    count: number;
+    flagged_count: number;
+    snapshots: { id: number; taken_at: string; reason: string; image: string }[];
   };
 }
 
@@ -815,8 +822,11 @@ function ProctoringSection({
   report: ReportDataType;
   formatDate: (d: string) => string;
 }) {
-  const { tab_switches: tabs, paste_events: pastes } = report;
-  const needsReview = tabs.limit_exceeded || pastes.large_count > 0;
+  const { tab_switches: tabs, paste_events: pastes, camera } = report;
+  const cameraMissing = !!camera?.required && camera.count === 0;
+  const cameraLost = (camera?.snapshots ?? []).some((f) => f.reason === 'camera-lost');
+  const needsReview =
+    tabs.limit_exceeded || pastes.large_count > 0 || cameraMissing || cameraLost;
   const minor = !needsReview && (tabs.count > 0 || pastes.count > 0);
   const verdict = needsReview
     ? {
@@ -950,6 +960,62 @@ function ProctoringSection({
         Only the size of each paste is recorded, never its content. Pastes
         include text copied from within the editor itself.
       </p>
+
+      {camera?.required && (
+        <div className="card p-0 overflow-hidden mt-4">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
+            <h4 className="font-medium text-white text-sm flex items-center gap-2">
+              <CameraIcon className="w-4 h-4 text-surface-500" /> Camera snapshots
+            </h4>
+            {cameraMissing ? (
+              <span className="badge bg-red-500/10 text-red-700 ring-1 ring-red-500/25">
+                Camera required · no frames received
+              </span>
+            ) : (
+              <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700 tabular-nums">
+                {camera.count} frame{camera.count === 1 ? '' : 's'}
+                {camera.flagged_count ? ` · ${camera.flagged_count} flagged` : ''}
+              </span>
+            )}
+          </div>
+          {camera.snapshots.length === 0 ? (
+            <p className="text-sm text-surface-500 text-center py-6">
+              No camera frames were captured.
+            </p>
+          ) : (
+            <div className="p-4 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {camera.snapshots.map((f) => (
+                <figure key={f.id} className="min-w-0">
+                  <img
+                    src={f.image}
+                    alt={`Camera frame at ${formatDate(f.taken_at)}`}
+                    loading="lazy"
+                    className={`w-full aspect-[4/3] object-cover rounded-md ring-1 ${f.reason === 'interval' || f.reason === 'start' ? 'ring-surface-700' : 'ring-amber-500/60'}`}
+                  />
+                  <figcaption className="text-[10px] text-surface-500 mt-1 truncate">
+                    {new Date(f.taken_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                    {f.reason === 'tab-return' && (
+                      <span className="text-amber-700"> · back from tab</span>
+                    )}
+                    {f.reason === 'camera-lost' && (
+                      <span className="text-red-700"> · camera lost</span>
+                    )}
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
+          {camera.count > camera.snapshots.length && (
+            <p className="text-xs text-surface-500 px-4 pb-3">
+              Showing {camera.snapshots.length} of {camera.count} frames (evenly
+              sampled, flagged frames always included).
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

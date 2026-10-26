@@ -30,6 +30,7 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const QuestionForm = lazy(() => import("./pages/admin/QuestionForm"));
 const AssessmentManager = lazy(() => import("./pages/admin/AssessmentManager"));
 const AssessmentForm = lazy(() => import("./pages/admin/AssessmentForm"));
+const AIAssessmentPage = lazy(() => import("./pages/admin/AIAssessmentPage"));
 const SubmissionsViewer = lazy(() => import("./pages/admin/SubmissionsViewer"));
 const CandidateReport = lazy(() => import("./pages/admin/CandidateReport"));
 const ExamDashboard = lazy(() => import("./pages/candidate/ExamDashboard"));
@@ -178,6 +179,14 @@ function AppRoutes() {
           element={
             <RequireAdmin>
               <AssessmentForm />
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/admin/assessments/ai"
+          element={
+            <RequireAdmin>
+              <AIAssessmentPage />
             </RequireAdmin>
           }
         />

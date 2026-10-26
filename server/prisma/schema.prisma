@@ -117,6 +117,7 @@ model Assessment {
   allowedDomains   String    @default("[]")
   maxAttempts      Int       @default(1)
   showResults      Boolean   @default(true) // Show score breakdown to the candidate after submit
+  requireCamera    Boolean   @default(false) // Proctoring: candidate camera must stay on; snapshots are stored
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -206,6 +207,7 @@ model AssessmentSession {
   drafts          DraftAnswer[]
   tabSwitches     TabSwitchEvent[]
   pasteEvents     PasteEvent[]
+  snapshots       ProctorSnapshot[]
 
   @@index([assessmentId, candidateName])
   @@unique([assessmentId, candidateUserId, attemptNumber])
@@ -590,4 +592,16 @@ model OIDCIdentity {
 
   @@index([userId])
 
+}
+
+model ProctorSnapshot {
+  id        Int      @id @default(autoincrement())
+  sessionId Int
+  takenAt   DateTime @default(now())
+  reason    String   @default("interval") // "interval" | "tab-return" | "camera-lost" | "start"
+  image     Bytes    // small JPEG (~320px wide) captured by the exam page
+
+  session   AssessmentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, takenAt])
 }

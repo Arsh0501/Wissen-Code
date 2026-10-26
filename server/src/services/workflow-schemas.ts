@@ -97,6 +97,17 @@ export const observationResponseSchema = z.object({
   observations: z.array(observationSchema).max(30),
 });
 
+/**
+ * What the model must return when writing a question: every starter is required, because
+ * strict JSON-schema output (OpenAI and Groq) rejects optional keys. Stored drafts keep using
+ * questionContentSchema, where older rows may lack the non-Python starters.
+ */
+export const questionGenerationSchema = questionContentSchema.extend({
+  starterCodeCpp: z.string(),
+  starterCodeJava: z.string(),
+  starterCodeJavaScript: z.string(),
+});
+
 /** Judge0 ids for the starter-code languages the exam offers. */
 export const STARTER_LANGUAGES = [
   { key: 'starterCodePython', languageId: 71, languageName: 'Python' },

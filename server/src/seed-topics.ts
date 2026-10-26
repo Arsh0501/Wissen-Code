@@ -2,7 +2,7 @@ import './config/environment';
 import { z } from 'zod';
 import prisma from './prisma';
 import { structuredAI } from './services/structured-ai';
-import { questionContentSchema, starterCodesFrom } from './services/workflow-schemas';
+import { questionGenerationSchema, starterCodesFrom } from './services/workflow-schemas';
 
 /**
  * Seeds the question bank with one AI-written coding question per topic.
@@ -90,7 +90,7 @@ async function main() {
         });
         const out = await structuredAI(
           'generated_questions',
-          z.object({ questions: z.array(questionContentSchema) }),
+          z.object({ questions: z.array(questionGenerationSchema) }),
           'Write one original, unambiguous coding question for the given topic, suitable for a timed online assessment. Give exact stdin/stdout specifications, constraints, at least one sample and two hidden test cases, a correct Python 3 reference solution and a short explanation. Provide starter code that reads stdin and prints stdout in Python (starterCodePython), C++ (starterCodeCpp), Java (starterCodeJava, class Main) and JavaScript (starterCodeJavaScript, Node.js). Do not repeat the supplied existing questions.',
           {
             topic,

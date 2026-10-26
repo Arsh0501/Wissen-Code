@@ -37,6 +37,7 @@ import {
   Code2,
   MoreHorizontal,
   Link2,
+  Sparkles,
 } from "lucide-react";
 
 const FILTERS: { key: "all" | Availability; label: string }[] = [
@@ -127,6 +128,9 @@ export default function AssessmentManager() {
       subtitle="Create, configure and publish coding assessments"
       actions={
         <>
+          <Link to="/admin/assessments/ai" className="btn-outline text-sm">
+            <Sparkles className="w-4 h-4" /> Create with AI
+          </Link>
           <Link to="/admin/assessments/new" className="btn-primary text-sm">
             <Plus className="w-4 h-4" /> New Assessment
           </Link>

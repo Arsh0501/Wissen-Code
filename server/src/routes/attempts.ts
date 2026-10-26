@@ -377,6 +377,52 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/attempts/:id/snapshot — Store a small camera frame for proctoring review
+const SNAPSHOT_MAX_BYTES = 200 * 1024;
+const SNAPSHOT_MIN_GAP_MS = 10000;
+router.post('/:id/snapshot', async (req: Request, res: Response) => {
+  try {
+    const raw = typeof req.body.image === 'string' ? req.body.image : '';
+    const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(raw);
+    if (!match)
+      return res.status(400).json({ error: 'image must be a JPEG data URL' });
+    const image = Buffer.from(match[1], 'base64');
+    if (!image.length || image.length > SNAPSHOT_MAX_BYTES)
+      return res.status(413).json({ error: 'Snapshot too large' });
+    const reason = ['interval', 'tab-return', 'camera-lost', 'start'].includes(
+      req.body.reason,
+    )
+      ? String(req.body.reason)
+      : 'interval';
+
+    const session = await getWritableSession(req, res);
+    if (!session) return;
+
+    const last = await prisma.proctorSnapshot.findFirst({
+      where: { sessionId: session.id },
+      orderBy: { takenAt: 'desc' },
+      select: { takenAt: true },
+    });
+    if (
+      reason === 'interval' &&
+      last &&
+      Date.now() - last.takenAt.getTime() < SNAPSHOT_MIN_GAP_MS
+    )
+      return res.status(429).json({ error: 'Snapshot rate exceeded' });
+
+    await prisma.proctorSnapshot.create({
+      data: { sessionId: session.id, image, reason },
+    });
+    const count = await prisma.proctorSnapshot.count({
+      where: { sessionId: session.id },
+    });
+    res.json({ count });
+  } catch (error: any) {
+    console.error('Error storing snapshot:', error);
+    res.status(500).json({ error: 'Failed to store snapshot' });
+  }
+});
+
 // POST /api/attempts/:id/paste — Record text pasted into the code editor
 router.post('/:id/paste', async (req: Request, res: Response) => {
   try {

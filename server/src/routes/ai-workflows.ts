@@ -6,10 +6,12 @@ import { structuredAI, WorkflowError } from '../services/structured-ai';
 import {
   generationSchema,
   questionContentSchema,
+  questionGenerationSchema,
   starterCodesFrom,
   validationSchema,
 } from '../services/workflow-schemas';
 import { executeCode, isMockMode } from '../services/judge0';
+import pdfParse from 'pdf-parse';
 
 export function createAIWorkflowRouter(
   dependencies: {
@@ -72,7 +74,7 @@ export function createAIWorkflowRouter(
     ).map(excerpt);
     const output = await ai(
       'generated_questions',
-      z.object({ questions: z.array(questionContentSchema) }),
+      z.object({ questions: z.array(questionGenerationSchema) }),
       'Generate original, unambiguous coding/debugging questions matching every requested constraint. Include at least one sample and one hidden edge case, exact stdin/stdout specifications, a correct Python reference solution and explanation. Provide starter code that reads stdin and prints stdout in Python (starterCodePython), C++ (starterCodeCpp), Java (starterCodeJava, class Main) and JavaScript (starterCodeJavaScript, Node.js). Do not repeat supplied bank questions. Return exactly the requested count.',
       { ...input, existingQuestions: bank, _authorId: authorId },
     );
@@ -344,6 +346,225 @@ export function createAIWorkflowRouter(
       res.json(serialize(await validateDraftRecord(draft)));
     }),
   );
+  // ---- Resume → tailored assessment -------------------------------------------------
+  const resumeAssessmentSchema = z.object({
+    resumeText: z.string().max(60000).optional(),
+    resumePdfBase64: z.string().max(12_000_000).optional(),
+    fileName: z.string().max(200).optional(),
+    role: z.string().trim().max(300).optional(),
+    questionCount: z.number().int().min(1).max(8).default(4),
+    difficulty: z.enum(['mixed', 'easy', 'medium', 'hard']).default('mixed'),
+    timeLimitMinutes: z.number().int().min(10).max(240).optional(),
+    candidateEmail: z.string().email().max(254).optional(),
+  });
+  const resumeProfileSchema = z.object({
+    candidateName: z.string(),
+    experienceLevel: z.enum(['intern', 'junior', 'mid', 'senior', 'staff']),
+    yearsOfExperience: z.number(),
+    primaryLanguages: z.array(z.string()).max(6),
+    skills: z.array(z.string()).max(20),
+    summary: z.string(),
+    assessmentName: z.string(),
+    timeLimitMinutes: z.number().int(),
+    plan: z
+      .array(
+        z.object({
+          topic: z.string(),
+          difficulty: z.enum(['easy', 'medium', 'hard']),
+          rationale: z.string(),
+        }),
+      )
+      .min(1)
+      .max(8),
+  });
+  const MARKS: Record<string, number> = { easy: 10, medium: 20, hard: 30 };
+  // Words too generic to tell one coding topic from another (languages, boilerplate tags).
+  const GENERIC = new Set([
+    'and', 'the', 'with', 'for', 'using', 'python', 'java', 'javascript', 'c++', 'cpp', 'go',
+    'golang', 'sql', 'data', 'structures', 'structure', 'algorithms', 'algorithm', 'problem',
+    'solving', 'coding', 'programming', 'ai-generated', 'unverified', 'basic', 'basics',
+    'fundamentals', 'intro', 'introduction', 'medium', 'easy', 'hard', 'level',
+  ]);
+  const tokens = (text: string) =>
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9+#]+/)
+      .filter((t) => t.length > 2 && !GENERIC.has(t));
+
+  async function resumeTextFrom(input: z.infer<typeof resumeAssessmentSchema>) {
+    if (input.resumeText?.trim()) return input.resumeText.trim().slice(0, 15000);
+    if (input.resumePdfBase64) {
+      const buffer = Buffer.from(input.resumePdfBase64.replace(/^data:[^,]*,/, ''), 'base64');
+      if (buffer.length > 8 * 1024 * 1024)
+        throw new WorkflowError('Resume PDF must be under 8 MB.', 413);
+      try {
+        const parsed = await pdfParse(buffer);
+        return parsed.text.replace(/\s+\n/g, '\n').trim().slice(0, 15000);
+      } catch {
+        throw new WorkflowError('Could not read this PDF. Try exporting it again or paste the text.', 400);
+      }
+    }
+    return '';
+  }
+
+  async function questionFromContent(
+    q: z.infer<typeof questionContentSchema>,
+    difficulty: 'easy' | 'medium' | 'hard',
+    extra: Record<string, unknown>,
+  ) {
+    return prisma.question.create({
+      data: {
+        title: q.title,
+        statement: q.statement,
+        difficulty,
+        questionType: q.questionType,
+        tags: JSON.stringify([
+          ...new Set([...q.topics, ...q.requiredSkills, 'ai-generated', 'unverified']),
+        ]),
+        settings: { aiGenerated: true, executionVerified: false, ...extra },
+        testCases: { create: q.testCases },
+        starterCodes: { create: starterCodesFrom(q) },
+      },
+    });
+  }
+
+  router.post(
+    '/auto-assessment',
+    wrap(async (req, res) => {
+      const input = resumeAssessmentSchema.parse(req.body);
+      const resume = await resumeTextFrom(input);
+      if (resume.length < 80)
+        throw new WorkflowError(
+          'Upload a resume (PDF or text) or paste at least a few lines about the candidate.',
+          400,
+        );
+      const bank = await prisma.question.findMany({
+        where: { questionType: { in: ['coding', 'debugging'] } },
+        select: { id: true, title: true, difficulty: true, tags: true },
+        orderBy: { id: 'desc' },
+        take: 400,
+      });
+      const bankTopics = [
+        ...new Set(bank.flatMap((q) => JSON.parse(q.tags) as string[])),
+      ].slice(0, 80);
+      const profile = await ai(
+        'resume_profile',
+        resumeProfileSchema,
+        `Read the resume and design a fair coding assessment for this candidate${input.role ? ` applying for: ${input.role}` : ''}. Return the candidate profile and a plan of exactly ${input.questionCount} coding question topics that test the skills the resume claims, ordered easy to hard. Each topic must be a specific, testable problem area (e.g. 'hash map frequency counting', 'topological sort with cycle detection', 'LRU cache with O(1) operations'), never a bare language or a generic phrase like 'data structures'${input.difficulty !== 'mixed' ? `, all ${input.difficulty}` : ''}. Prefer topics from the supplied bank topics when they fit. Suggest a realistic time limit in minutes (20-180) and a short assessment name including the role or level. Use only facts present in the resume; if the name is missing, use "Candidate".`,
+        { resume, role: input.role ?? null, bankTopics, questionCount: input.questionCount },
+      );
+      const plan = profile.plan.slice(0, input.questionCount).map((item) => ({
+        ...item,
+        difficulty: input.difficulty === 'mixed' ? item.difficulty : input.difficulty,
+      }));
+      const used = new Set<number>();
+      const chosen: { id: number; title: string; difficulty: string; source: 'bank' | 'generated'; topic: string }[] = [];
+      const skipped: { topic: string; reason: string }[] = [];
+      for (const item of plan) {
+        const words = new Set(tokens(item.topic));
+        const scored = bank
+          .filter((q) => !used.has(q.id))
+          .map((q) => {
+            const haystack = [...(JSON.parse(q.tags) as string[]), q.title].flatMap(tokens);
+            const overlap = haystack.filter((w) => words.has(w)).length;
+            return { q, overlap, sameDifficulty: q.difficulty === item.difficulty };
+          })
+          .filter((m) => m.overlap > 0)
+          .sort((a, b) => Number(b.sameDifficulty) - Number(a.sameDifficulty) || b.overlap - a.overlap);
+        const match = scored[0];
+        // Reuse a bank question only when it clearly covers the topic at the planned level.
+        if (match && match.sameDifficulty && match.overlap >= 1) {
+          used.add(match.q.id);
+          chosen.push({ id: match.q.id, title: match.q.title, difficulty: match.q.difficulty, source: 'bank', topic: item.topic });
+          continue;
+        }
+        let drafts: Awaited<ReturnType<typeof generateDrafts>>;
+        try {
+          drafts = await generateDrafts(
+            {
+              topic: `${item.topic} (${item.rationale})`,
+              difficulty: item.difficulty,
+              questionType: 'coding',
+              count: 1,
+              requiredSkills: profile.primaryLanguages.length ? profile.primaryLanguages.slice(0, 3) : ['Python'],
+            },
+            req.user!.id,
+          );
+        } catch (error) {
+          // The model could not write this question: fall back to the closest bank question at
+          // any difficulty, or leave the slot out and tell the admin, rather than failing the run.
+          const fallback = scored[0];
+          if (fallback) {
+            used.add(fallback.q.id);
+            chosen.push({ id: fallback.q.id, title: fallback.q.title, difficulty: fallback.q.difficulty, source: 'bank', topic: item.topic });
+          } else {
+            skipped.push({ topic: item.topic, reason: error instanceof Error ? error.message.slice(0, 160) : 'generation failed' });
+          }
+          continue;
+        }
+        const content = questionContentSchema.parse(drafts[0].content);
+        const created = await questionFromContent(content, item.difficulty, {
+          generatedFor: 'resume-assessment',
+          topic: item.topic,
+        });
+        await prisma.aIQuestionDraft.update({
+          where: { id: drafts[0].id },
+          data: { status: 'approved', approvedBy: req.user!.id, approvedAt: new Date(), questionId: created.id },
+        });
+        used.add(created.id);
+        chosen.push({ id: created.id, title: created.title, difficulty: item.difficulty, source: 'generated', topic: item.topic });
+      }
+      if (!chosen.length)
+        throw new WorkflowError(
+          `No questions could be prepared (${skipped[0]?.reason ?? 'unknown error'}). Try again or lower the question count.`,
+          502,
+        );
+      const timeLimit = Math.min(
+        240,
+        Math.max(10, input.timeLimitMinutes ?? profile.timeLimitMinutes ?? 60),
+      );
+      const assessment = await prisma.assessment.create({
+        data: {
+          name: profile.assessmentName.slice(0, 140),
+          description: `Tailored from ${profile.candidateName}'s resume (${profile.experienceLevel}, ${profile.yearsOfExperience} yrs). ${profile.summary}`.slice(0, 1000),
+          timeLimitMinutes: timeLimit,
+          passingScore: 60,
+          status: 'draft',
+          questionCount: chosen.length,
+          difficulty: input.difficulty,
+          questionTypes: JSON.stringify(['coding']),
+          topics: JSON.stringify([]),
+          requiredSkills: JSON.stringify(profile.skills.slice(0, 8)),
+          allowedEmails: JSON.stringify(input.candidateEmail ? [input.candidateEmail.toLowerCase()] : []),
+          questions: {
+            create: chosen.map((q, i) => ({
+              questionId: q.id,
+              orderIndex: i,
+              marks: MARKS[q.difficulty] ?? 20,
+            })),
+          },
+        },
+      });
+      res.status(201).json({
+        assessmentId: assessment.id,
+        name: assessment.name,
+        timeLimitMinutes: assessment.timeLimitMinutes,
+        profile: {
+          candidateName: profile.candidateName,
+          experienceLevel: profile.experienceLevel,
+          yearsOfExperience: profile.yearsOfExperience,
+          primaryLanguages: profile.primaryLanguages,
+          skills: profile.skills,
+          summary: profile.summary,
+        },
+        plan,
+        questions: chosen,
+        skipped,
+        resumeChars: resume.length,
+      });
+    }),
+  );
+
   async function approveDraftRecord(draftId: number, revision: number, userId: number) {
     return prisma.$transaction(
       async (tx) => {

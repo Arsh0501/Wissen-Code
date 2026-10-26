@@ -363,6 +363,15 @@ export async function recordPaste(
   await api.post(`/attempts/${sessionId}/paste`, event);
 }
 
+export async function uploadSnapshot(
+  sessionId: number,
+  image: string,
+  reason: 'interval' | 'tab-return' | 'camera-lost' | 'start',
+): Promise<{ count: number }> {
+  const { data } = await api.post(`/attempts/${sessionId}/snapshot`, { image, reason });
+  return data;
+}
+
 export async function finishSession(sessionId: number): Promise<any> {
   const { data } = await api.post(`/attempts/${sessionId}/submit`, {}, { timeout: 11 * 60 * 1000 });
   return data;
@@ -435,74 +444,43 @@ export async function downloadAssessmentCsv(
 
 // ---- AI assessment generation ----
 
-export interface AIStatus {
-  configured: boolean;
-  canVerify: boolean;
-  minQuestions: number;
-  maxQuestions: number;
-}
-
-export interface AIGeneratedQuestion {
-  title: string;
-  difficulty: 'easy' | 'medium' | 'hard';
-  tags: string[];
-  rationale: string;
-  statement: string;
-  test_cases: { input: string; expected_output: string; is_sample: boolean }[];
-  starter_code_python: string;
-  starter_code_javascript: string;
-  starter_code_java: string;
-  starter_code_cpp: string;
-  reference_solution_python: string;
-  verification:
-    | { status: 'verified'; dropped: number }
-    | { status: 'unverified'; reason: string }
-    | { status: 'failed'; reason: string };
-}
-
-export interface AIGenerationPreview {
-  candidate: {
-    name: string;
-    experience_level: 'intern' | 'junior' | 'mid' | 'senior' | 'staff';
-    years_of_experience: number;
-    primary_languages: string[];
+export interface ResumeAssessmentResult {
+  assessmentId: number;
+  name: string;
+  timeLimitMinutes: number;
+  profile: {
+    candidateName: string;
+    experienceLevel: 'intern' | 'junior' | 'mid' | 'senior' | 'staff';
+    yearsOfExperience: number;
+    primaryLanguages: string[];
     skills: string[];
     summary: string;
   };
-  questions: AIGeneratedQuestion[];
-  suggested_time_minutes: number;
-  model: string;
+  plan: { topic: string; difficulty: 'easy' | 'medium' | 'hard'; rationale: string }[];
+  questions: {
+    id: number;
+    title: string;
+    difficulty: string;
+    source: 'bank' | 'generated';
+    topic: string;
+  }[];
+  resumeChars: number;
 }
 
-export async function getAIStatus(): Promise<AIStatus> {
-  const { data } = await api.get('/ai/status');
-  return data;
-}
-
-export async function generateAssessmentFromResume(input: {
-  resumePdfBase64?: string;
+/** Reads a resume, picks or writes matching questions and creates a draft assessment. */
+export async function createAssessmentFromResume(input: {
   resumeText?: string;
+  resumePdfBase64?: string;
+  fileName?: string;
+  role?: string;
   questionCount: number;
-  focus?: string;
-}): Promise<AIGenerationPreview> {
-  // Generation reads the resume and writes several problems — it can take a few minutes
-  const { data } = await api.post('/ai/generate', input, {
-    timeout: 11 * 60 * 1000,
+  difficulty: 'mixed' | 'easy' | 'medium' | 'hard';
+  timeLimitMinutes?: number;
+  candidateEmail?: string;
+}): Promise<ResumeAssessmentResult> {
+  const { data } = await api.post('/ai/auto-assessment', input, {
+    timeout: 5 * 60 * 1000,
   });
-  return data;
-}
-
-export async function createAIAssessment(input: {
-  name: string;
-  description?: string;
-  timeLimitMinutes: number;
-  passingScore: number;
-  questions: Omit<
-    AIGeneratedQuestion,
-    'verification' | 'rationale' | 'reference_solution_python'
-  >[];
-}): Promise<{ id: number; name: string }> {
-  const { data } = await api.post('/ai/create-assessment', input);
   return data;
 }
 
