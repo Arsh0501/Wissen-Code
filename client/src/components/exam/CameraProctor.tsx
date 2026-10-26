@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Camera, CameraOff, Video } from 'lucide-react';
 import { uploadSnapshot } from '../../services/api';
+import { createFaceMonitor, FLAG_MESSAGES, type BehaviourFlag, type FaceStatus } from './faceMonitor';
 
 const FRAME_WIDTH = 320;
 const FRAME_QUALITY = 0.6;
@@ -120,18 +121,24 @@ export function CameraTile({
   sessionId,
   active,
   intervalMs = DEFAULT_INTERVAL_MS,
+  monitor = true,
 }: {
   sessionId: number | null;
   active: boolean;
   intervalMs?: number;
+  /** Run on-device face/gaze analysis and flag sustained misbehaviour. */
+  monitor?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [status, setStatus] = useState<'starting' | 'on' | 'off'>('starting');
   const [minimised, setMinimised] = useState(false);
+  const [face, setFace] = useState<FaceStatus | null>(null);
+  const [warning, setWarning] = useState<BehaviourFlag | null>(null);
+  const [flagCount, setFlagCount] = useState(0);
 
   const send = useCallback(
-    async (reason: 'interval' | 'tab-return' | 'camera-lost' | 'start') => {
+    async (reason: 'interval' | 'tab-return' | 'camera-lost' | 'start' | BehaviourFlag) => {
       const video = videoRef.current;
       if (!video || !sessionId) return;
       const image = captureFrame(video);
@@ -149,6 +156,7 @@ export function CameraTile({
     if (!active || !sessionId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let faceMonitor: { stop: () => void } | null = null;
     (async () => {
       try {
         const stream = await openCamera();
@@ -171,6 +179,19 @@ export function CameraTile({
         });
         setTimeout(() => void send('start'), 1500);
         timer = setInterval(() => void send('interval'), intervalMs);
+        if (monitor && videoRef.current) {
+          faceMonitor = createFaceMonitor({
+            video: videoRef.current,
+            onStatus: setFace,
+            onFlag: (flag) => {
+              setFlagCount((n) => n + 1);
+              setWarning(flag);
+              setTimeout(() => setWarning((w) => (w === flag ? null : w)), 6000);
+              void send(flag);
+            },
+            onError: () => setFace(null),
+          });
+        }
       } catch {
         setStatus('off');
       }
@@ -182,18 +203,41 @@ export function CameraTile({
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
+      faceMonitor?.stop();
       document.removeEventListener('visibilitychange', onVisible);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, [active, sessionId, intervalMs, send]);
+  }, [active, sessionId, intervalMs, send, monitor]);
 
   if (!active) return null;
+  const attention = status === 'on' && face?.ready ? face.condition : null;
+  const label =
+    status === 'off'
+      ? 'Camera off'
+      : status !== 'on'
+        ? 'Starting…'
+        : !monitor || !face?.ready
+          ? 'Camera on'
+          : attention === null
+            ? 'Face detected'
+            : attention === 'no-face'
+              ? 'No face in view'
+              : attention === 'multiple-faces'
+                ? 'More than one person'
+                : attention === 'looking-away'
+                  ? 'Facing away'
+                  : 'Eyes off screen';
   return (
     <div
-      className={`fixed bottom-[76px] right-4 z-40 rounded-xl overflow-hidden border shadow-lg bg-surface-900 ${status === 'off' ? 'border-red-500/50' : 'border-surface-700'}`}
+      className={`fixed bottom-[76px] right-4 z-40 rounded-xl overflow-hidden border shadow-lg bg-surface-900 ${status === 'off' ? 'border-red-500/50' : warning ? 'border-amber-500/70' : 'border-surface-700'}`}
       aria-live="polite"
     >
+      {warning && (
+        <div className="px-2 py-1.5 text-[11px] font-medium text-amber-800 bg-amber-100 border-b border-amber-200 max-w-[176px]">
+          {FLAG_MESSAGES[warning]}
+        </div>
+      )}
       <video
         ref={videoRef}
         muted
@@ -209,8 +253,13 @@ export function CameraTile({
             </>
           ) : (
             <>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse-dot" />
-              <span className="text-surface-300">{status === 'on' ? 'Camera on' : 'Starting…'}</span>
+              <span
+                className={`w-2 h-2 rounded-full ${attention ? 'bg-amber-500' : 'bg-emerald-500 animate-pulse-dot'}`}
+              />
+              <span className={attention ? 'text-amber-600' : 'text-surface-300'}>{label}</span>
+              {flagCount > 0 && (
+                <span className="text-surface-500">· {flagCount} flag{flagCount === 1 ? '' : 's'}</span>
+              )}
             </>
           )}
         </span>

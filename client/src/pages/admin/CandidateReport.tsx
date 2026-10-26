@@ -99,6 +99,14 @@ interface ReportDataType {
     required: boolean;
     count: number;
     flagged_count: number;
+    flags?: {
+      no_face: number;
+      multiple_faces: number;
+      looking_away: number;
+      eyes_off_screen: number;
+      camera_lost: number;
+      tab_return: number;
+    };
     snapshots: { id: number; taken_at: string; reason: string; image: string }[];
   };
 }
@@ -824,10 +832,19 @@ function ProctoringSection({
 }) {
   const { tab_switches: tabs, paste_events: pastes, camera } = report;
   const cameraMissing = !!camera?.required && camera.count === 0;
-  const cameraLost = (camera?.snapshots ?? []).some((f) => f.reason === 'camera-lost');
+  const flags = camera?.flags;
+  const behaviourFlags = flags
+    ? flags.no_face + flags.multiple_faces + flags.looking_away + flags.eyes_off_screen
+    : 0;
+  const cameraLost = (flags?.camera_lost ?? 0) > 0;
   const needsReview =
-    tabs.limit_exceeded || pastes.large_count > 0 || cameraMissing || cameraLost;
-  const minor = !needsReview && (tabs.count > 0 || pastes.count > 0);
+    tabs.limit_exceeded ||
+    pastes.large_count > 0 ||
+    cameraMissing ||
+    cameraLost ||
+    (flags?.multiple_faces ?? 0) > 0 ||
+    behaviourFlags >= 4;
+  const minor = !needsReview && (tabs.count > 0 || pastes.count > 0 || behaviourFlags > 0);
   const verdict = needsReview
     ? {
         label: 'Review recommended',
@@ -978,6 +995,16 @@ function ProctoringSection({
               </span>
             )}
           </div>
+          {flags && (
+            <div className="grid grid-cols-3 sm:grid-cols-6 divide-x divide-surface-800 border-b border-surface-800">
+              <Metric label="No face" value={flags.no_face} alert={flags.no_face > 0} />
+              <Metric label="Extra people" value={flags.multiple_faces} alert={flags.multiple_faces > 0} />
+              <Metric label="Looked away" value={flags.looking_away} alert={flags.looking_away >= 3} />
+              <Metric label="Eyes off screen" value={flags.eyes_off_screen} alert={flags.eyes_off_screen >= 3} />
+              <Metric label="Camera lost" value={flags.camera_lost} alert={flags.camera_lost > 0} />
+              <Metric label="Back from tab" value={flags.tab_return} />
+            </div>
+          )}
           {camera.snapshots.length === 0 ? (
             <p className="text-sm text-surface-500 text-center py-6">
               No camera frames were captured.
@@ -997,11 +1024,18 @@ function ProctoringSection({
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
-                    {f.reason === 'tab-return' && (
-                      <span className="text-amber-700"> · back from tab</span>
-                    )}
-                    {f.reason === 'camera-lost' && (
-                      <span className="text-red-700"> · camera lost</span>
+                    {f.reason !== 'interval' && f.reason !== 'start' && (
+                      <span className={f.reason === 'tab-return' || f.reason === 'looking-away' || f.reason === 'eyes-off-screen' ? 'text-amber-700' : 'text-red-700'}>
+                        {' · '}
+                        {{
+                          'tab-return': 'back from tab',
+                          'camera-lost': 'camera lost',
+                          'no-face': 'no face',
+                          'multiple-faces': 'extra person',
+                          'looking-away': 'looked away',
+                          'eyes-off-screen': 'eyes off screen',
+                        }[f.reason] ?? f.reason}
+                      </span>
                     )}
                   </figcaption>
                 </figure>
@@ -1014,6 +1048,11 @@ function ProctoringSection({
               sampled, flagged frames always included).
             </p>
           )}
+          <p className="text-xs text-surface-500 px-4 pb-3">
+            Behaviour flags are raised on the candidate's device from face landmarks and
+            gaze, after the signal lasts a few seconds. They are evidence for your review,
+            not an automatic verdict.
+          </p>
         </div>
       )}
     </div>

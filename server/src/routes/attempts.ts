@@ -380,6 +380,17 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
 // POST /api/attempts/:id/snapshot — Store a small camera frame for proctoring review
 const SNAPSHOT_MAX_BYTES = 200 * 1024;
 const SNAPSHOT_MIN_GAP_MS = 10000;
+// 'interval' is the routine frame; everything else is evidence the exam page flagged on-device.
+const SNAPSHOT_REASONS = [
+  'interval',
+  'start',
+  'tab-return',
+  'camera-lost',
+  'no-face',
+  'multiple-faces',
+  'looking-away',
+  'eyes-off-screen',
+];
 router.post('/:id/snapshot', async (req: Request, res: Response) => {
   try {
     const raw = typeof req.body.image === 'string' ? req.body.image : '';
@@ -389,9 +400,7 @@ router.post('/:id/snapshot', async (req: Request, res: Response) => {
     const image = Buffer.from(match[1], 'base64');
     if (!image.length || image.length > SNAPSHOT_MAX_BYTES)
       return res.status(413).json({ error: 'Snapshot too large' });
-    const reason = ['interval', 'tab-return', 'camera-lost', 'start'].includes(
-      req.body.reason,
-    )
+    const reason = SNAPSHOT_REASONS.includes(req.body.reason)
       ? String(req.body.reason)
       : 'interval';
 

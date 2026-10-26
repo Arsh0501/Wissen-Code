@@ -119,6 +119,7 @@ Each developer uses their own Gmail app password. Do not share one.
 | --- | --- |
 | `API_PROXY_TARGET` | `http://localhost:4001`, Vite dev proxy |
 | `VITE_API_URL` | Leave empty locally (defaults to `/api`) |
+| `VITE_PROCTOR_WASM_URL`, `VITE_PROCTOR_MODEL_URL` | Optional self-hosted MediaPipe runtime/model for camera proctoring; defaults load from jsDelivr and Google's model bucket |
 
 ## 4. What works without the optional parts
 

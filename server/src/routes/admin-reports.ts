@@ -651,6 +651,15 @@ export async function buildReportData(
       required: assessment.requireCamera,
       count: allSnapshots.length,
       flagged_count: flagged.length,
+      // On-device behaviour signals (face landmarks + gaze) raised by the exam page
+      flags: {
+        no_face: allSnapshots.filter((s) => s.reason === 'no-face').length,
+        multiple_faces: allSnapshots.filter((s) => s.reason === 'multiple-faces').length,
+        looking_away: allSnapshots.filter((s) => s.reason === 'looking-away').length,
+        eyes_off_screen: allSnapshots.filter((s) => s.reason === 'eyes-off-screen').length,
+        camera_lost: allSnapshots.filter((s) => s.reason === 'camera-lost').length,
+        tab_return: allSnapshots.filter((s) => s.reason === 'tab-return').length,
+      },
       snapshots: snapshots.map((s) => ({
         id: s.id,
         taken_at: s.takenAt.toISOString(),

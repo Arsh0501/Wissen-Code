@@ -363,10 +363,20 @@ export async function recordPaste(
   await api.post(`/attempts/${sessionId}/paste`, event);
 }
 
+export type SnapshotReason =
+  | 'interval'
+  | 'start'
+  | 'tab-return'
+  | 'camera-lost'
+  | 'no-face'
+  | 'multiple-faces'
+  | 'looking-away'
+  | 'eyes-off-screen';
+
 export async function uploadSnapshot(
   sessionId: number,
   image: string,
-  reason: 'interval' | 'tab-return' | 'camera-lost' | 'start',
+  reason: SnapshotReason,
 ): Promise<{ count: number }> {
   const { data } = await api.post(`/attempts/${sessionId}/snapshot`, { image, reason });
   return data;
