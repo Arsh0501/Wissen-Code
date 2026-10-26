@@ -1,5 +1,6 @@
 import { asynchronousGrading, enqueueGrading } from '../platform/grading-jobs';
 import { enqueueInlineGrading } from '../platform/inline-grading';
+import { notifyCompletion } from '../platform/batch';
 import { queueWebhook } from '../platform/webhooks';
 import { Router, Request, Response } from 'express';
 import prisma from '../prisma';
@@ -533,6 +534,9 @@ export async function finalizeSession(
     });
     void queueWebhook('assessment.completed', session.id).catch((error) =>
       console.error('Webhook enqueue failed:', error.message),
+    );
+    void notifyCompletion(session.id).catch((error) =>
+      console.error('Completion email failed:', error instanceof Error ? error.message : error),
     );
     return {
       status: 'finished',

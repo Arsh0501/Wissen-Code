@@ -1018,6 +1018,8 @@ router.post(
       const copy = await prisma.assessment.create({
         data: {
           ...config,
+        automation: {},
+        requireCamera: config.requireCamera,
           name: `${source.name} (Copy)`,
           status: 'draft',
           questions: {

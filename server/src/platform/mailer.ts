@@ -108,11 +108,18 @@ export function renderEmail(subject: string, body: string, sentAt = new Date()) 
   return { html, text };
 }
 
+export interface MailAttachment {
+  filename: string;
+  contentType: string;
+  content: string; // base64
+}
+
 export async function sendWithNodemailer(input: {
   id: string;
   to: string;
   subject: string;
   body: string;
+  attachments?: MailAttachment[];
 }) {
   const { html, text } = renderEmail(input.subject, input.body);
   const info = await mailTransport().sendMail({
@@ -121,6 +128,12 @@ export async function sendWithNodemailer(input: {
     subject: input.subject,
     text,
     html,
+    attachments: input.attachments?.map((a) => ({
+      filename: a.filename,
+      contentType: a.contentType,
+      content: a.content,
+      encoding: 'base64',
+    })),
     // Stable Message-ID lets receiving servers collapse duplicates after a worker retry.
     messageId: `<${input.id}@wissen-code>`,
   });

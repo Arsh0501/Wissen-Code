@@ -18,6 +18,7 @@ import { adminOnly } from './middleware/adminOnly';
 import cors from 'cors';
 import questionRoutes from './routes/questions';
 import assessmentRoutes from './routes/assessments';
+import batchRoutes from './routes/batch-routes';
 import judgeRoutes from './routes/judge';
 import submissionRoutes from './routes/submissions';
 import attemptRoutes from './routes/attempts';
@@ -164,6 +165,7 @@ app.get('/api/roles', adminOnly, ownerOnly, (_req, res) =>
   res.json(['admin', 'recruiter', 'interviewer', 'candidate']),
 );
 app.use('/api/questions', questionRoutes);
+app.use('/api/assessments', batchRoutes);
 app.use('/api/assessments', assessmentRoutes);
 app.use(
   '/api/judge',

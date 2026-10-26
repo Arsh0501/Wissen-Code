@@ -7,6 +7,7 @@ import { isMockMode } from './services/judge0';
 import { deliverOutbox } from './platform/communication';
 import { deliverWebhooks } from './platform/webhooks';
 import { sweepUngradedAttempts } from './platform/inline-grading';
+import { sweepAssessmentAutomation } from './platform/batch';
 import { finalizeSession } from './routes/attempts';
 import { asynchronousGrading } from './platform/grading-jobs';
 
@@ -42,11 +43,14 @@ process.once('SIGINT', () => void shutdown());
 // worker is in charge (OUTBOX_INLINE=false). Claims are atomic, so both may run together.
 const inlineOutbox = process.env.OUTBOX_INLINE !== 'false';
 let outboxTimer: NodeJS.Timeout | undefined;
+let outboxTicks = 0;
 async function drainOutbox() {
   if (closing) return;
   try {
     await deliverOutbox();
     await deliverWebhooks();
+    // Batch automation (auto-shortlist when a batch closes) runs about once a minute.
+    if (outboxTicks++ % 6 === 0) await sweepAssessmentAutomation();
   } catch (error) {
     console.error('Outbox processing failed:', error instanceof Error ? error.message : error);
   }

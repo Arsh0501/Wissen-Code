@@ -452,6 +452,102 @@ export async function downloadAssessmentCsv(
   };
 }
 
+// ---- Batch monitor & automation ----
+
+export interface ShortlistRule {
+  mode: 'top' | 'threshold' | 'passed';
+  topN: number;
+  minScore: number;
+  excludeFlagged: boolean;
+  maxFlags: number;
+}
+export interface AssessmentAutomation {
+  notifyOnCompletion: boolean;
+  autoShortlist: boolean;
+  notifyEmails: string[];
+  shortlist: ShortlistRule;
+  shortlistSentAt: string | null;
+}
+export interface MonitorRow {
+  key: string;
+  name: string;
+  email: string | null;
+  status: 'not-started' | 'in-progress' | 'completed';
+  isProvisional: boolean;
+  sessionId: number | null;
+  candidateUserId: number | null;
+  startedAt: string | null;
+  submittedAt: string | null;
+  remainingSeconds: number | null;
+  answered: number;
+  totalQuestions: number;
+  overallScore: number;
+  marksObtained: number;
+  totalMarks: number;
+  passed: boolean;
+  timeTakenSeconds: number | null;
+  tabSwitches: number;
+  cameraFlags: number;
+  flagReasons: string[];
+  shortlisted: boolean;
+  rank: number | null;
+}
+export interface MonitorData {
+  assessment: {
+    id: number;
+    name: string;
+    status: string;
+    startAt: string | null;
+    endAt: string | null;
+    timeLimitMinutes: number;
+    passingScore: number;
+    requireCamera: boolean;
+  };
+  automation: AssessmentAutomation;
+  counts: {
+    expected: number;
+    notStarted: number;
+    inProgress: number;
+    completed: number;
+    grading: number;
+    passed: number;
+    shortlisted: number;
+    flagged: number;
+  };
+  rows: MonitorRow[];
+  generatedAt: string;
+}
+export async function getMonitor(assessmentId: number): Promise<MonitorData> {
+  const { data } = await api.get(`/assessments/${assessmentId}/monitor`);
+  return data;
+}
+export async function updateAutomation(
+  assessmentId: number,
+  input: Partial<Omit<AssessmentAutomation, 'shortlist' | 'shortlistSentAt'>> & {
+    shortlist?: Partial<ShortlistRule>;
+    resetSent?: boolean;
+  },
+): Promise<AssessmentAutomation> {
+  const { data } = await api.put(`/assessments/${assessmentId}/automation`, input);
+  return data;
+}
+export async function downloadShortlistCsv(
+  assessmentId: number,
+): Promise<{ blob: Blob; filename: string }> {
+  const res = await api.get(`/assessments/${assessmentId}/shortlist.csv`, {
+    responseType: 'blob',
+  });
+  const match = /filename="([^"]+)"/.exec(res.headers['content-disposition'] || '');
+  return { blob: res.data, filename: match?.[1] || `shortlist-${assessmentId}.csv` };
+}
+export async function sendShortlistEmail(
+  assessmentId: number,
+  to?: string,
+): Promise<{ sent: number }> {
+  const { data } = await api.post(`/assessments/${assessmentId}/shortlist/send`, to ? { to } : {});
+  return data;
+}
+
 // ---- AI assessment generation ----
 
 export interface ResumeAssessmentResult {

@@ -118,6 +118,7 @@ model Assessment {
   maxAttempts      Int       @default(1)
   showResults      Boolean   @default(true) // Show score breakdown to the candidate after submit
   requireCamera    Boolean   @default(false) // Proctoring: candidate camera must stay on; snapshots are stored
+  automation       Json      @default("{}") // notifyOnCompletion, shortlist rule, autoShortlist, shortlistSentAt
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -524,6 +525,7 @@ model OutboundMessage {
   deliveredAt DateTime?
   providerId String?
   error String?
+  attachments Json @default("[]") // [{ filename, contentType, content(base64) }]
   createdAt DateTime @default(now())
   @@index([status, scheduledAt])
 

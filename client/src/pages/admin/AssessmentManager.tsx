@@ -38,6 +38,7 @@ import {
   MoreHorizontal,
   Link2,
   Sparkles,
+  Activity,
 } from "lucide-react";
 
 const FILTERS: { key: "all" | Availability; label: string }[] = [
@@ -302,15 +303,22 @@ export default function AssessmentManager() {
                   </div>
                   <div className="assessment-card-actions flex flex-wrap items-center gap-2">
                     <Link
+                      to={`/admin/assessments/${a.id}/monitor`}
+                      className={`btn-outline text-sm ${a.stats?.inProgress ? "ring-1 ring-sky-500/40" : ""}`}
+                      title="Who is writing now, who finished, shortlist and automation"
+                    >
+                      <Activity className="w-4 h-4" /> Live
+                      {!!a.stats?.inProgress && (
+                        <span className="text-xs text-sky-600">
+                          {a.stats.inProgress} now
+                        </span>
+                      )}
+                    </Link>
+                    <Link
                       to={`/admin/submissions/${a.id}`}
                       className="btn-outline text-sm"
                     >
                       <Users className="w-4 h-4" /> Results
-                      {!!a.stats?.inProgress && (
-                        <span className="text-xs text-sky-600">
-                          +{a.stats.inProgress} live
-                        </span>
-                      )}
                     </Link>
                     <button
                       onClick={() => setShareFor(a)}
