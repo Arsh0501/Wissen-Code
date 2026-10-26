@@ -80,3 +80,24 @@ it('shows the submit-feedback option only after ending succeeds and submits fina
     ],
   }) }));
 });
+
+
+it('shows only asked follow-ups in questions and moves skill controls into feedback', async () => {
+  vi.mocked(api.request).mockImplementation(async (config: any) => ({ data: config.url === '/interviews/20' ? {
+    id: 20, title: 'Interview', candidateName: 'Candidate', candidateEmail: 'candidate@test.invalid', status: 'in_progress', timeLimitMinutes: 45,
+    currentQuestionId: 3, currentCode: '', questions: [{ questionId: 3, candidateAnswer: 'Answer', question: { id: 3, title: 'Concurrency', statement: 'Explain locking' }, notes: JSON.stringify({ conversation: { turns: [{ question: 'Explain locking' }, { question: 'Why optimistic locking?' }] } }) }], submissions: [], notes: [],
+  } : config.url.endsWith('/follow-ups') ? [{ id: 'asked', question: 'How do you retry?', status: 'asked' }, { id: 'pending', question: 'Unasked suggestion', status: 'pending' }] : [] }));
+  renderWithProviders(<Routes><Route path="/admin/interviews/:id" element={<InterviewWorkspace />} /></Routes>, {
+    initialEntries: ['/admin/interviews/20?tab=evaluation'], loggedInAs: { ...adminUser, accessRole: 'interviewer' } as typeof adminUser,
+  });
+  expect(await screen.findByText('Why optimistic locking?')).toBeVisible();
+  expect(await screen.findByText('How do you retry?')).toBeVisible();
+  expect(screen.queryByText('Unasked suggestion')).not.toBeInTheDocument();
+  expect(screen.queryByText('Candidate answer')).not.toBeInTheDocument();
+  expect(screen.queryByText('Execution results')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Get AI observations' })).not.toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Feedback' }));
+  expect(await screen.findByText('Evaluation by skill')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Get AI observations' })).toBeVisible();
+  expect(screen.queryByText('Candidate code')).not.toBeInTheDocument();
+});

@@ -209,7 +209,7 @@ export default function InterviewWorkspace() {
               </>
             )}
 
-            {tab === 'evaluation' && (
+            {(tab === 'evaluation' || tab === 'feedback') && (
               <>
                 <label className="label mb-4">
                   Question
@@ -227,7 +227,7 @@ export default function InterviewWorkspace() {
                     ))}
                   </select>
                 </label>
-                {question && (
+                {tab === 'evaluation' && question && (
                   <div className="card mb-5">
                     <div className="flex justify-between mb-3">
                       <h2 className="text-lg font-semibold">
@@ -257,6 +257,8 @@ export default function InterviewWorkspace() {
                     </div>
                   </div>
                 )}
+                {tab === 'evaluation' && question && <AskedFollowUps interviewId={id} questionId={question.questionId} notes={question.notes} active={i.status === 'in_progress'} />}
+                {tab === 'feedback' && (<>
                 {evaluations.isLoading ? (
                   <Spinner />
                 ) : evaluations.error ? (
@@ -265,6 +267,7 @@ export default function InterviewWorkspace() {
                   question && (
                     <EvaluationEditor
                       key={`${targetId}:${evaluation?.id}:${evaluation?.revision}`}
+                      skillsOnly
                       id={id}
                       questionId={question.questionId}
                       existing={evaluation}
@@ -283,6 +286,7 @@ export default function InterviewWorkspace() {
                     />
                   )
                 )}
+                </>)}
               </>
             )}
           </>
@@ -291,6 +295,18 @@ export default function InterviewWorkspace() {
     </AdminLayout>
   );
 }
+function AskedFollowUps({ interviewId, questionId, notes, active }: { interviewId: number; questionId: number; notes?: string; active: boolean }) {
+  const saved = useQuery({ queryKey: ['question-follow-ups', interviewId, questionId], queryFn: () => apiData<{ id: string; question: string; status: string }[]>(`/interviews/${interviewId}/questions/${questionId}/follow-ups`), refetchInterval: active ? 5000 : false });
+  let turns: { question: string }[] = [];
+  try { const value = JSON.parse(notes ?? '{}').conversation?.turns; if (Array.isArray(value)) turns = value.slice(1).filter(turn => typeof turn?.question === 'string'); } catch {}
+  const questions = [...new Set([...turns.map(turn => turn.question), ...(saved.data ?? []).filter(item => item.status === 'asked').map(item => item.question)])];
+  return <section className="card space-y-3"><h2 className="font-semibold">Asked follow-ups</h2>
+    {saved.isLoading && <Spinner />}
+    {saved.error && <p role="alert">{apiError(saved.error)}</p>}
+    {questions.length ? <ol className="list-decimal pl-5 space-y-3">{questions.map(question => <li key={question} className="break-words whitespace-pre-wrap">{question}</li>)}</ol> : !saved.isLoading && !saved.error && <p className="text-sm text-surface-500">No follow-ups have been asked for this question.</p>}
+  </section>;
+}
+
 function readQuestionFeedback(notes?: string): string {
   try { const value = JSON.parse(notes ?? '{}').interviewerFeedback; return typeof value === 'string' ? value : ''; }
   catch { return ''; }
@@ -304,6 +320,7 @@ export function EvaluationEditor({
   code,
   latestSubmission,
   questionFeedback = '',
+  skillsOnly = false,
 }: {
   id: number;
   questionId: number;
@@ -312,6 +329,7 @@ export function EvaluationEditor({
   code: string;
   latestSubmission?: { id: number; score: number; results: string };
   questionFeedback?: string;
+  skillsOnly?: boolean;
 }) {
   const client = useQueryClient();
   const [candidateAnswer, setAnswer] = useState(
@@ -371,7 +389,7 @@ export function EvaluationEditor({
   const incompleteFinalSkills = existing?.status === 'final' && skills.some((skill) => skill.rating === null || !skill.rationale.trim());
   return (
     <fieldset disabled={observe.isPending || save.isPending} className="space-y-5 min-w-0">
-      <div className="card grid md:grid-cols-2 gap-5">
+      {!skillsOnly && <div className="card grid md:grid-cols-2 gap-5">
         <label className="label">
           Candidate answer
           <textarea
@@ -427,7 +445,7 @@ export function EvaluationEditor({
             onChange={(e) => setNotes(e.target.value)}
           />
         </label>
-      </div>
+      </div>}
       <div className="card space-y-4">
         <h2 className="font-semibold">Evaluation by skill</h2>
         <p className="text-sm text-surface-500">
