@@ -323,6 +323,11 @@ export async function notifyCompletion(sessionId: number) {
   if (!session) return;
   const automation = readAutomation(session.assessment.automation);
   if (!automation.notifyOnCompletion) return;
+  // Synthetic load-test candidates never trigger team mail.
+  if (session.candidateUserId) {
+    const user = await prisma.user.findUnique({ where: { id: session.candidateUserId }, select: { email: true } });
+    if (user?.email.endsWith('@loadtest.local')) return;
+  }
   const evaluation = await computeEvaluation(session.assessmentId, session.candidateName, session.candidateUserId ?? undefined);
   const data = await monitorData(session.assessmentId);
   const minutes = session.finishedAt ? Math.round((session.finishedAt.getTime() - session.startedAt.getTime()) / 60000) : null;

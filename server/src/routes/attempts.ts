@@ -381,6 +381,7 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
 // POST /api/attempts/:id/snapshot — Store a small camera frame for proctoring review
 const SNAPSHOT_MAX_BYTES = 200 * 1024;
 const SNAPSHOT_MIN_GAP_MS = 10000;
+const SNAPSHOT_MAX_PER_SESSION = 400; // ~4 h at one frame per 45 s plus flags
 // 'interval' is the routine frame; everything else is evidence the exam page flagged on-device.
 const SNAPSHOT_REASONS = [
   'interval',
@@ -408,11 +409,17 @@ router.post('/:id/snapshot', async (req: Request, res: Response) => {
     const session = await getWritableSession(req, res);
     if (!session) return;
 
-    const last = await prisma.proctorSnapshot.findFirst({
-      where: { sessionId: session.id },
-      orderBy: { takenAt: 'desc' },
-      select: { takenAt: true },
-    });
+    const [last, stored] = await Promise.all([
+      prisma.proctorSnapshot.findFirst({
+        where: { sessionId: session.id },
+        orderBy: { takenAt: 'desc' },
+        select: { takenAt: true },
+      }),
+      prisma.proctorSnapshot.count({ where: { sessionId: session.id } }),
+    ]);
+    // Hard cap per attempt keeps a misbehaving client from filling the database.
+    if (stored >= SNAPSHOT_MAX_PER_SESSION)
+      return res.status(429).json({ error: 'Snapshot limit reached for this attempt' });
     if (
       reason === 'interval' &&
       last &&
