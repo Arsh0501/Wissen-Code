@@ -35,21 +35,14 @@ it('filters by type, selects only visible questions, preserves hidden selections
     const [ids, setIds] = useState<number[]>([]);
     return (
       <>
-        <QuestionPicker
-          questions={questions}
-          selectedIds={ids}
-          onChange={setIds}
-        />
+        <QuestionPicker questions={questions} selectedIds={ids} onChange={setIds} />
         <output>{JSON.stringify(ids)}</output>
       </>
     );
   }
   const user = userEvent.setup();
   render(<Form />);
-  await user.selectOptions(
-    screen.getByLabelText('Question type filter'),
-    'debugging',
-  );
+  await user.selectOptions(screen.getByLabelText('Question type filter'), 'debugging');
   expect(screen.queryByLabelText('Select Array sum')).not.toBeInTheDocument();
   await user.click(screen.getByLabelText('Select all visible'));
   expect(screen.getByRole('status')).toHaveTextContent('[2]');
@@ -63,21 +56,11 @@ it('filters by type, selects only visible questions, preserves hidden selections
 });
 it('searches tags and shows a filter empty state', async () => {
   const user = userEvent.setup();
-  render(
-    <QuestionPicker
-      questions={questions}
-      selectedIds={[]}
-      onChange={() => {}}
-    />,
-  );
+  render(<QuestionPicker questions={questions} selectedIds={[]} onChange={() => {}} />);
   await user.type(screen.getByLabelText('Search questions'), 'Python');
   expect(screen.getByLabelText('Select Array sum')).toBeInTheDocument();
-  expect(
-    screen.queryByLabelText('Select Fix React cache'),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Select Fix React cache')).not.toBeInTheDocument();
   await user.clear(screen.getByLabelText('Search questions'));
   await user.type(screen.getByLabelText('Search questions'), 'no match');
-  expect(
-    screen.getByText('No questions match these filters.'),
-  ).toBeInTheDocument();
+  expect(screen.getByText('No questions match these filters.')).toBeInTheDocument();
 });

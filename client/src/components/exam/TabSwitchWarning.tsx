@@ -62,37 +62,51 @@ export function TabSwitchWarning({
       aria-labelledby="tab-switch-title"
       aria-describedby="tab-switch-desc"
     >
-      <div className={`card w-full max-w-md p-0 overflow-hidden shadow-2xl ring-2 ${s.ring} animate-fade-in`}>
+      <div
+        className={`card w-full max-w-md p-0 overflow-hidden shadow-2xl ring-2 ${s.ring} animate-fade-in`}
+      >
         <div className="px-6 pt-7 pb-5 text-center">
-          <div className={`w-14 h-14 rounded-2xl ${s.iconBg} flex items-center justify-center mx-auto mb-4`}>
+          <div
+            className={`w-14 h-14 rounded-2xl ${s.iconBg} flex items-center justify-center mx-auto mb-4`}
+          >
             {isFinal ? <AlertOctagon className="w-7 h-7" /> : <EyeOff className="w-7 h-7" />}
           </div>
-          <span className={`inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full ring-1 ${s.chip} mb-3`}>
+          <span
+            className={`inline-block text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full ring-1 ${s.chip} mb-3`}
+          >
             {s.label}
           </span>
           <h2 id="tab-switch-title" className="text-lg font-bold text-white">
             You left the test window
           </h2>
           <p id="tab-switch-desc" className="text-sm text-surface-500 mt-2 leading-relaxed">
-            You were away for <span className="text-white font-medium">{(awayMs / 1000).toFixed(1)}s</span>. This has been
-            recorded and shared with the reviewer.
+            You were away for{' '}
+            <span className="text-white font-medium">{(awayMs / 1000).toFixed(1)}s</span>. This has
+            been recorded and shared with the reviewer.
           </p>
         </div>
 
         {/* Allowance meter */}
         <div className="px-6 py-4 bg-surface-950 border-y border-surface-800">
           <div className="flex items-baseline justify-between mb-2">
-            <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">Tab switches used</span>
+            <span className="text-xs font-medium text-surface-500 uppercase tracking-wider">
+              Tab switches used
+            </span>
             <span className="text-sm font-bold text-white tabular-nums">
               {count} <span className="text-surface-500 font-medium">of {limit}</span>
             </span>
           </div>
           <div className="flex gap-1.5" aria-hidden="true">
             {Array.from({ length: limit }, (_, i) => (
-              <span key={i} className={`h-2 flex-1 rounded-full ${i < count ? s.bar : 'bg-surface-800'}`} />
+              <span
+                key={i}
+                className={`h-2 flex-1 rounded-full ${i < count ? s.bar : 'bg-surface-800'}`}
+              />
             ))}
           </div>
-          <p className={`text-xs mt-3 ${isFinal ? 'text-red-700 font-semibold' : 'text-surface-500'}`}>
+          <p
+            className={`text-xs mt-3 ${isFinal ? 'text-red-700 font-semibold' : 'text-surface-500'}`}
+          >
             {isFinal
               ? 'If you leave the test window again, your test will be submitted automatically.'
               : `Your test will be submitted automatically after ${remaining} more switch${remaining === 1 ? '' : 'es'}.`}

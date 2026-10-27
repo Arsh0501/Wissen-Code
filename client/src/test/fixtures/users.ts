@@ -42,10 +42,7 @@ export const MOCK_USERS: MockUser[] = [
   },
 ];
 
-export function findUserByCredentials(
-  email: string,
-  password: string,
-): MockUser | undefined {
+export function findUserByCredentials(email: string, password: string): MockUser | undefined {
   const normalizedEmail = email.trim().toLowerCase();
   return MOCK_USERS.find(
     (u) => u.email.toLowerCase() === normalizedEmail && u.password === password,

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { adminOnly } from '../middleware/adminOnly';
 
 const router = Router();
@@ -62,10 +62,7 @@ router.get('/:id/export-md', async (req: Request, res: Response) => {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
     res.setHeader('Content-Type', 'text/markdown');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${safeTitle}.md"`,
-    );
+    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.md"`);
     res.send(md);
   } catch (error) {
     console.error('Error exporting question:', error);
@@ -77,9 +74,7 @@ router.post('/import-md', async (req: Request, res: Response) => {
   try {
     const { markdownContent } = req.body;
     if (!markdownContent || typeof markdownContent !== 'string') {
-      return res
-        .status(400)
-        .json({ error: 'Missing or invalid markdown content' });
+      return res.status(400).json({ error: 'Missing or invalid markdown content' });
     }
 
     let title = '';
@@ -88,21 +83,15 @@ router.post('/import-md', async (req: Request, res: Response) => {
     // Extract Title
     const titleMatch = markdownContent.match(/^#\s+(.+)$/m);
     if (!titleMatch) {
-      return res
-        .status(400)
-        .json({ error: 'Missing required "# <Title>" section' });
+      return res.status(400).json({ error: 'Missing required "# <Title>" section' });
     }
     title = titleMatch[1].trim();
 
     // Extract Metadata
     const diffMatch = markdownContent.match(/\*\*Difficulty:\*\*\s+(.+)$/m);
     const tagsMatch = markdownContent.match(/\*\*Tags:\*\*\s+(.+)$/m);
-    const cpuMatch = markdownContent.match(
-      /\*\*CPU Time Limit \(seconds\):\*\*\s+([\d.]+)/m,
-    );
-    const memMatch = markdownContent.match(
-      /\*\*Memory Limit \(KB\):\*\*\s+(\d+)/m,
-    );
+    const cpuMatch = markdownContent.match(/\*\*CPU Time Limit \(seconds\):\*\*\s+([\d.]+)/m);
+    const memMatch = markdownContent.match(/\*\*Memory Limit \(KB\):\*\*\s+(\d+)/m);
 
     let difficulty = 'medium';
     if (diffMatch) {
@@ -141,16 +130,11 @@ router.post('/import-md', async (req: Request, res: Response) => {
     }
 
     // Extract Problem Statement
-    const statementMatch = markdownContent.match(
-      /## Problem Statement\s+([\s\S]+?)(?=\n##\s|$)/,
-    );
+    const statementMatch = markdownContent.match(/## Problem Statement\s+([\s\S]+?)(?=\n##\s|$)/);
     if (!statementMatch || !statementMatch[1].trim()) {
-      return res
-        .status(400)
-        .json({
-          error:
-            'Missing required "## Problem Statement" section or it is empty',
-        });
+      return res.status(400).json({
+        error: 'Missing required "## Problem Statement" section or it is empty',
+      });
     }
     const statement = statementMatch[1].trim();
 
@@ -158,29 +142,17 @@ router.post('/import-md', async (req: Request, res: Response) => {
     const sample_testcases: any[] = [];
     const hidden_testcases: any[] = [];
 
-    const extractTestCases = (
-      sectionTitle: string,
-      isSample: boolean,
-      targetArray: any[],
-    ) => {
-      const sectionRegex = new RegExp(
-        `## ${sectionTitle}\\s+([\\s\\S]+?)(?=\\n##\\s|$)`,
-      );
+    const extractTestCases = (sectionTitle: string, isSample: boolean, targetArray: any[]) => {
+      const sectionRegex = new RegExp(`## ${sectionTitle}\\s+([\\s\\S]+?)(?=\\n##\\s|$)`);
       const sectionMatch = markdownContent.match(sectionRegex);
       if (sectionMatch) {
         const sectionContent = sectionMatch[1];
-        const cases = sectionContent
-          .split(/###\s+(?:Sample|Hidden)\s+\d+/)
-          .filter((c) => c.trim());
+        const cases = sectionContent.split(/###\s+(?:Sample|Hidden)\s+\d+/).filter((c) => c.trim());
 
         for (let i = 0; i < cases.length; i++) {
           const caseContent = cases[i];
-          const inputMatch = caseContent.match(
-            /\*\*Input:\*\*\s+```\w*\n([\s\S]*?)\n```/,
-          );
-          const outputMatch = caseContent.match(
-            /\*\*Output:\*\*\s+```\w*\n([\s\S]*?)\n```/,
-          );
+          const inputMatch = caseContent.match(/\*\*Input:\*\*\s+```\w*\n([\s\S]*?)\n```/);
+          const outputMatch = caseContent.match(/\*\*Output:\*\*\s+```\w*\n([\s\S]*?)\n```/);
 
           if (!inputMatch || !outputMatch) {
             return {
@@ -198,25 +170,15 @@ router.post('/import-md', async (req: Request, res: Response) => {
       return null;
     };
 
-    const sampleErr = extractTestCases(
-      'Sample Test Cases',
-      true,
-      sample_testcases,
-    );
+    const sampleErr = extractTestCases('Sample Test Cases', true, sample_testcases);
     if (sampleErr) return res.status(400).json({ error: sampleErr.error });
 
-    const hiddenErr = extractTestCases(
-      'Hidden Test Cases',
-      false,
-      hidden_testcases,
-    );
+    const hiddenErr = extractTestCases('Hidden Test Cases', false, hidden_testcases);
     if (hiddenErr) return res.status(400).json({ error: hiddenErr.error });
 
     // Extract Starter Code
     const starter_code: any[] = [];
-    const starterCodeMatch = markdownContent.match(
-      /## Starter Code\s+([\s\S]+?)(?=\n##\s|$)/,
-    );
+    const starterCodeMatch = markdownContent.match(/## Starter Code\s+([\s\S]+?)(?=\n##\s|$)/);
     if (starterCodeMatch) {
       const scSection = starterCodeMatch[1];
       const langs = scSection.split(/###\s+/).filter((c) => c.trim());
@@ -242,9 +204,7 @@ router.post('/import-md', async (req: Request, res: Response) => {
               code: codeMatch[1].trim(),
             });
           } else {
-            warnings.push(
-              `Unrecognized starter code language "${langTitle}" ignored`,
-            );
+            warnings.push(`Unrecognized starter code language "${langTitle}" ignored`);
           }
         }
       }

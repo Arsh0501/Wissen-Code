@@ -34,9 +34,7 @@ export const notesSchema = z.object({
   problemSolvingNotes: z.array(note),
   communicationNotes: z.array(note),
   keyObservations: z.array(note),
-  timeline: z.array(
-    z.object({ eventId: z.number().int(), description: z.string() }),
-  ),
+  timeline: z.array(z.object({ eventId: z.number().int(), description: z.string() })),
 });
 export const reportSchema = z.object({
   skills: z
@@ -64,8 +62,7 @@ export function validateEvidence(
     if (
       'sourceId' in value &&
       'quote' in value &&
-      (!sources[value.sourceId] ||
-        !sources[value.sourceId].includes(value.quote))
+      (!sources[value.sourceId] || !sources[value.sourceId].includes(value.quote))
     )
       throw new Error('AI returned unsupported evidence');
     if ('eventId' in value && !eventIds.includes(value.eventId))

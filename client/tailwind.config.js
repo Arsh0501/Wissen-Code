@@ -1,9 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   // Built dynamically as `badge-${difficulty}`, so the scanner can't see them
   safelist: ['badge-easy', 'badge-medium', 'badge-hard'],
   theme: {
@@ -27,7 +24,7 @@ export default {
           [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [
             n,
             `rgb(var(--surface-${n}) / <alpha-value>)`,
-          ])
+          ]),
         ),
         // Heading/emphasis ink (was literal white in the dark theme)
         white: 'rgb(var(--ink) / <alpha-value>)',

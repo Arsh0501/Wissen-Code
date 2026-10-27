@@ -1,16 +1,16 @@
 import 'dotenv/config';
-import { measureRequest, readiness, metrics } from './platform/monitoring';
-import ssoRoutes from './platform/sso';
-import { staffPermissions, ownerOnly } from './platform/permissions';
-import platformRoutes from './platform/routes';
-import accountRoutes from './platform/account-routes';
+import { measureRequest, readiness, metrics } from './platform/observability/monitoring';
+import ssoRoutes from './routes/auth/sso';
+import { staffPermissions, ownerOnly } from './platform/auth/permissions';
+import platformRoutes from './routes/system';
+import accountRoutes from './routes/auth/account';
 import { randomUUID } from 'node:crypto';
-import { candidatePayload } from './platform/questions';
+import { candidatePayload } from './services/questions/candidate-payload';
 import http from 'http';
 import { ZodError } from 'zod';
 import aiWorkflowRoutes from './routes/ai-workflows';
 import interviewWorkflowRoutes from './routes/interview-workflows';
-import { WorkflowError } from './services/structured-ai';
+import { WorkflowError } from './services/ai/structured-ai';
 import express from 'express';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
@@ -29,13 +29,10 @@ import adminReportRoutes from './routes/admin-reports';
 import adminQuestionRoutes from './routes/admin-questions';
 import { adminInviteRoutes, publicInviteRoutes } from './routes/invites';
 import authRoutes from './routes/auth';
-import interviewRoutes, {
-  handleJoinRoom,
-  handleSaveRoomAnswer,
-} from './routes/interviews';
+import interviewRoutes, { handleJoinRoom, handleSaveRoomAnswer } from './routes/interviews';
 import { initSocketServer } from './socket';
 import { authenticate, validateAuthConfiguration } from './middleware/auth';
-import { isMockMode } from './services/judge0';
+import { isMockMode } from './services/execution/judge0';
 
 validateAuthConfiguration();
 
@@ -78,9 +75,7 @@ app.use(
 );
 app.use(
   cors({
-    origin: (
-      process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3000'
-    )
+    origin: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3000')
       .split(',')
       .map((v) => v.trim()),
     credentials: true,
@@ -118,8 +113,7 @@ app.use('/api', staffPermissions);
 app.use('/api', (req, res, next) => {
   if (req.user?.role !== 'admin') {
     const json = res.json.bind(res);
-    res.json = ((body: unknown) =>
-      json(candidatePayload(body))) as typeof res.json;
+    res.json = ((body: unknown) => json(candidatePayload(body))) as typeof res.json;
   }
   next();
 });
@@ -161,33 +155,21 @@ app.use('/api/agents', adminOnly, (_req, res) =>
 );
 app.use('/api/interviews', interviewRoutes);
 
-app.use(
-  (
-    error: any,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-  ) => {
-    if (error instanceof ZodError)
-      return res.status(400).json({
-        error: error.issues
-          .map((i) => `${i.path.join('.')}: ${i.message}`)
-          .join('; '),
-      });
-    if (error.status === 503)
-      return res.status(503).json({ error: error.message });
-    if (error instanceof WorkflowError)
-      return res.status(error.status).json({ error: error.message });
-    if (error.code === 'P2034')
-      return res.status(409).json({
-        error: 'Another request changed this record. Reload and retry.',
-      });
-    console.error('Workflow request failed:', error.message);
-    res
-      .status(502)
-      .json({ error: 'The request could not be completed. Please retry.' });
-  },
-);
+app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (error instanceof ZodError)
+    return res.status(400).json({
+      error: error.issues.map((i) => `${i.path.join('./index')}: ${i.message}`).join('; '),
+    });
+  if (error.status === 503) return res.status(503).json({ error: error.message });
+  if (error instanceof WorkflowError)
+    return res.status(error.status).json({ error: error.message });
+  if (error.code === 'P2034')
+    return res.status(409).json({
+      error: 'Another request changed this record. Reload and retry.',
+    });
+  console.error('Workflow request failed:', error.message);
+  res.status(502).json({ error: 'The request could not be completed. Please retry.' });
+});
 
 process.once('SIGTERM', () => {
   httpServer.close(() => process.exit(0));

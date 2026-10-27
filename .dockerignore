@@ -1,0 +1,10 @@
+# The only repository-root build context is the private transcription image.
+# Client and server builds use their own build contexts and ignore files.
+**
+!services/
+!services/transcription/
+!services/transcription/server.py
+!services/transcription/requirements.txt
+!deployment/
+!deployment/aws/
+!deployment/aws/Transcription.Dockerfile

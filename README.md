@@ -26,6 +26,20 @@ npm run dev
 
 Open http://localhost:3000. The seeded local administrator account is `admin@wissen.dev` / `Admin@123`. Demo accounts are for local development only.
 
+### Start the complete project
+
+After completing the setup above and installing the [transcription environment](services/transcription/README.md#setup-powershell-from-repository-root), run this from the repository root:
+
+```sh
+npm run dev:all
+```
+
+On Windows, you can also double-click `start-project.cmd`. The launcher starts the frontend, API, AI worker, mail worker, grading worker and transcription service together, with labeled logs in one terminal. Press Ctrl+C to stop the launched processes.
+
+PostgreSQL must already be running. If local Redis is stopped, the launcher can restart the existing `wissen-code-redis-1` Docker container when its published port matches `REDIS_URL`; Docker Desktop must be running. PostgreSQL and Redis stay running when the launcher exits. Existing mail queues are processed normally by the mail worker.
+
+The launcher checks JavaScript/Python dependencies, required environment settings, dependency ports and occupied application ports before starting. It reuses an existing transcription service only when its health endpoint reports ready; reused services remain running on exit. Use `npm run dev:check` to run those checks without starting processes or restarting Redis. It does not install dependencies, change environment files, apply migrations, or verify database credentials/schema. Stop previously started frontend/backend processes before using it. Model loading or a first-time model download may delay transcription startup.
+
 To load sample questions and assessment results, run `npm run db:seed` from `server`. This command replaces the development assessment data; it is optional.
 
 Run `npm run worker` in a second terminal from `server` to process queued AI jobs when Redis is configured. Without `REDIS_URL`, manually requested AI jobs run directly through the API. Set an AI provider key to enable generation. The key stays on the backend. See [AI agent UI locations](docs/ai-agents-ui.md).
@@ -38,6 +52,10 @@ Run `npm test` and `npm run build` from the project root. Backend tests require 
 
 ## Docker
 
+For Vercel frontend hosting with all backend services and databases on AWS EC2, follow the complete [Vercel + AWS deployment walkthrough](docs/deploy-vercel-aws.md). It covers Git, AWS console setup, a free DuckDNS hostname, HTTPS, environment variables, database initialization, workers, transcription, administrator creation and optional TURN relay.
+
+For a Render Static Site frontend with the backend, workers, PostgreSQL, Redis and transcription on one EC2 instance, follow [Render + AWS demo deployment](docs/deploy-render-aws.md). That setup uses the separate `compose.aws.yaml` file and a free DuckDNS hostname; it does not use the combined frontend/backend production Compose setup below.
+
 Set `POSTGRES_PASSWORD` and `JWT_SECRET`, then run:
 
 ```sh
@@ -48,12 +66,17 @@ Compose runs PostgreSQL, Redis, migrations, the API and the AI worker. Run the f
 
 ## Project structure
 
+See [Project structure and conventions](docs/project-structure.md) for the complete directory layout, file placement rules and formatting commands. Run `npm run format` to format supported source files and `npm run format:check` to check consistency.
+
 - `client/src/pages`: administrator and candidate screens.
 - `client/src/components`: shared UI and workflow components.
 - `client/src/services`: API clients and workflow types.
 - `client/src/test`: test setup and fixtures.
 - `server/src/routes`: authenticated REST APIs.
-- `server/src/ai`: OpenAI gateway, tools, workflows and background worker.
+- `server/src/ai`: AI gateway, agents, tools and workflow support.
+- `server/src/services`: domain services grouped by assessment, interview, question, execution and AI responsibilities.
+- `server/src/platform`: authentication, mail, job, realtime and monitoring infrastructure.
+- `server/src/workers`: AI, mail and grading worker entry points.
 - `server/src/socket`: live interview events.
 - `server/prisma`: database schema and migrations.
 

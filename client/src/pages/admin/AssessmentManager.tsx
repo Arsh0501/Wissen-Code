@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
-import ShareLinksModal from '../../components/ShareLinksModal';
-import BulkAssessmentInvites from '../../components/BulkAssessmentInvites';
+import AdminLayout from '../../components/layout/AdminLayout';
+import ShareLinksModal from '../../components/assessments/ShareLinksModal';
+import BulkAssessmentInvites from '../../components/assessments/BulkAssessmentInvites';
 import {
   AvailabilityBadge,
   Spinner,
@@ -148,15 +148,11 @@ export default function AssessmentManager() {
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={`px-3 py-1.5 rounded-md text-sm whitespace-nowrap transition-colors ${
-                filter === f.key
-                  ? 'bg-surface-700 text-white'
-                  : 'text-surface-400 hover:text-white'
+                filter === f.key ? 'bg-surface-700 text-white' : 'text-surface-400 hover:text-white'
               }`}
             >
               {f.label}{' '}
-              <span className="text-surface-500 text-xs tabular-nums">
-                {counts[f.key]}
-              </span>
+              <span className="text-surface-500 text-xs tabular-nums">{counts[f.key]}</span>
             </button>
           ))}
         </div>
@@ -185,17 +181,12 @@ export default function AssessmentManager() {
           }
         />
       ) : visible.length === 0 ? (
-        <p className="text-center text-surface-500 py-16">
-          No assessments match this filter.
-        </p>
+        <p className="text-center text-surface-500 py-16">No assessments match this filter.</p>
       ) : (
         <div className="grid gap-4">
           {visible.map((a) => {
             const langs = parseJsonArray<number>(a.allowedLanguages);
-            const totalMarks = a.questions.reduce(
-              (acc, q) => acc + (q.marks ?? 0),
-              0,
-            );
+            const totalMarks = a.questions.reduce((acc, q) => acc + (q.marks ?? 0), 0);
             return (
               <div
                 key={a.id}
@@ -213,19 +204,15 @@ export default function AssessmentManager() {
                       <AvailabilityBadge value={a.availability} />
                     </div>
                     {a.description && (
-                      <p className="text-sm text-surface-400 mt-1 line-clamp-2">
-                        {a.description}
-                      </p>
+                      <p className="text-sm text-surface-400 mt-1 line-clamp-2">{a.description}</p>
                     )}
                     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-surface-400">
                       <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes}{' '}
-                        min
+                        <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes} min
                       </span>
                       <span className="flex items-center gap-1">
-                        <Target className="w-3.5 h-3.5" />{' '}
-                        {a._count?.questions ?? 0} questions · {totalMarks}{' '}
-                        marks · pass {a.passingScore}%
+                        <Target className="w-3.5 h-3.5" /> {a._count?.questions ?? 0} questions ·{' '}
+                        {totalMarks} marks · pass {a.passingScore}%
                       </span>
                       {(a.startAt || a.endAt) && (
                         <span className="flex items-center gap-1">
@@ -286,15 +273,10 @@ export default function AssessmentManager() {
 
                 <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-surface-800">
                   <div className="flex items-center gap-2">
-                    <Link
-                      to={`/admin/submissions/${a.id}`}
-                      className="btn-outline text-sm"
-                    >
+                    <Link to={`/admin/submissions/${a.id}`} className="btn-outline text-sm">
                       <Users className="w-4 h-4" /> Results
                       {!!a.stats?.inProgress && (
-                        <span className="text-xs text-sky-600">
-                          +{a.stats.inProgress} live
-                        </span>
+                        <span className="text-xs text-sky-600">+{a.stats.inProgress} live</span>
                       )}
                     </Link>
                     <button
@@ -304,11 +286,15 @@ export default function AssessmentManager() {
                     >
                       <Link2 className="w-4 h-4" /> Share link
                     </button>
-                    <button className="btn-outline text-sm" disabled={a.status !== 'published'} onClick={() => setBulkFor(a)}>Bulk invite candidates</button>
                     <button
-                      onClick={() =>
-                        navigate(`/admin/assessments/${a.id}/edit`)
-                      }
+                      className="btn-outline text-sm"
+                      disabled={a.status !== 'published'}
+                      onClick={() => setBulkFor(a)}
+                    >
+                      Bulk invite candidates
+                    </button>
+                    <button
+                      onClick={() => navigate(`/admin/assessments/${a.id}/edit`)}
                       className="btn-outline text-sm"
                     >
                       <Edit className="w-4 h-4" /> Edit
@@ -319,9 +305,7 @@ export default function AssessmentManager() {
                         className="btn-primary text-sm"
                         disabled={!a._count?.questions}
                         title={
-                          a._count?.questions
-                            ? 'Make visible to candidates'
-                            : 'Add questions first'
+                          a._count?.questions ? 'Make visible to candidates' : 'Add questions first'
                         }
                       >
                         <Rocket className="w-4 h-4" /> Publish
@@ -329,9 +313,7 @@ export default function AssessmentManager() {
                     )}
                     <div className="relative">
                       <button
-                        onClick={() =>
-                          setMenuFor(menuFor === a.id ? null : a.id)
-                        }
+                        onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}
                         className="btn-ghost p-2"
                         aria-label="More actions"
                       >
@@ -339,15 +321,10 @@ export default function AssessmentManager() {
                       </button>
                       {menuFor === a.id && (
                         <>
-                          <div
-                            className="fixed inset-0 z-40"
-                            onClick={() => setMenuFor(null)}
-                          />
+                          <div className="fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
                           <div className="absolute right-0 mt-1 w-48 rounded-lg bg-surface-800 border border-surface-700 shadow-xl z-50 py-1 text-sm">
                             <button
-                              onClick={() =>
-                                run(a.id, () => duplicateAssessment(a.id))
-                              }
+                              onClick={() => run(a.id, () => duplicateAssessment(a.id))}
                               className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
                             >
                               <Copy className="w-4 h-4" /> Duplicate
@@ -392,7 +369,13 @@ export default function AssessmentManager() {
           })}
         </div>
       )}
-      {bulkFor && <BulkAssessmentInvites key={bulkFor.id} assessment={bulkFor} onClose={() => setBulkFor(null)} />}
+      {bulkFor && (
+        <BulkAssessmentInvites
+          key={bulkFor.id}
+          assessment={bulkFor}
+          onClose={() => setBulkFor(null)}
+        />
+      )}
       {shareFor && (
         <ShareLinksModal
           assessment={{

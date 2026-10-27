@@ -3,9 +3,9 @@ import {
   questionTypes,
   validateQuestionSettings,
   candidatePayload,
-} from '../platform/questions';
+} from '../services/questions/candidate-payload';
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { adminOnly, adminOrInterviewer } from '../middleware/adminOnly';
 
 const router = Router();
@@ -14,11 +14,25 @@ router.use(async (req, res, next) => {
   const id = req.path.match(/^\/(\d+)(?:\/|$)/)?.[1];
   const testCaseId = req.path.match(/^\/testcases\/(\d+)(?:\/|$)/)?.[1];
   try {
-    const question = id ? await prisma.question.findUnique({ where: { id: Number(id) }, select: { ownerInterviewId: true } })
-      : testCaseId ? (await prisma.testCase.findUnique({ where: { id: Number(testCaseId) }, select: { question: { select: { ownerInterviewId: true } } } }))?.question : undefined;
-    if (question?.ownerInterviewId != null) return res.status(404).json({ error: 'Question not found in the shared bank' });
+    const question = id
+      ? await prisma.question.findUnique({
+          where: { id: Number(id) },
+          select: { ownerInterviewId: true },
+        })
+      : testCaseId
+        ? (
+            await prisma.testCase.findUnique({
+              where: { id: Number(testCaseId) },
+              select: { question: { select: { ownerInterviewId: true } } },
+            })
+          )?.question
+        : undefined;
+    if (question?.ownerInterviewId != null)
+      return res.status(404).json({ error: 'Question not found in the shared bank' });
     next();
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 });
 const questionInput = z.object({
   title: z.string().trim().min(1).max(200),
@@ -54,10 +68,7 @@ const questionInput = z.object({
 // GET /api/questions — List questions. Optional filters: ?search=&difficulty=&tag=
 router.get('/', adminOrInterviewer, async (req: Request, res: Response) => {
   try {
-    const { search, difficulty, tag } = req.query as Record<
-      string,
-      string | undefined
-    >;
+    const { search, difficulty, tag } = req.query as Record<string, string | undefined>;
     const questions = await prisma.question.findMany({
       where: {
         ownerInterviewId: null,
@@ -73,9 +84,7 @@ router.get('/', adminOrInterviewer, async (req: Request, res: Response) => {
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(
-      req.user?.role === 'admin' ? questions : candidatePayload(questions),
-    );
+    res.json(req.user?.role === 'admin' ? questions : candidatePayload(questions));
   } catch (error) {
     console.error('Error fetching questions:', error);
     res.status(500).json({ error: 'Failed to fetch questions' });
@@ -90,16 +99,13 @@ router.get('/:id', adminOrInterviewer, async (req: Request, res: Response) => {
       include: {
         starterCodes: true,
         // Hidden test cases are only visible to admins
-        testCases:
-          req.user?.role === 'admin' ? true : { where: { isSample: true } },
+        testCases: req.user?.role === 'admin' ? true : { where: { isSample: true } },
       },
     });
     if (!question) {
       return res.status(404).json({ error: 'Question not found' });
     }
-    res.json(
-      req.user?.role === 'admin' ? question : candidatePayload(question),
-    );
+    res.json(req.user?.role === 'admin' ? question : candidatePayload(question));
   } catch (error) {
     console.error('Error fetching question:', error);
     res.status(500).json({ error: 'Failed to fetch question' });
@@ -129,10 +135,7 @@ router.post('/', adminOnly, async (req: Request, res: Response) => {
         statement,
         difficulty: difficulty || 'medium',
         questionType: questionType || 'coding',
-        settings: validateQuestionSettings(
-          questionType || 'coding',
-          req.body.settings,
-        ),
+        settings: validateQuestionSettings(questionType || 'coding', req.body.settings),
         tags: JSON.stringify(tags || []),
         timeLimit: timeLimit || 2,
         memoryLimit: memoryLimit || 256000,
@@ -174,15 +177,8 @@ router.post('/', adminOnly, async (req: Request, res: Response) => {
 router.put('/:id', adminOnly, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
-    const {
-      title,
-      statement,
-      difficulty,
-      questionType,
-      tags,
-      timeLimit,
-      memoryLimit,
-    } = questionInput.partial().parse(req.body);
+    const { title, statement, difficulty, questionType, tags, timeLimit, memoryLimit } =
+      questionInput.partial().parse(req.body);
     const existing = await prisma.question.findUniqueOrThrow({ where: { id } });
 
     if (questionType && !questionTypes.includes(questionType))
@@ -208,9 +204,7 @@ router.put('/:id', adminOnly, async (req: Request, res: Response) => {
       },
     });
 
-    res.json(
-      req.user?.role === 'admin' ? question : candidatePayload(question),
-    );
+    res.json(req.user?.role === 'admin' ? question : candidatePayload(question));
   } catch (error) {
     console.error('Error updating question:', error);
     res.status(400).json({
@@ -235,107 +229,91 @@ router.delete('/:id', adminOnly, async (req: Request, res: Response) => {
 // ---- Test Cases ----
 
 // POST /api/questions/:id/testcases — Add test cases
-router.post(
-  '/:id/testcases',
-  adminOnly,
-  async (req: Request, res: Response) => {
-    try {
-      const questionId = parseInt(req.params.id);
-      const { testCases } = req.body; // Array of { input, expectedOutput, isSample }
+router.post('/:id/testcases', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const questionId = parseInt(req.params.id);
+    const { testCases } = req.body; // Array of { input, expectedOutput, isSample }
 
-      if (Array.isArray(testCases)) {
-        const created = await prisma.testCase.createMany({
-          data: testCases.map((tc: any) => ({
-            questionId,
-            input: tc.input,
-            expectedOutput: tc.expectedOutput,
-            isSample: tc.isSample || false,
-          })),
-        });
-        return res.status(201).json({ count: created.count });
-      }
-
-      // Single test case
-      const tc = await prisma.testCase.create({
-        data: {
+    if (Array.isArray(testCases)) {
+      const created = await prisma.testCase.createMany({
+        data: testCases.map((tc: any) => ({
           questionId,
-          input: req.body.input,
-          expectedOutput: req.body.expectedOutput,
-          isSample: req.body.isSample || false,
-        },
+          input: tc.input,
+          expectedOutput: tc.expectedOutput,
+          isSample: tc.isSample || false,
+        })),
       });
-      res.status(201).json(tc);
-    } catch (error) {
-      console.error('Error adding test cases:', error);
-      res.status(500).json({ error: 'Failed to add test cases' });
+      return res.status(201).json({ count: created.count });
     }
-  },
-);
+
+    // Single test case
+    const tc = await prisma.testCase.create({
+      data: {
+        questionId,
+        input: req.body.input,
+        expectedOutput: req.body.expectedOutput,
+        isSample: req.body.isSample || false,
+      },
+    });
+    res.status(201).json(tc);
+  } catch (error) {
+    console.error('Error adding test cases:', error);
+    res.status(500).json({ error: 'Failed to add test cases' });
+  }
+});
 
 // PUT /api/questions/testcases/:tcId — Update a test case
-router.put(
-  '/testcases/:tcId',
-  adminOnly,
-  async (req: Request, res: Response) => {
-    try {
-      const tc = await prisma.testCase.update({
-        where: { id: parseInt(req.params.tcId) },
-        data: {
-          input: req.body.input,
-          expectedOutput: req.body.expectedOutput,
-          isSample: req.body.isSample,
-        },
-      });
-      res.json(tc);
-    } catch (error) {
-      console.error('Error updating test case:', error);
-      res.status(500).json({ error: 'Failed to update test case' });
-    }
-  },
-);
+router.put('/testcases/:tcId', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const tc = await prisma.testCase.update({
+      where: { id: parseInt(req.params.tcId) },
+      data: {
+        input: req.body.input,
+        expectedOutput: req.body.expectedOutput,
+        isSample: req.body.isSample,
+      },
+    });
+    res.json(tc);
+  } catch (error) {
+    console.error('Error updating test case:', error);
+    res.status(500).json({ error: 'Failed to update test case' });
+  }
+});
 
 // DELETE /api/questions/testcases/:tcId — Delete a test case
-router.delete(
-  '/testcases/:tcId',
-  adminOnly,
-  async (req: Request, res: Response) => {
-    try {
-      await prisma.testCase.delete({
-        where: { id: parseInt(req.params.tcId) },
-      });
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error deleting test case:', error);
-      res.status(500).json({ error: 'Failed to delete test case' });
-    }
-  },
-);
+router.delete('/testcases/:tcId', adminOnly, async (req: Request, res: Response) => {
+  try {
+    await prisma.testCase.delete({
+      where: { id: parseInt(req.params.tcId) },
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting test case:', error);
+    res.status(500).json({ error: 'Failed to delete test case' });
+  }
+});
 
 // ---- Starter Codes ----
 
 // POST /api/questions/:id/starter-code — Add/update starter code
-router.post(
-  '/:id/starter-code',
-  adminOnly,
-  async (req: Request, res: Response) => {
-    try {
-      const questionId = parseInt(req.params.id);
-      const { languageId, languageName, code } = req.body;
+router.post('/:id/starter-code', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const questionId = parseInt(req.params.id);
+    const { languageId, languageName, code } = req.body;
 
-      const starterCode = await prisma.starterCode.upsert({
-        where: {
-          questionId_languageId: { questionId, languageId },
-        },
-        update: { code, languageName },
-        create: { questionId, languageId, languageName, code },
-      });
+    const starterCode = await prisma.starterCode.upsert({
+      where: {
+        questionId_languageId: { questionId, languageId },
+      },
+      update: { code, languageName },
+      create: { questionId, languageId, languageName, code },
+    });
 
-      res.status(201).json(starterCode);
-    } catch (error) {
-      console.error('Error saving starter code:', error);
-      res.status(500).json({ error: 'Failed to save starter code' });
-    }
-  },
-);
+    res.status(201).json(starterCode);
+  } catch (error) {
+    console.error('Error saving starter code:', error);
+    res.status(500).json({ error: 'Failed to save starter code' });
+  }
+});
 
 export default router;

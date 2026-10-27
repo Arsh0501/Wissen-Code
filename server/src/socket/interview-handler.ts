@@ -1,15 +1,15 @@
-import { queueWebhook } from '../platform/webhooks';
-import { registerRoomTools } from '../platform/room-tools';
-import { candidatePayload } from '../platform/questions';
-import { runInterviewSamples } from '../services/interview-execution';
-import { enforceInterviewDeadlines } from '../services/interview-expiry';
+import { queueWebhook } from '../platform/mail/webhooks';
+import { registerRoomTools } from '../platform/realtime/room-tools';
+import { candidatePayload } from '../services/questions/candidate-payload';
+import { runInterviewSamples } from '../services/interviews/interview-execution';
+import { enforceInterviewDeadlines } from '../services/interviews/interview-expiry';
 import { Server, Socket } from 'socket.io';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { triggerInterviewAI } from '../ai/trigger';
 import { latestUIResults } from '../ai/results';
-import { candidateRoomState } from '../services/candidate-room-state';
-import { interviewEventMetadata } from '../services/interview-event-metadata';
-import { executeCode } from '../services/judge0';
+import { candidateRoomState } from '../services/interviews/candidate-room-state';
+import { interviewEventMetadata } from '../services/interviews/interview-event-metadata';
+import { executeCode } from '../services/execution/judge0';
 import {
   INTERVIEW_EVENTS,
   SocketUser,
@@ -33,12 +33,28 @@ const codeDebounceMap = new Map<number, DebounceCache>();
 // Track connected participants per interview room: interviewId -> Set of socket IDs
 const roomSocketsMap = new Map<number, Set<string>>();
 let eventsIO: Server | undefined;
-async function publishLiveEvent(event: { id: number; interviewId: number; eventType: string; actorRole: string; createdAt: Date }) {
+async function publishLiveEvent(event: {
+  id: number;
+  interviewId: number;
+  eventType: string;
+  actorRole: string;
+  createdAt: Date;
+}) {
   if (!eventsIO) return;
-  const interview = await prisma.interview.findUnique({ where: { id: event.interviewId }, select: { interviewerId: true } });
-  if (interview) eventsIO.to(`private:interview:${event.interviewId}:user:${interview.interviewerId}`).emit('INTERVIEW_EVENT', {
-    id: event.id, interviewId: event.interviewId, eventType: event.eventType, actorRole: event.actorRole, createdAt: event.createdAt.toISOString(),
+  const interview = await prisma.interview.findUnique({
+    where: { id: event.interviewId },
+    select: { interviewerId: true },
   });
+  if (interview)
+    eventsIO
+      .to(`private:interview:${event.interviewId}:user:${interview.interviewerId}`)
+      .emit('INTERVIEW_EVENT', {
+        id: event.id,
+        interviewId: event.interviewId,
+        eventType: event.eventType,
+        actorRole: event.actorRole,
+        createdAt: event.createdAt.toISOString(),
+      });
 }
 
 export function getInterviewRoom(interviewId: number): string {
@@ -64,12 +80,9 @@ async function scheduleCodeSave(
     const interview = await tx.interview.findUniqueOrThrow({
       where: { id: interviewId },
     });
-    if (interview.status !== 'in_progress')
-      throw new Error('Interview is not active');
+    if (interview.status !== 'in_progress') throw new Error('Interview is not active');
     if (interview.codeRevision !== baseRevision)
-      throw new Error(
-        'Code changed on another device. Resolve the conflicting draft.',
-      );
+      throw new Error('Code changed on another device. Resolve the conflicting draft.');
     const updated = await tx.interview.update({
       where: { id: interviewId },
       data: {
@@ -113,10 +126,11 @@ export async function recordInterviewEvent(
       },
     });
     await publishLiveEvent(event).catch(() => {});
-    if (eventType === 'QUESTION_FEEDBACK_UPDATED' || (eventType === 'CODE_SUBMITTED' && actorRole === 'candidate'))
-      void triggerInterviewAI(interviewId, 'interview-assistant', event).catch(
-        () => {},
-      );
+    if (
+      eventType === 'QUESTION_FEEDBACK_UPDATED' ||
+      (eventType === 'CODE_SUBMITTED' && actorRole === 'candidate')
+    )
+      void triggerInterviewAI(interviewId, 'interview-assistant', event).catch(() => {});
     if (eventType === 'INTERVIEW_ENDED') {
       void queueWebhook('interview.completed', interviewId).catch((error) =>
         console.error('Webhook enqueue failed:', error.message),
@@ -161,11 +175,14 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         !interview ||
         (current.role === 'interviewer'
           ? current.userId !== interview.interviewerId
-          : current.roomToken !== interview.roomToken &&
-            current.userId !== interview.candidateId)
+          : current.roomToken !== interview.roomToken && current.userId !== interview.candidateId)
       )
         return next(new Error('Interview access denied'));
-      if (interview.status === 'scheduled' && interview.scheduledAt && Date.now() >= interview.scheduledAt.getTime() + interview.timeLimitMinutes * 60000) {
+      if (
+        interview.status === 'scheduled' &&
+        interview.scheduledAt &&
+        Date.now() >= interview.scheduledAt.getTime() + interview.timeLimitMinutes * 60000
+      ) {
         await enforceInterviewDeadlines({ id });
         return next(new Error('This interview has ended without being started'));
       }
@@ -192,9 +209,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       next(new Error('Invalid interview event'));
     }
   });
-  socket.on('error', (error) =>
-    socket.emit(INTERVIEW_EVENTS.ERROR, { message: error.message }),
-  );
+  socket.on('error', (error) => socket.emit(INTERVIEW_EVENTS.ERROR, { message: error.message }));
 
   registerRoomTools(io, socket);
   // 1. JOIN_INTERVIEW
@@ -306,14 +321,10 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       }
       roomSocketsMap.get(interviewId)!.add(socket.id);
 
-      if (
-        socket.data.joinedInterviewId !== interview.id ||
-        !socket.data.sessionId
-      ) {
+      if (socket.data.joinedInterviewId !== interview.id || !socket.data.sessionId) {
         // Record session in database
         const ipAddress =
-          (socket.handshake.headers['x-forwarded-for'] as string) ||
-          socket.handshake.address;
+          (socket.handshake.headers['x-forwarded-for'] as string) || socket.handshake.address;
         const userAgent = socket.handshake.headers['user-agent'] || '';
 
         const session = await prisma.interviewSession.create({
@@ -332,9 +343,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
 
         // Broadcast join event
         const joinEventName =
-          role === 'candidate'
-            ? INTERVIEW_EVENTS.CANDIDATE_JOINED
-            : INTERVIEWER_JOINED_EVENT(role);
+          role === 'candidate' ? INTERVIEW_EVENTS.CANDIDATE_JOINED : INTERVIEWER_JOINED_EVENT(role);
 
         io.to(room).emit(joinEventName, {
           participantName,
@@ -354,8 +363,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       // Send initial state back to the connected user
       // If there is an in-memory cached code, serve that; otherwise serve DB code
       const cached = undefined as DebounceCache | undefined;
-      const activeCode =
-        cached?.code !== undefined ? cached.code : interview.currentCode;
+      const activeCode = cached?.code !== undefined ? cached.code : interview.currentCode;
       const activeLangId = cached?.languageId || interview.currentLanguageId;
 
       const initialState = {
@@ -367,12 +375,14 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         currentQuestionId: interview.currentQuestionId,
         currentQuestion: interview.currentQuestion,
         currentCandidateAnswer:
-          interview.questions.find(
-            (q) => q.questionId === interview.currentQuestionId,
-          )?.candidateAnswer ?? '',
-        questions: role === 'candidate'
-          ? interview.questions.map(({ notes: _notes, referenceAnswer: _answer, ...question }) => question)
-          : interview.questions,
+          interview.questions.find((q) => q.questionId === interview.currentQuestionId)
+            ?.candidateAnswer ?? '',
+        questions:
+          role === 'candidate'
+            ? interview.questions.map(
+                ({ notes: _notes, referenceAnswer: _answer, ...question }) => question,
+              )
+            : interview.questions,
         codeRevision: interview.codeRevision,
         currentCode: activeCode,
         currentLanguageId: activeLangId,
@@ -383,10 +393,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       const syncState = role === 'candidate' ? candidateRoomState(initialState) : initialState;
 
       if (role === 'interviewer') {
-        (syncState as any).aiResults = await latestUIResults(
-          interviewId,
-          user!.userId!,
-        );
+        (syncState as any).aiResults = await latestUIResults(interviewId, user!.userId!);
       }
       socket.emit(INTERVIEW_EVENTS.SYNC_STATE, syncState);
 
@@ -394,8 +401,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         callback({
           success: true,
           event: 'JOIN_INTERVIEW',
-          syncState:
-            role === 'candidate' ? candidatePayload(syncState) : syncState,
+          syncState: role === 'candidate' ? candidatePayload(syncState) : syncState,
         });
       }
 
@@ -417,9 +423,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
   socket.on(INTERVIEW_EVENTS.JOIN_INTERVIEW, (payload, callback) => {
     joinQueue = joinQueue
       .then(() => joinInterview(payload, callback))
-      .catch((error) =>
-        console.error('Room synchronization failed:', error.message),
-      );
+      .catch((error) => console.error('Room synchronization failed:', error.message));
   });
 
   // 2. START_INTERVIEW
@@ -444,11 +448,9 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         where: { id: interviewId, status: 'scheduled' },
         data: { status: 'in_progress', startedAt: new Date() },
       });
-      if (!changed.count)
-        throw new Error('Only scheduled interviews can be started');
-      const startedAt = (
-        await prisma.interview.findUniqueOrThrow({ where: { id: interviewId } })
-      ).startedAt!;
+      if (!changed.count) throw new Error('Only scheduled interviews can be started');
+      const startedAt = (await prisma.interview.findUniqueOrThrow({ where: { id: interviewId } }))
+        .startedAt!;
       const updated = await prisma.interview.update({
         where: { id: interviewId },
         data: {
@@ -463,14 +465,9 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         timeLimitMinutes: updated.timeLimitMinutes,
       });
 
-      await recordInterviewEvent(
-        interviewId,
-        INTERVIEW_EVENTS.INTERVIEW_STARTED,
-        'interviewer',
-        {
-          startedAt: startedAt.toISOString(),
-        },
-      );
+      await recordInterviewEvent(interviewId, INTERVIEW_EVENTS.INTERVIEW_STARTED, 'interviewer', {
+        startedAt: startedAt.toISOString(),
+      });
 
       if (typeof callback === 'function') {
         callback({
@@ -482,8 +479,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
     } catch (err: any) {
       console.error('[Socket] START_INTERVIEW error:', err);
       socket.emit(INTERVIEW_EVENTS.ERROR, { message: err.message });
-      if (typeof callback === 'function')
-        callback({ success: false, error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
@@ -555,9 +551,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
             : interview?.currentLanguageId === 82
               ? 71
               : interview?.currentLanguageId || 71;
-        const starter = question.starterCodes.find(
-          (sc) => sc.languageId === langId,
-        );
+        const starter = question.starterCodes.find((sc) => sc.languageId === langId);
         const starterCode = starter ? starter.code : '';
 
         // Update currentQuestionId and starter code in DB
@@ -587,17 +581,12 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
           timestamp: new Date().toISOString(),
         });
 
-        await recordInterviewEvent(
-          interviewId,
-          INTERVIEW_EVENTS.QUESTION_CHANGED,
-          'interviewer',
-          {
-            questionId: question.id,
-            questionTitle: question.title,
-            code: starterCode,
-            languageId: langId,
-          },
-        );
+        await recordInterviewEvent(interviewId, INTERVIEW_EVENTS.QUESTION_CHANGED, 'interviewer', {
+          questionId: question.id,
+          questionTitle: question.title,
+          code: starterCode,
+          languageId: langId,
+        });
 
         if (typeof callback === 'function') {
           callback({
@@ -610,8 +599,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       } catch (err: any) {
         console.error('[Socket] CHANGE_QUESTION error:', err);
         socket.emit(INTERVIEW_EVENTS.ERROR, { message: err.message });
-        if (typeof callback === 'function')
-          callback({ success: false, error: err.message });
+        if (typeof callback === 'function') callback({ success: false, error: err.message });
       }
     },
   );
@@ -640,10 +628,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      if (
-        payload.code.length > 50000 ||
-        ![71, 62, 54, 63, 82].includes(payload.languageId || 71)
-      )
+      if (payload.code.length > 50000 || ![71, 62, 54, 63, 82].includes(payload.languageId || 71))
         throw new Error('Invalid code or language');
       const baseRevision = (payload as any).baseRevision;
       if (!Number.isInteger(baseRevision))
@@ -749,14 +734,8 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         return;
       }
 
-      if (
-        ['mcq', 'written', 'project'].includes(
-          interview.currentQuestion?.questionType ?? '',
-        )
-      )
-        throw new Error(
-          'Use the candidate answer and human evaluation for this question format',
-        );
+      if (['mcq', 'written', 'project'].includes(interview.currentQuestion?.questionType ?? ''))
+        throw new Error('Use the candidate answer and human evaluation for this question format');
       const code = payload?.code || interview.currentCode;
       const languageId =
         interview.currentQuestion?.questionType === 'sql'
@@ -771,8 +750,12 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       });
 
       // Execute through Judge0
-      const execution = await runInterviewSamples({ code, languageId, question: interview.currentQuestion,
-        stdin: typeof payload?.stdin === 'string' ? payload.stdin : undefined });
+      const execution = await runInterviewSamples({
+        code,
+        languageId,
+        question: interview.currentQuestion,
+        stdin: typeof payload?.stdin === 'string' ? payload.stdin : undefined,
+      });
       const result = execution.result;
 
       const broadcastData = {
@@ -785,15 +768,10 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       io.to(room).emit(INTERVIEW_EVENTS.CODE_EXECUTED, broadcastData);
       io.to(room).emit('EXECUTE_CODE', broadcastData);
 
-      await recordInterviewEvent(
-        interviewId,
-        INTERVIEW_EVENTS.CODE_EXECUTED,
-        role,
-        {
-          status: result.status.description,
-          time: result.time,
-        },
-      );
+      await recordInterviewEvent(interviewId, INTERVIEW_EVENTS.CODE_EXECUTED, role, {
+        status: result.status.description,
+        time: result.time,
+      });
 
       if (typeof callback === 'function') {
         callback({ success: true, ...execution });
@@ -803,8 +781,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       socket.emit(INTERVIEW_EVENTS.ERROR, {
         message: err.message || 'Execution failed',
       });
-      if (typeof callback === 'function')
-        callback({ success: false, error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   };
 
@@ -864,8 +841,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       }
 
       const code = payload?.code || interview.currentCode || '';
-      const languageId =
-        payload?.languageId || interview.currentLanguageId || 71;
+      const languageId = payload?.languageId || interview.currentLanguageId || 71;
 
       const question = await prisma.question.findUnique({
         where: { id: questionId },
@@ -888,7 +864,10 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       // Grade against ALL test cases
       if (['mcq', 'written', 'project'].includes(question.questionType))
         throw new Error('This question requires human evaluation');
-      if (!question.testCases.length) throw new Error('No test cases are configured for this question. Ask the interviewer to choose a question with test cases.');
+      if (!question.testCases.length)
+        throw new Error(
+          'No test cases are configured for this question. Ask the interviewer to choose a question with test cases.',
+        );
       let infrastructureFailed = false;
       let passedCount = 0;
       const testCaseResults = [];
@@ -896,8 +875,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       for (const tc of question.testCases) {
         try {
           const res = await executeCode({
-            sourceCode:
-              question.questionType === 'sql' ? `${tc.input}\n${code}` : code,
+            sourceCode: question.questionType === 'sql' ? `${tc.input}\n${code}` : code,
             languageId: question.questionType === 'sql' ? 82 : languageId,
             stdin: question.questionType === 'sql' ? '' : tc.input,
             expectedOutput: tc.expectedOutput,
@@ -906,8 +884,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
           });
 
           const actual = (res.stdout || '').trim();
-          const passed =
-            res.status.id === 3 && actual === tc.expectedOutput.trim();
+          const passed = res.status.id === 3 && actual === tc.expectedOutput.trim();
           if (passed) passedCount++;
 
           testCaseResults.push({
@@ -920,7 +897,15 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
                 ? 'Wrong Answer'
                 : res.status.description,
             executionTime: res.time ? parseFloat(res.time) : null,
-            ...(tc.isSample ? { input: tc.input, expectedOutput: tc.expectedOutput, actualOutput: res.stdout || '', stderr: res.stderr, compileOutput: res.compile_output } : {}),
+            ...(tc.isSample
+              ? {
+                  input: tc.input,
+                  expectedOutput: tc.expectedOutput,
+                  actualOutput: res.stdout || '',
+                  stderr: res.stderr,
+                  compileOutput: res.compile_output,
+                }
+              : {}),
           });
         } catch (execErr: any) {
           infrastructureFailed = true;
@@ -934,9 +919,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       }
 
       const score =
-        question.testCases.length > 0
-          ? (passedCount / question.testCases.length) * 100
-          : 0;
+        question.testCases.length > 0 ? (passedCount / question.testCases.length) * 100 : 0;
 
       // Save submission record
       const submission = await prisma.interviewSubmission.create({
@@ -978,15 +961,10 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       io.to(room).emit(INTERVIEW_EVENTS.CODE_SUBMITTED, broadcastData);
       io.to(room).emit('SUBMIT_CODE', broadcastData);
 
-      await recordInterviewEvent(
-        interviewId,
-        INTERVIEW_EVENTS.CODE_SUBMITTED,
-        role,
-        {
-          submissionId: submission.id,
-          score,
-        },
-      );
+      await recordInterviewEvent(interviewId, INTERVIEW_EVENTS.CODE_SUBMITTED, role, {
+        submissionId: submission.id,
+        score,
+      });
 
       if (typeof callback === 'function') {
         callback({
@@ -1004,8 +982,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       socket.emit(INTERVIEW_EVENTS.ERROR, {
         message: err.message || 'Submission failed',
       });
-      if (typeof callback === 'function')
-        callback({ success: false, error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   };
 
@@ -1013,84 +990,74 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
   socket.on('CODE_SUBMITTED', handleSubmitCode);
 
   // 7. ADD_NOTE (Interviewer Evaluation)
-  socket.on(
-    INTERVIEW_EVENTS.ADD_NOTE,
-    async (payload: AddNotePayload, callback?: any) => {
-      try {
-        const interviewId = socket.data.user?.interviewId;
-        const authorId = socket.data.user?.userId;
+  socket.on(INTERVIEW_EVENTS.ADD_NOTE, async (payload: AddNotePayload, callback?: any) => {
+    try {
+      const interviewId = socket.data.user?.interviewId;
+      const authorId = socket.data.user?.userId;
 
-        if (!interviewId) return;
+      if (!interviewId) return;
 
-        if (socket.data.user?.role !== 'interviewer' || !authorId) {
-          socket.emit(INTERVIEW_EVENTS.ERROR, {
-            message: 'Only interviewers can record interview notes',
-          });
-          if (typeof callback === 'function')
-            callback({
-              success: false,
-              error: 'Only interviewers can record notes',
-            });
-          return;
-        }
-
-        if (!payload?.content?.trim()) {
-          socket.emit(INTERVIEW_EVENTS.ERROR, {
-            message: 'Note content cannot be empty',
-          });
-          if (typeof callback === 'function')
-            callback({ success: false, error: 'Note content cannot be empty' });
-          return;
-        }
-
-        const note = await prisma.interviewNote.create({
-          data: {
-            interviewId,
-            authorId,
-            category: payload.category || 'general',
-            rating:
-              payload.rating !== undefined ? Number(payload.rating) : null,
-            content: payload.content.trim(),
-            isPrivate: payload.isPrivate ?? true,
-          },
-          include: {
-            author: { select: { id: true, name: true } },
-          },
+      if (socket.data.user?.role !== 'interviewer' || !authorId) {
+        socket.emit(INTERVIEW_EVENTS.ERROR, {
+          message: 'Only interviewers can record interview notes',
         });
-
-        const room = getInterviewRoom(interviewId);
-
-        // If private, broadcast only to other interviewer sockets in the room
-        if (note.isPrivate) {
-          io.to(`private:interview:${interviewId}:user:${authorId}`).emit(
-            INTERVIEW_EVENTS.NOTE_ADDED,
-            note,
-          );
-        } else {
-          io.to(room).emit(INTERVIEW_EVENTS.NOTE_ADDED, note);
-        }
-
-        await recordInterviewEvent(
-          interviewId,
-          INTERVIEW_EVENTS.NOTE_ADDED,
-          'interviewer',
-          {
-            noteId: note.id,
-            category: note.category,
-          },
-        );
-
-        if (typeof callback === 'function') {
-          callback({ success: true, note });
-        }
-      } catch (err: any) {
-        console.error('[Socket] ADD_NOTE error:', err);
-        socket.emit(INTERVIEW_EVENTS.ERROR, { message: err.message });
         if (typeof callback === 'function')
-          callback({ success: false, error: err.message });
+          callback({
+            success: false,
+            error: 'Only interviewers can record notes',
+          });
+        return;
       }
-    },
-  );
+
+      if (!payload?.content?.trim()) {
+        socket.emit(INTERVIEW_EVENTS.ERROR, {
+          message: 'Note content cannot be empty',
+        });
+        if (typeof callback === 'function')
+          callback({ success: false, error: 'Note content cannot be empty' });
+        return;
+      }
+
+      const note = await prisma.interviewNote.create({
+        data: {
+          interviewId,
+          authorId,
+          category: payload.category || 'general',
+          rating: payload.rating !== undefined ? Number(payload.rating) : null,
+          content: payload.content.trim(),
+          isPrivate: payload.isPrivate ?? true,
+        },
+        include: {
+          author: { select: { id: true, name: true } },
+        },
+      });
+
+      const room = getInterviewRoom(interviewId);
+
+      // If private, broadcast only to other interviewer sockets in the room
+      if (note.isPrivate) {
+        io.to(`private:interview:${interviewId}:user:${authorId}`).emit(
+          INTERVIEW_EVENTS.NOTE_ADDED,
+          note,
+        );
+      } else {
+        io.to(room).emit(INTERVIEW_EVENTS.NOTE_ADDED, note);
+      }
+
+      await recordInterviewEvent(interviewId, INTERVIEW_EVENTS.NOTE_ADDED, 'interviewer', {
+        noteId: note.id,
+        category: note.category,
+      });
+
+      if (typeof callback === 'function') {
+        callback({ success: true, note });
+      }
+    } catch (err: any) {
+      console.error('[Socket] ADD_NOTE error:', err);
+      socket.emit(INTERVIEW_EVENTS.ERROR, { message: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
+    }
+  });
 
   // 8. END_INTERVIEW
   socket.on(INTERVIEW_EVENTS.END_INTERVIEW, async (callback?: any) => {
@@ -1116,8 +1083,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
       const state = await prisma.interview.findUniqueOrThrow({
         where: { id: interviewId },
       });
-      if (state.status !== 'in_progress')
-        throw new Error('Only active interviews can be ended');
+      if (state.status !== 'in_progress') throw new Error('Only active interviews can be ended');
       const endedAt = new Date();
       await prisma.interview.update({
         where: { id: interviewId },
@@ -1132,14 +1098,9 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
         endedAt: endedAt.toISOString(),
       });
 
-      await recordInterviewEvent(
-        interviewId,
-        INTERVIEW_EVENTS.INTERVIEW_ENDED,
-        'interviewer',
-        {
-          endedAt: endedAt.toISOString(),
-        },
-      );
+      await recordInterviewEvent(interviewId, INTERVIEW_EVENTS.INTERVIEW_ENDED, 'interviewer', {
+        endedAt: endedAt.toISOString(),
+      });
 
       if (typeof callback === 'function') {
         callback({
@@ -1151,8 +1112,7 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
     } catch (err: any) {
       console.error('[Socket] END_INTERVIEW error:', err);
       socket.emit(INTERVIEW_EVENTS.ERROR, { message: err.message });
-      if (typeof callback === 'function')
-        callback({ success: false, error: err.message });
+      if (typeof callback === 'function') callback({ success: false, error: err.message });
     }
   });
 
@@ -1187,7 +1147,5 @@ export function registerInterviewHandlers(io: Server, socket: Socket) {
 }
 
 function INTERVIEWER_JOINED_EVENT(role: string): string {
-  return role === 'interviewer'
-    ? INTERVIEW_EVENTS.INTERVIEWER_JOINED
-    : 'PARTICIPANT_JOINED';
+  return role === 'interviewer' ? INTERVIEW_EVENTS.INTERVIEWER_JOINED : 'PARTICIPANT_JOINED';
 }

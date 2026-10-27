@@ -7,16 +7,21 @@ import InterviewsPage from './InterviewsPage';
 import { renderWithProviders, adminUser } from '../../test/test-utils';
 it('fills assessment candidate email and clears it when the next candidate has none', async () => {
   const user = userEvent.setup();
-  vi.spyOn(services, 'getAssessments').mockResolvedValue([{ id: 3, name: 'Frontend assessment' }] as any);
+  vi.spyOn(services, 'getAssessments').mockResolvedValue([
+    { id: 3, name: 'Frontend assessment' },
+  ] as any);
   vi.mocked(api.request).mockImplementation(async (config: any) => ({
-    data: config.url === '/users/interviewers'
-      ? [{ id: 2, name: 'Interviewer', email: 'interviewer@example.test', role: 'interviewer' }]
-      : config.url === '/assessments/3/candidates'
-        ? { candidates: [
-            { name: 'Maya', email: 'maya@example.test', candidateUserId: 10 },
-            { name: 'Guest', email: null },
-          ] }
-        : [],
+    data:
+      config.url === '/users/interviewers'
+        ? [{ id: 2, name: 'Interviewer', email: 'interviewer@example.test', role: 'interviewer' }]
+        : config.url === '/assessments/3/candidates'
+          ? {
+              candidates: [
+                { name: 'Maya', email: 'maya@example.test', candidateUserId: 10 },
+                { name: 'Guest', email: null },
+              ],
+            }
+          : [],
   }));
   renderWithProviders(<InterviewsPage />, { loggedInAs: adminUser });
   await user.click(screen.getByRole('button', { name: 'Create Interview' }));
@@ -51,21 +56,28 @@ it('lets admins select a candidate and schedule without selecting questions or s
   vi.mocked(api.request).mockImplementation(async (config: any) => ({
     data:
       config.url === '/users/interviewers'
-        ? [{ id: 2, name: 'Assigned Interviewer', email: 'interviewer@example.test', role: 'interviewer' }]
-        : config.url === '/interviews' && config.method === 'get'
         ? [
             {
-              id: 7,
-              title: 'Earlier interview',
-              candidateName: 'Maya',
-              candidateEmail: 'maya@example.test',
-              status: 'completed',
-              timeLimitMinutes: 30,
+              id: 2,
+              name: 'Assigned Interviewer',
+              email: 'interviewer@example.test',
+              role: 'interviewer',
             },
           ]
-        : config.url === '/interviews'
-          ? { interview: { id: 8 } }
-          : { success: true },
+        : config.url === '/interviews' && config.method === 'get'
+          ? [
+              {
+                id: 7,
+                title: 'Earlier interview',
+                candidateName: 'Maya',
+                candidateEmail: 'maya@example.test',
+                status: 'completed',
+                timeLimitMinutes: 30,
+              },
+            ]
+          : config.url === '/interviews'
+            ? { interview: { id: 8 } }
+            : { success: true },
   }));
   renderWithProviders(
     <Routes>
@@ -77,39 +89,32 @@ it('lets admins select a candidate and schedule without selecting questions or s
   await user.click(screen.getByRole('button', { name: 'Create Interview' }));
   expect(screen.queryByText('Select Questions')).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /start interview/i })).not.toBeInTheDocument();
-  await user.type(
-    screen.getByLabelText('Interview title'),
-    'Frontend Interview',
-  );
+  await user.type(screen.getByLabelText('Interview title'), 'Frontend Interview');
   await user.selectOptions(screen.getByLabelText(/Assigned Interviewer/), '2');
-  await user.click(
-    screen.getByRole('button', { name: 'Next: Select Candidate' }),
+  await user.click(screen.getByRole('button', { name: 'Next: Select Candidate' }));
+  await user.click(await screen.findByRole('button', { name: /Maya maya@example.test/i }));
+  expect(screen.getByLabelText('Candidate email')).toHaveValue('maya@example.test');
+  await user.upload(
+    screen.getByLabelText(/Browse Resume File/),
+    new File(['%PDF-1.4\nresume\n%%EOF'], 'candidate-resume.pdf', { type: 'application/pdf' }),
   );
-  await user.click(
-    await screen.findByRole('button', { name: /Maya maya@example.test/i }),
-  );
-  expect(screen.getByLabelText('Candidate email')).toHaveValue(
-    'maya@example.test',
-  );
-  await user.upload(screen.getByLabelText(/Browse Resume File/), new File(
-    ['%PDF-1.4\nresume\n%%EOF'], 'candidate-resume.pdf', { type: 'application/pdf' },
-  ));
-  await user.click(
-    screen.getByRole('button', { name: 'Next: Review & Schedule' }),
-  );
+  await user.click(screen.getByRole('button', { name: 'Next: Review & Schedule' }));
   expect(screen.queryByRole('button', { name: /start interview/i })).not.toBeInTheDocument();
   expect(await screen.findByText('PDF attached')).toBeInTheDocument();
-  await user.click(
-    screen.getByRole('button', { name: 'Save scheduled interview' }),
-  );
+  await user.click(screen.getByRole('button', { name: 'Save scheduled interview' }));
   expect(await screen.findByText('Live workspace')).toBeInTheDocument();
   expect(api.request).not.toHaveBeenCalledWith(
     expect.objectContaining({ url: '/interviews/8/start', method: 'post' }),
   );
-  expect(api.request).toHaveBeenCalledWith(expect.objectContaining({
-    url: '/interviews', method: 'post', data: expect.objectContaining({
-      questionIds: [], interviewerId: 2,
-      candidateResumeUrl: expect.stringMatching(/^data:application\/pdf;base64,/),
+  expect(api.request).toHaveBeenCalledWith(
+    expect.objectContaining({
+      url: '/interviews',
+      method: 'post',
+      data: expect.objectContaining({
+        questionIds: [],
+        interviewerId: 2,
+        candidateResumeUrl: expect.stringMatching(/^data:application\/pdf;base64,/),
+      }),
     }),
-  }));
+  );
 });

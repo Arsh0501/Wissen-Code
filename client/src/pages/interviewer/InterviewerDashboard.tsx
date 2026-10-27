@@ -77,7 +77,6 @@ export default function InterviewerDashboard() {
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showQuestionsModal, setShowQuestionsModal] = useState(false);
 
-
   // Fetch interviews assigned to this interviewer
   const interviewsQuery = useQuery({
     queryKey: ['interviewer-interviews', user?.id],
@@ -99,7 +98,8 @@ export default function InterviewerDashboard() {
 
   // Assigned interviewers can extend an interview while it is in progress.
   const extendMutation = useMutation({
-    mutationFn: (id: number) => apiData(`/interviews/${id}/extend`, 'post', { extensionMinutes: 15 }),
+    mutationFn: (id: number) =>
+      apiData(`/interviews/${id}/extend`, 'post', { extensionMinutes: 15 }),
     onSuccess: async (_result, id) => {
       await Promise.all([
         client.invalidateQueries({ queryKey: ['interviewer-interviews', user?.id] }),
@@ -131,7 +131,7 @@ export default function InterviewerDashboard() {
     if (now >= latestStart) {
       return {
         canStart: false,
-                        reason: 'Ended — the interviewer did not start within the scheduled duration.',
+        reason: 'Ended — the interviewer did not start within the scheduled duration.',
         isExpired: true,
       };
     }
@@ -174,7 +174,8 @@ export default function InterviewerDashboard() {
               Welcome back, {user?.name || 'Interviewer'}
             </h1>
             <p className="text-surface-400 text-sm mt-1">
-              Manage your technical interviews, select available questions, and review live candidate evaluations.
+              Manage your technical interviews, select available questions, and review live
+              candidate evaluations.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -355,9 +356,16 @@ export default function InterviewerDashboard() {
                 <div className="flex min-w-0 flex-col gap-4">
                   {/* Left Column: Info */}
                   <div className="min-w-0 space-y-2">
-                    {interview.status === 'expired' && <p className="text-sm text-surface-400">The scheduled duration passed without the interviewer starting this interview.</p>}
+                    {interview.status === 'expired' && (
+                      <p className="text-sm text-surface-400">
+                        The scheduled duration passed without the interviewer starting this
+                        interview.
+                      </p>
+                    )}
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="min-w-0 break-words [overflow-wrap:anywhere] text-lg font-semibold text-white">{interview.title}</h2>
+                      <h2 className="min-w-0 break-words [overflow-wrap:anywhere] text-lg font-semibold text-white">
+                        {interview.title}
+                      </h2>
                       {isLive && (
                         <span className="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5 flex items-center gap-1 font-medium">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -374,7 +382,11 @@ export default function InterviewerDashboard() {
                           Completed
                         </span>
                       )}
-                      {interview.status === 'expired' && <span className="badge bg-surface-800 text-surface-400">Ended — not started</span>}
+                      {interview.status === 'expired' && (
+                        <span className="badge bg-surface-800 text-surface-400">
+                          Ended — not started
+                        </span>
+                      )}
                       {interview.extendedMinutes > 0 && (
                         <span className="badge bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs px-2 py-0.5">
                           +{interview.extendedMinutes}m Extended
@@ -385,7 +397,10 @@ export default function InterviewerDashboard() {
                     <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-surface-400">
                       <span className="flex min-w-0 max-w-full items-start gap-1.5 text-surface-300">
                         <User className="w-3.5 h-3.5 shrink-0 text-primary-400" />
-                        <span className="min-w-0 break-words [overflow-wrap:anywhere]"><strong className="text-white">{interview.candidateName}</strong> ({interview.candidateEmail})</span>
+                        <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                          <strong className="text-white">{interview.candidateName}</strong> (
+                          {interview.candidateEmail})
+                        </span>
                       </span>
                       <span className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
@@ -453,8 +468,20 @@ export default function InterviewerDashboard() {
                   </div>
 
                   {/* Right Column: Actions */}
-                  <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto border-t border-surface-800 pt-4 pb-2 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>a]:shrink-0 [&>a]:whitespace-nowrap" role="region" aria-label="Interview actions" tabIndex={0}>
-                    {isCompleted && <InterviewFeedbackReportDownload interviewId={interview.id} submitted={!!interview.finalFeedback} completed compact />}
+                  <div
+                    className="flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto border-t border-surface-800 pt-4 pb-2 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>a]:shrink-0 [&>a]:whitespace-nowrap"
+                    role="region"
+                    aria-label="Interview actions"
+                    tabIndex={0}
+                  >
+                    {isCompleted && (
+                      <InterviewFeedbackReportDownload
+                        interviewId={interview.id}
+                        submitted={!!interview.finalFeedback}
+                        completed
+                        compact
+                      />
+                    )}
                     {/* View Resume Button */}
                     {(interview.candidateResume || interview.candidateResumeUrl) && (
                       <button
@@ -472,7 +499,11 @@ export default function InterviewerDashboard() {
                     {/* AI Resume Questions Generator */}
                     <button
                       disabled={!isScheduled && !isLive}
-                      title={!isScheduled && !isLive ? 'Question preparation is disabled after the interview ends.' : 'Prepare interview questions'}
+                      title={
+                        !isScheduled && !isLive
+                          ? 'Question preparation is disabled after the interview ends.'
+                          : 'Prepare interview questions'
+                      }
                       onClick={() => {
                         setSelectedInterview(interview);
                         setShowQuestionsModal(true);
@@ -482,7 +513,6 @@ export default function InterviewerDashboard() {
                       <Sparkles className="w-3.5 h-3.5 text-purple-400" />
                       Select questions
                     </button>
-
 
                     {/* Scheduled: Start Interview */}
                     {isScheduled && (
@@ -502,9 +532,15 @@ export default function InterviewerDashboard() {
                     )}
 
                     {/* Live Room Link */}
-                    {isLive && <button className="btn-outline text-xs text-amber-400" disabled={extendMutation.isPending} onClick={() => extendMutation.mutate(interview.id)}>
-                      {extendMutation.isPending ? 'Extending…' : '+15m Extend duration'}
-                    </button>}
+                    {isLive && (
+                      <button
+                        className="btn-outline text-xs text-amber-400"
+                        disabled={extendMutation.isPending}
+                        onClick={() => extendMutation.mutate(interview.id)}
+                      >
+                        {extendMutation.isPending ? 'Extending…' : '+15m Extend duration'}
+                      </button>
+                    )}
                     {isLive && (
                       <Link
                         to={`/admin/interviews/${interview.id}?tab=live`}
@@ -515,13 +551,19 @@ export default function InterviewerDashboard() {
                       </Link>
                     )}
 
-                    {(isLive || isCompleted) && <Link
-                      to={`/admin/interviews/${interview.id}?tab=feedback`}
-                      className="btn-outline text-xs px-3 py-2 flex items-center gap-1.5"
-                    >
-                      <Award className="w-3.5 h-3.5 text-amber-400" />
-                      {isCompleted ? interview.finalFeedback ? 'Edit Feedback' : 'Submit Feedback' : 'Feedback'}
-                    </Link>}
+                    {(isLive || isCompleted) && (
+                      <Link
+                        to={`/admin/interviews/${interview.id}?tab=feedback`}
+                        className="btn-outline text-xs px-3 py-2 flex items-center gap-1.5"
+                      >
+                        <Award className="w-3.5 h-3.5 text-amber-400" />
+                        {isCompleted
+                          ? interview.finalFeedback
+                            ? 'Edit Feedback'
+                            : 'Submit Feedback'
+                          : 'Feedback'}
+                      </Link>
+                    )}
 
                     {/* Open Full Workspace */}
                     <Link
@@ -540,18 +582,20 @@ export default function InterviewerDashboard() {
         </div>
       )}
 
-      {showQuestionsModal && selectedInterview && <QuestionPreparation
-        key={selectedInterview.id}
-        interviewId={selectedInterview.id}
-        onClose={() => setShowQuestionsModal(false)}
-      />}
-      {showResumeModal && selectedInterview && <ResumeDialog
-        interview={selectedInterview}
-        onClose={() => setShowResumeModal(false)}
-        backLabel={showQuestionsModal ? 'Back to questions' : 'Back to interviews'}
-      />}
-
-
+      {showQuestionsModal && selectedInterview && (
+        <QuestionPreparation
+          key={selectedInterview.id}
+          interviewId={selectedInterview.id}
+          onClose={() => setShowQuestionsModal(false)}
+        />
+      )}
+      {showResumeModal && selectedInterview && (
+        <ResumeDialog
+          interview={selectedInterview}
+          onClose={() => setShowResumeModal(false)}
+          backLabel={showQuestionsModal ? 'Back to questions' : 'Back to interviews'}
+        />
+      )}
     </div>
   );
 }

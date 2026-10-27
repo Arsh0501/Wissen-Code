@@ -29,9 +29,7 @@ export default function RoomTools({
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [drawing, setDrawing] = useState<Stroke | null>(null);
   const [color, setColor] = useState('#2563eb');
-  const [videoStatus, setVideoStatus] = useState(
-    'Camera and microphone are off.',
-  );
+  const [videoStatus, setVideoStatus] = useState('Camera and microphone are off.');
   const [isMicOn, setIsMicOn] = useState(true);
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isCallActive, setIsCallActive] = useState(false);
@@ -65,9 +63,7 @@ export default function RoomTools({
   };
   const buildPeer = async () => {
     if (!navigator.mediaDevices?.getUserMedia)
-      throw new Error(
-        'Camera access requires HTTPS or localhost and a supported browser.',
-      );
+      throw new Error('Camera access requires HTTPS or localhost and a supported browser.');
     const media = await navigator.mediaDevices.getUserMedia({
       video: true,
       audio: true,
@@ -78,7 +74,8 @@ export default function RoomTools({
     peer.current = rtc;
     media.getTracks().forEach((track) => rtc.addTrack(track, media));
     rtc.ontrack = (event) => {
-      if (interviewer && event.track.kind === 'audio') setCandidateAudio(new MediaStream([event.track]));
+      if (interviewer && event.track.kind === 'audio')
+        setCandidateAudio(new MediaStream([event.track]));
       if (remoteVideo.current) remoteVideo.current.srcObject = event.streams[0];
     };
     rtc.onicecandidate = (event) => {
@@ -101,14 +98,11 @@ export default function RoomTools({
     const sync = () =>
       socket.emit('ROOM_TOOLS', {}, (response: any) => {
         if (!response?.success) return;
-        ice.current = Array.isArray(response.iceServers)
-          ? response.iceServers
-          : [];
+        ice.current = Array.isArray(response.iceServers) ? response.iceServers : [];
         const chat: Chat[] = [];
         let board: Stroke[] = [];
         for (const e of response.events) {
-          if (e.eventType === 'CHAT_MESSAGE')
-            chat.push({ id: e.id, ...e.payload });
+          if (e.eventType === 'CHAT_MESSAGE') chat.push({ id: e.id, ...e.payload });
           if (e.eventType === 'WHITEBOARD_STROKE') board.push(e.payload);
           if (e.eventType === 'WHITEBOARD_CLEARED') board = [];
         }
@@ -116,9 +110,7 @@ export default function RoomTools({
         setStrokes(board);
       });
     const onChat = (message: Chat) =>
-      setMessages((v) =>
-        v.some((m) => m.id === message.id) ? v : [...v, message],
-      );
+      setMessages((v) => (v.some((m) => m.id === message.id) ? v : [...v, message]));
     const onStroke = (stroke: Stroke) =>
       setStrokes((v) => [...v.filter((s) => s.id !== stroke.id), stroke]);
     const clear = () => setStrokes([]);
@@ -128,18 +120,14 @@ export default function RoomTools({
           incoming.current = signal.data;
           setHasOffer(true);
           setTab('video');
-          setVideoStatus(
-            'Incoming video call. Accept to enable your camera and microphone.',
-          );
+          setVideoStatus('Incoming video call. Accept to enable your camera and microphone.');
         }
         if (signal.type === 'answer' && peer.current) {
           await peer.current.setRemoteDescription(signal.data);
-          for (const c of candidates.current.splice(0))
-            await peer.current.addIceCandidate(c);
+          for (const c of candidates.current.splice(0)) await peer.current.addIceCandidate(c);
         }
         if (signal.type === 'ice') {
-          if (peer.current?.remoteDescription)
-            await peer.current.addIceCandidate(signal.data);
+          if (peer.current?.remoteDescription) await peer.current.addIceCandidate(signal.data);
           else candidates.current.push(signal.data);
         }
         if (signal.type === 'media-state' && signal.data) {
@@ -163,12 +151,18 @@ export default function RoomTools({
     socket.on('RTC_SIGNAL', signal);
     const captureStatus = (value: { active: boolean }) => setTranscriptionActive(value.active);
     socket.on('TRANSCRIPT_CAPTURE_STATUS', captureStatus);
-    const ended = () => { cleanup(); setTranscriptionActive(false); };
+    const ended = () => {
+      cleanup();
+      setTranscriptionActive(false);
+    };
     socket.on('INTERVIEW_ENDED', ended);
     const participantJoined = () => {
       const rtc = peer.current;
       if (rtc?.localDescription?.type === 'offer' && !rtc.remoteDescription)
-        socket.emit('RTC_SIGNAL', { type: 'offer', data: { type: rtc.localDescription.type, sdp: rtc.localDescription.sdp } });
+        socket.emit('RTC_SIGNAL', {
+          type: 'offer',
+          data: { type: rtc.localDescription.type, sdp: rtc.localDescription.sdp },
+        });
     };
     socket.on('CANDIDATE_JOINED', participantJoined);
     socket.on('INTERVIEWER_JOINED', participantJoined);
@@ -199,8 +193,7 @@ export default function RoomTools({
       setIsCameraOn(true);
       if (accept && offer) {
         await rtc.setRemoteDescription(offer);
-        for (const c of candidates.current.splice(0))
-          await rtc.addIceCandidate(c);
+        for (const c of candidates.current.splice(0)) await rtc.addIceCandidate(c);
         const answer = await rtc.createAnswer();
         await rtc.setLocalDescription(answer);
         socket?.emit('RTC_SIGNAL', { type: 'answer', data: answer });
@@ -253,19 +246,17 @@ export default function RoomTools({
   const point = (event: React.PointerEvent<SVGSVGElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
     return {
-      x: Math.max(
-        0,
-        Math.min(1000, ((event.clientX - box.left) / box.width) * 1000),
-      ),
-      y: Math.max(
-        0,
-        Math.min(600, ((event.clientY - box.top) / box.height) * 600),
-      ),
+      x: Math.max(0, Math.min(1000, ((event.clientX - box.left) / box.width) * 1000)),
+      y: Math.max(0, Math.min(600, ((event.clientY - box.top) / box.height) * 600)),
     };
   };
   return (
     <section className="card mt-5 space-y-4">
-      {!interviewer && transcriptionActive && <p role="status" className="text-sm text-amber-400">The interviewer is transcribing candidate audio for this interview.</p>}
+      {!interviewer && transcriptionActive && (
+        <p role="status" className="text-sm text-amber-400">
+          The interviewer is transcribing candidate audio for this interview.
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-800 pb-3">
         <div className="flex flex-wrap gap-2">
           {[
@@ -306,10 +297,16 @@ export default function RoomTools({
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
                   : 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25 animate-pulse'
               }`}
-              title={isMicOn ? 'Microphone is ON (click to mute)' : 'Microphone is OFF (click to unmute)'}
+              title={
+                isMicOn ? 'Microphone is ON (click to mute)' : 'Microphone is OFF (click to unmute)'
+              }
               aria-label={isMicOn ? 'Quick mute microphone' : 'Quick unmute microphone'}
             >
-              {isMicOn ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5 text-rose-400" />}
+              {isMicOn ? (
+                <Mic className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <MicOff className="w-3.5 h-3.5 text-rose-400" />
+              )}
               <span>{isMicOn ? 'Mic ON' : 'Mic OFF'}</span>
             </button>
             <button
@@ -320,10 +317,16 @@ export default function RoomTools({
                   ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
                   : 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25'
               }`}
-              title={isCameraOn ? 'Camera is ON (click to turn off)' : 'Camera is OFF (click to turn on)'}
+              title={
+                isCameraOn ? 'Camera is ON (click to turn off)' : 'Camera is OFF (click to turn on)'
+              }
               aria-label={isCameraOn ? 'Quick turn off camera' : 'Quick turn on camera'}
             >
-              {isCameraOn ? <Video className="w-3.5 h-3.5 text-emerald-400" /> : <VideoOff className="w-3.5 h-3.5 text-rose-400" />}
+              {isCameraOn ? (
+                <Video className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <VideoOff className="w-3.5 h-3.5 text-rose-400" />
+              )}
               <span>{isCameraOn ? 'Cam ON' : 'Cam OFF'}</span>
             </button>
           </div>
@@ -339,8 +342,8 @@ export default function RoomTools({
           <div className="max-h-64 overflow-auto space-y-3" aria-live="polite">
             {messages.length === 0 && (
               <p className="text-surface-500 text-sm">
-                Messages are shared with interview participants and retained in
-                the interview history.
+                Messages are shared with interview participants and retained in the interview
+                history.
               </p>
             )}
             {messages.map((m) => (
@@ -359,17 +362,11 @@ export default function RoomTools({
               e.preventDefault();
               socket
                 ?.timeout(10000)
-                .emit(
-                  'CHAT_MESSAGE',
-                  { text },
-                  (err: Error | null, result: any) => {
-                    if (err || !result?.success)
-                      setError(
-                        'Message could not be sent. Reconnect and retry.',
-                      );
-                    else setText('');
-                  },
-                );
+                .emit('CHAT_MESSAGE', { text }, (err: Error | null, result: any) => {
+                  if (err || !result?.success)
+                    setError('Message could not be sent. Reconnect and retry.');
+                  else setText('');
+                });
             }}
           >
             <input
@@ -379,10 +376,7 @@ export default function RoomTools({
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
-            <button
-              className="btn-primary"
-              disabled={!socket?.connected || !text.trim()}
-            >
+            <button className="btn-primary" disabled={!socket?.connected || !text.trim()}>
               Send
             </button>
           </form>
@@ -447,16 +441,12 @@ export default function RoomTools({
                 setStrokes((v) => [...v, stroke]);
                 socket
                   ?.timeout(10000)
-                  .emit(
-                    'WHITEBOARD_STROKE',
-                    stroke,
-                    (err: Error | null, response: any) => {
-                      if (err || !response?.success) {
-                        setError('Drawing could not be saved.');
-                        setStrokes((v) => v.filter((s) => s.id !== stroke.id));
-                      }
-                    },
-                  );
+                  .emit('WHITEBOARD_STROKE', stroke, (err: Error | null, response: any) => {
+                    if (err || !response?.success) {
+                      setError('Drawing could not be saved.');
+                      setStrokes((v) => v.filter((s) => s.id !== stroke.id));
+                    }
+                  });
               }
               setDrawing(null);
             }}
@@ -475,8 +465,7 @@ export default function RoomTools({
             ))}
           </svg>
           <p className="text-xs text-surface-500">
-            Use chat or the code editor for a keyboard-accessible alternative to
-            drawing.
+            Use chat or the code editor for a keyboard-accessible alternative to drawing.
           </p>
         </>
       )}
@@ -488,15 +477,13 @@ export default function RoomTools({
                 isCallActive
                   ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse'
                   : hasOffer
-                  ? 'bg-amber-400 animate-ping'
-                  : 'bg-surface-600'
+                    ? 'bg-amber-400 animate-ping'
+                    : 'bg-surface-600'
               }`}
             />
             <p className="text-sm font-medium text-surface-200">{videoStatus}</p>
           </div>
-          <p className="text-xs text-surface-400">
-            Encrypted WebRTC • Calls are not recorded
-          </p>
+          <p className="text-xs text-surface-400">Encrypted WebRTC • Calls are not recorded</p>
         </div>
 
         {/* Video stream tiles with status badges */}
@@ -554,8 +541,8 @@ export default function RoomTools({
                   !isCallActive
                     ? 'bg-surface-900/80 text-surface-400 border-surface-700/50'
                     : isMicOn
-                    ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40'
-                    : 'bg-rose-950/85 text-rose-300 border-rose-500/50 animate-pulse'
+                      ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40'
+                      : 'bg-rose-950/85 text-rose-300 border-rose-500/50 animate-pulse'
                 }`}
                 title={isMicOn ? 'Microphone is ON' : 'Microphone is MUTED'}
               >
@@ -573,8 +560,8 @@ export default function RoomTools({
                   !isCallActive
                     ? 'bg-surface-900/80 text-surface-400 border-surface-700/50'
                     : isCameraOn
-                    ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40'
-                    : 'bg-rose-950/85 text-rose-300 border-rose-500/50'
+                      ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40'
+                      : 'bg-rose-950/85 text-rose-300 border-rose-500/50'
                 }`}
                 title={isCameraOn ? 'Camera is ON' : 'Camera is OFF'}
               >
@@ -645,7 +632,9 @@ export default function RoomTools({
                       ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40'
                       : 'bg-rose-950/85 text-rose-300 border-rose-500/50'
                   }`}
-                  title={remoteMediaState.mic ? 'Participant mic is ON' : 'Participant mic is MUTED'}
+                  title={
+                    remoteMediaState.mic ? 'Participant mic is ON' : 'Participant mic is MUTED'
+                  }
                 >
                   {remoteMediaState.mic ? (
                     <Mic className="w-3 h-3 text-emerald-400" />
@@ -661,7 +650,11 @@ export default function RoomTools({
                       ? 'bg-emerald-950/85 text-emerald-300 border-emerald-500/40'
                       : 'bg-rose-950/85 text-rose-300 border-rose-500/50'
                   }`}
-                  title={remoteMediaState.camera ? 'Participant camera is ON' : 'Participant camera is OFF'}
+                  title={
+                    remoteMediaState.camera
+                      ? 'Participant camera is ON'
+                      : 'Participant camera is OFF'
+                  }
                 >
                   {remoteMediaState.camera ? (
                     <Video className="w-3 h-3 text-emerald-400" />
@@ -718,8 +711,8 @@ export default function RoomTools({
               !isCallActive
                 ? 'opacity-50 cursor-not-allowed bg-surface-900 border-surface-800 text-surface-500'
                 : isMicOn
-                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500'
-                : 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500'
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500'
+                  : 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500'
             }`}
             disabled={!isCallActive}
             onClick={toggleMicrophone}
@@ -728,20 +721,24 @@ export default function RoomTools({
               !isCallActive
                 ? 'Start call to toggle microphone'
                 : isMicOn
-                ? 'Microphone is ON. Click to mute.'
-                : 'Microphone is MUTED. Click to unmute.'
+                  ? 'Microphone is ON. Click to mute.'
+                  : 'Microphone is MUTED. Click to unmute.'
             }
           >
             {isMicOn ? (
               <>
                 <Mic className="w-4 h-4 text-emerald-400" />
-                <span>Microphone: <strong className="text-emerald-400">ON</strong></span>
+                <span>
+                  Microphone: <strong className="text-emerald-400">ON</strong>
+                </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" />
               </>
             ) : (
               <>
                 <MicOff className="w-4 h-4 text-rose-400" />
-                <span>Microphone: <strong className="text-rose-400">OFF</strong></span>
+                <span>
+                  Microphone: <strong className="text-rose-400">OFF</strong>
+                </span>
                 <span className="w-2 h-2 rounded-full bg-rose-400" />
               </>
             )}
@@ -754,8 +751,8 @@ export default function RoomTools({
               !isCallActive
                 ? 'opacity-50 cursor-not-allowed bg-surface-900 border-surface-800 text-surface-500'
                 : isCameraOn
-                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500'
-                : 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500'
+                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20 hover:border-emerald-500'
+                  : 'bg-rose-500/15 border-rose-500/40 text-rose-300 hover:bg-rose-500/25 hover:border-rose-500'
             }`}
             disabled={!isCallActive}
             onClick={toggleCamera}
@@ -764,20 +761,24 @@ export default function RoomTools({
               !isCallActive
                 ? 'Start call to toggle camera'
                 : isCameraOn
-                ? 'Camera is ON. Click to turn off.'
-                : 'Camera is OFF. Click to turn on.'
+                  ? 'Camera is ON. Click to turn off.'
+                  : 'Camera is OFF. Click to turn on.'
             }
           >
             {isCameraOn ? (
               <>
                 <Video className="w-4 h-4 text-emerald-400" />
-                <span>Camera: <strong className="text-emerald-400">ON</strong></span>
+                <span>
+                  Camera: <strong className="text-emerald-400">ON</strong>
+                </span>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)] animate-pulse" />
               </>
             ) : (
               <>
                 <VideoOff className="w-4 h-4 text-rose-400" />
-                <span>Camera: <strong className="text-rose-400">OFF</strong></span>
+                <span>
+                  Camera: <strong className="text-rose-400">OFF</strong>
+                </span>
                 <span className="w-2 h-2 rounded-full bg-rose-400" />
               </>
             )}

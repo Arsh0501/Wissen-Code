@@ -78,7 +78,10 @@ describe('RoomTools video and microphone toggle symbols and state', () => {
   });
   it('reveals an incoming call while the candidate is on the chat tab', async () => {
     render(<RoomTools socket={mockSocket} />);
-    mockSocket.trigger('RTC_SIGNAL', { type: 'offer', data: { type: 'offer', sdp: 'incoming-offer' } });
+    mockSocket.trigger('RTC_SIGNAL', {
+      type: 'offer',
+      data: { type: 'offer', sdp: 'incoming-offer' },
+    });
     expect(await screen.findByRole('button', { name: /accept video call/i })).toBeVisible();
   });
   it('resends a pending video offer when the other participant joins later', async () => {
@@ -89,7 +92,10 @@ describe('RoomTools video and microphone toggle symbols and state', () => {
     rtc.localDescription = { type: 'offer', sdp: 'pending-offer' };
     rtc.remoteDescription = null;
     mockSocket.trigger('CANDIDATE_JOINED', {});
-    expect(mockSocket.emit).toHaveBeenCalledWith('RTC_SIGNAL', { type: 'offer', data: { type: 'offer', sdp: 'pending-offer' } });
+    expect(mockSocket.emit).toHaveBeenCalledWith('RTC_SIGNAL', {
+      type: 'offer',
+      data: { type: 'offer', sdp: 'pending-offer' },
+    });
   });
 
   it('updates symbols and emits media-state when starting call and toggling microphone and camera', async () => {
@@ -120,7 +126,9 @@ describe('RoomTools video and microphone toggle symbols and state', () => {
     // Toggle microphone to OFF
     await user.click(micButton);
     expect(audioTrack.enabled).toBe(false);
-    expect(screen.getByRole('button', { name: /^turn on microphone$/i })).toHaveTextContent(/Microphone:\s*OFF/i);
+    expect(screen.getByRole('button', { name: /^turn on microphone$/i })).toHaveTextContent(
+      /Microphone:\s*OFF/i,
+    );
 
     // Check that socket emitted RTC_SIGNAL with media-state
     expect(mockSocket.emit).toHaveBeenCalledWith('RTC_SIGNAL', {
@@ -131,7 +139,9 @@ describe('RoomTools video and microphone toggle symbols and state', () => {
     // Toggle camera to OFF
     await user.click(camButton);
     expect(videoTrack.enabled).toBe(false);
-    expect(screen.getByRole('button', { name: /^turn on camera$/i })).toHaveTextContent(/Camera:\s*OFF/i);
+    expect(screen.getByRole('button', { name: /^turn on camera$/i })).toHaveTextContent(
+      /Camera:\s*OFF/i,
+    );
     expect(screen.getByText('Your Camera is OFF')).toBeInTheDocument();
 
     expect(mockSocket.emit).toHaveBeenCalledWith('RTC_SIGNAL', {
@@ -143,7 +153,9 @@ describe('RoomTools video and microphone toggle symbols and state', () => {
     const unmuteMicButton = screen.getByRole('button', { name: /^turn on microphone$/i });
     await user.click(unmuteMicButton);
     expect(audioTrack.enabled).toBe(true);
-    expect(screen.getByRole('button', { name: /^turn off microphone$/i })).toHaveTextContent(/Microphone:\s*ON/i);
+    expect(screen.getByRole('button', { name: /^turn off microphone$/i })).toHaveTextContent(
+      /Microphone:\s*ON/i,
+    );
   });
 
   it('reflects participant media-state when received via socket', async () => {

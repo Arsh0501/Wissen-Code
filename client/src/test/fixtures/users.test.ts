@@ -15,23 +15,16 @@ describe('test users', () => {
 
   it('matches email case-insensitively and trims whitespace', () => {
     const admin = MOCK_USERS[0];
-    const result = findUserByCredentials(
-      `  ${admin.email.toUpperCase()}  `,
-      admin.password,
-    );
+    const result = findUserByCredentials(`  ${admin.email.toUpperCase()}  `, admin.password);
     expect(result).toEqual(admin);
   });
 
   it('returns undefined for a wrong password', () => {
     const admin = MOCK_USERS[0];
-    expect(
-      findUserByCredentials(admin.email, 'wrong-password'),
-    ).toBeUndefined();
+    expect(findUserByCredentials(admin.email, 'wrong-password')).toBeUndefined();
   });
 
   it('returns undefined for an unknown email', () => {
-    expect(
-      findUserByCredentials('nobody@wissen.dev', 'whatever'),
-    ).toBeUndefined();
+    expect(findUserByCredentials('nobody@wissen.dev', 'whatever')).toBeUndefined();
   });
 });

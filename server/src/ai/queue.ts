@@ -10,9 +10,7 @@ export function redisConnection(worker = false) {
     connectTimeout: 5000,
     commandTimeout: worker ? undefined : 10000,
   });
-  connection.on('error', (err) =>
-    console.error('Redis connection:', err.message),
-  );
+  connection.on('error', (err) => console.error('Redis connection:', err.message));
   return connection;
 }
 let queue: Queue | undefined;

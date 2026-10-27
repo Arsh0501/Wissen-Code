@@ -12,9 +12,7 @@ it('lets the interviewer ask or dismiss a backend follow-up', async () => {
     question: 'When would useMemo make performance worse?',
     evidence: 'I use useMemo for every value.',
   };
-  render(
-    <AIFollowUp suggestion={suggestion} onAsk={onAsk} onDismiss={onDismiss} />,
-  );
+  render(<AIFollowUp suggestion={suggestion} onAsk={onAsk} onDismiss={onDismiss} />);
   expect(screen.getByText(suggestion.question)).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Ask' }));
   expect(onAsk).toHaveBeenCalledWith(suggestion);
@@ -36,10 +34,7 @@ it('supports editing, accepting and rejecting generated notes', async () => {
   await user.clear(input);
   await user.type(input, 'Explained trade-offs and dependencies.');
   await user.click(screen.getByRole('button', { name: 'Accept notes' }));
-  expect(accept).toHaveBeenCalledWith(
-    'n1',
-    'Explained trade-offs and dependencies.',
-  );
+  expect(accept).toHaveBeenCalledWith('n1', 'Explained trade-offs and dependencies.');
   await user.click(screen.getByRole('button', { name: 'Reject notes' }));
   expect(reject).toHaveBeenCalledWith('n1');
 });
@@ -61,15 +56,9 @@ it('renders skill evidence, coding observations, probes and summary without inve
       }}
     />,
   );
-  expect(
-    screen.getByText('Candidate said: dependencies must be stable.'),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText('Supporting evidence has not been provided.'),
-  ).toBeInTheDocument();
+  expect(screen.getByText('Candidate said: dependencies must be stable.')).toBeInTheDocument();
+  expect(screen.getByText('Supporting evidence has not been provided.')).toBeInTheDocument();
   expect(screen.getByText('Uses a Map for lookup')).toBeInTheDocument();
   expect(screen.getByText('Discuss space complexity')).toBeInTheDocument();
-  expect(
-    screen.getByText('Discussed React performance and arrays.'),
-  ).toBeInTheDocument();
+  expect(screen.getByText('Discussed React performance and arrays.')).toBeInTheDocument();
 });

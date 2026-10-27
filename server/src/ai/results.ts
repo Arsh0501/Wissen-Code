@@ -1,4 +1,9 @@
-export function uiResults(id: string, kind: string, output: any, metadata: { createdAt?: string; trigger?: unknown } = {}) {
+export function uiResults(
+  id: string,
+  kind: string,
+  output: any,
+  metadata: { createdAt?: string; trigger?: unknown } = {},
+) {
   if (kind === 'interview-assistant')
     return {
       followUps: output.followUps.map((f: any, i: number) => ({
@@ -15,9 +20,7 @@ export function uiResults(id: string, kind: string, output: any, metadata: { cre
               : 'pending',
         context: f.context,
         question: f.question,
-        evidence: f.evidence
-          .map((e: any) => `${e.sourceId}: ${e.quote}`)
-          .join('\n'),
+        evidence: f.evidence.map((e: any) => `${e.sourceId}: ${e.quote}`).join('\n'),
       })),
       evaluation: {
         ...metadata,
@@ -51,11 +54,12 @@ export function uiResults(id: string, kind: string, output: any, metadata: { cre
           status:
             output._reviews?.[`${id}-${category}-${i}`]?.decision === 'accept'
               ? 'accepted'
-              : output._reviews?.[`${id}-${category}-${i}`]?.decision ===
-                  'reject'
+              : output._reviews?.[`${id}-${category}-${i}`]?.decision === 'reject'
                 ? 'rejected'
                 : 'pending',
-          content: output._reviews?.[`${id}-${category}-${i}`]?.content ?? `${category}: ${n.content}\n${n.evidence.map((e: any) => `${e.sourceId}: ${e.quote}`).join('\n')}`,
+          content:
+            output._reviews?.[`${id}-${category}-${i}`]?.content ??
+            `${category}: ${n.content}\n${n.evidence.map((e: any) => `${e.sourceId}: ${e.quote}`).join('\n')}`,
         })),
       ),
     };
@@ -81,20 +85,40 @@ export function uiResults(id: string, kind: string, output: any, metadata: { cre
   return {};
 }
 export async function latestUIResults(interviewId: number, authorId: number) {
-  const { default: prisma } = await import('../prisma');
-  const jobs = await prisma.aIJob.findMany({ where: { interviewId, authorId, kind: { in: ['interview-assistant', 'note-writer', 'evaluation'] }, status: 'completed' }, orderBy: { createdAt: 'desc' }, take: 20 });
+  const { default: prisma } = await import('../database/prisma');
+  const jobs = await prisma.aIJob.findMany({
+    where: {
+      interviewId,
+      authorId,
+      kind: { in: ['interview-assistant', 'note-writer', 'evaluation'] },
+      status: 'completed',
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
   return buildUIHistory(jobs);
 }
 
 // Jobs arrive newest first; render completed generations in chronological order.
-export function buildUIHistory(jobs: { id: string; kind: string; output: unknown; input: unknown; createdAt: Date }[]) {
+export function buildUIHistory(
+  jobs: { id: string; kind: string; output: unknown; input: unknown; createdAt: Date }[],
+) {
   const result: Record<string, unknown> = {};
   for (const job of [...jobs].reverse()) {
     if (!job.output) continue;
-    const mapped: any = uiResults(job.id, job.kind, job.output, { createdAt: job.createdAt.toISOString(), trigger: (job.input as any)?._trigger });
-    for (const key of ['followUps', 'notes', 'timeline']) if (mapped[key]) result[key] = [...((result[key] as unknown[]) ?? []), ...mapped[key]];
+    const mapped: any = uiResults(job.id, job.kind, job.output, {
+      createdAt: job.createdAt.toISOString(),
+      trigger: (job.input as any)?._trigger,
+    });
+    for (const key of ['followUps', 'notes', 'timeline'])
+      if (mapped[key]) result[key] = [...((result[key] as unknown[]) ?? []), ...mapped[key]];
     if (mapped.evaluation) result.evaluation = mapped.evaluation;
   }
-  if (result.timeline) result.timeline = [...new Map((result.timeline as { eventId: number }[]).map((event) => [event.eventId, event])).values()];
+  if (result.timeline)
+    result.timeline = [
+      ...new Map(
+        (result.timeline as { eventId: number }[]).map((event) => [event.eventId, event]),
+      ).values(),
+    ];
   return result;
 }

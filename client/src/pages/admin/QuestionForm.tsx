@@ -1,7 +1,7 @@
 import { useTheme } from '../../context/ThemeContext';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
-import Editor from '../../components/CodeEditor';
+import Editor from '../../components/editor/CodeEditor';
 import {
   getQuestion,
   createQuestion,
@@ -35,8 +35,7 @@ const LANGUAGES = [
     id: 71,
     name: 'Python',
     monacoLang: 'python',
-    defaultCode:
-      '# Write your solution here\n\ndef solve():\n    pass\n\nsolve()',
+    defaultCode: '# Write your solution here\n\ndef solve():\n    pass\n\nsolve()',
   },
   {
     id: 62,
@@ -70,11 +69,8 @@ export default function QuestionForm() {
 
   const [title, setTitle] = useState('');
   const [statement, setStatement] = useState('');
-  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>(
-    'medium',
-  );
-  const [questionType, setQuestionType] =
-    useState<NonNullable<Question['questionType']>>('coding');
+  const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
+  const [questionType, setQuestionType] = useState<NonNullable<Question['questionType']>>('coding');
   const [settings, setSettings] = useState<NonNullable<Question['settings']>>({
     options: [
       { id: 'a', text: '' },
@@ -90,15 +86,11 @@ export default function QuestionForm() {
   const [tagsInput, setTagsInput] = useState('');
   const [timeLimit, setTimeLimit] = useState(2);
   const [memoryLimit, setMemoryLimit] = useState(256000);
-  const [activeTab, setActiveTab] = useState<
-    'details' | 'testcases' | 'starter'
-  >('details');
+  const [activeTab, setActiveTab] = useState<'details' | 'testcases' | 'starter'>('details');
   const [saving, setSaving] = useState(false);
 
   // Test cases state
-  const [testCases, setTestCases] = useState<
-    (TestCase & { isNew?: boolean })[]
-  >([]);
+  const [testCases, setTestCases] = useState<(TestCase & { isNew?: boolean })[]>([]);
   const [newTC, setNewTC] = useState({
     input: '',
     expectedOutput: '',
@@ -174,8 +166,7 @@ export default function QuestionForm() {
       setQuestionType(q.questionType || 'coding');
       if (q.settings) {
         setSettings(q.settings);
-        if (q.settings.files)
-          setProjectFiles(JSON.stringify(q.settings.files, null, 2));
+        if (q.settings.files) setProjectFiles(JSON.stringify(q.settings.files, null, 2));
       }
       setTitle(q.title);
       setStatement(q.statement);
@@ -226,8 +217,7 @@ export default function QuestionForm() {
       const starterCodesArr = Object.entries(starterCodes)
         .filter(
           ([id, code]) =>
-            code.trim() &&
-            (questionType === 'sql' ? Number(id) === 82 : Number(id) !== 82),
+            code.trim() && (questionType === 'sql' ? Number(id) === 82 : Number(id) !== 82),
         )
         .map(([langId, code]) => {
           const lang = LANGUAGES.find((l) => l.id === parseInt(langId));
@@ -375,11 +365,7 @@ export default function QuestionForm() {
                 Export as MD
               </button>
             )}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="btn-primary"
-            >
+            <button onClick={handleSave} disabled={saving} className="btn-primary">
               <Save className="w-4 h-4" />
               {saving ? 'Saving...' : 'Save Question'}
             </button>
@@ -399,19 +385,15 @@ export default function QuestionForm() {
             className="input mt-2"
             value={questionType}
             onChange={(e) => {
-              setQuestionType(
-                e.target.value as NonNullable<Question['questionType']>,
-              );
+              setQuestionType(e.target.value as NonNullable<Question['questionType']>);
               setActiveTab('details');
             }}
           >
-            {['coding', 'debugging', 'mcq', 'sql', 'written', 'project'].map(
-              (type) => (
-                <option key={type} value={type}>
-                  {type === 'mcq' ? 'Multiple choice' : type.toUpperCase()}
-                </option>
-              ),
-            )}
+            {['coding', 'debugging', 'mcq', 'sql', 'written', 'project'].map((type) => (
+              <option key={type} value={type}>
+                {type === 'mcq' ? 'Multiple choice' : type.toUpperCase()}
+              </option>
+            ))}
           </select>
         </label>
         {questionType === 'mcq' && (
@@ -457,9 +439,7 @@ export default function QuestionForm() {
                     setSettings((s) => ({
                       ...s,
                       options: s.options?.map((option) =>
-                        option.id === o.id
-                          ? { ...option, text: e.target.value }
-                          : option,
+                        option.id === o.id ? { ...option, text: e.target.value } : option,
                       ),
                     }))
                   }
@@ -469,12 +449,8 @@ export default function QuestionForm() {
                   onClick={() =>
                     setSettings((s) => ({
                       ...s,
-                      options: s.options?.filter(
-                        (option) => option.id !== o.id,
-                      ),
-                      correctOptionIds: s.correctOptionIds?.filter(
-                        (id) => id !== o.id,
-                      ),
+                      options: s.options?.filter((option) => option.id !== o.id),
+                      correctOptionIds: s.correctOptionIds?.filter((id) => id !== o.id),
                     }))
                   }
                 >
@@ -506,9 +482,7 @@ export default function QuestionForm() {
               className="input mt-2"
               rows={5}
               value={settings.rubric ?? ''}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, rubric: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, rubric: e.target.value }))}
               placeholder="Describe observable criteria, score levels, and required evidence."
             />
           </label>
@@ -531,13 +505,11 @@ export default function QuestionForm() {
               className="input font-mono mt-2"
               rows={6}
               value={settings.sqlSchema ?? ''}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, sqlSchema: e.target.value }))
-              }
+              onChange={(e) => setSettings((s) => ({ ...s, sqlSchema: e.target.value }))}
             />
             <p className="text-sm mt-2">
-              Use SQL setup statements as each test case input. The isolated
-              SQLite runner executes the setup followed by the candidate query.
+              Use SQL setup statements as each test case input. The isolated SQLite runner executes
+              the setup followed by the candidate query.
             </p>
           </label>
         )}
@@ -634,18 +606,14 @@ export default function QuestionForm() {
               <select
                 className="input mt-2"
                 value={questionType}
-                onChange={(e) =>
-                  setQuestionType(e.target.value as 'coding' | 'debugging')
-                }
+                onChange={(e) => setQuestionType(e.target.value as 'coding' | 'debugging')}
               >
                 <option value="coding">Coding</option>
                 <option value="debugging">Debugging</option>
               </select>
             </label>
             <div>
-              <label className="label">
-                Problem Statement (Markdown supported)
-              </label>
+              <label className="label">Problem Statement (Markdown supported)</label>
               <textarea
                 className="input min-h-[300px] font-mono text-sm"
                 placeholder={`Write the problem statement here. Markdown is supported.\n\n## Example:\nGiven an array of integers, find two numbers that add up to a specific target.\n\n**Input:** nums = [2, 7, 11, 15], target = 9\n**Output:** [0, 1]`}
@@ -666,20 +634,14 @@ export default function QuestionForm() {
                   <div key={tc.id} className="card flex items-start gap-4 p-4">
                     <div className="flex-1 grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-surface-500 mb-1 block">
-                          Input
-                        </label>
-                        <pre className="sample-box text-xs">
-                          {tc.input || '(empty)'}
-                        </pre>
+                        <label className="text-xs text-surface-500 mb-1 block">Input</label>
+                        <pre className="sample-box text-xs">{tc.input || '(empty)'}</pre>
                       </div>
                       <div>
                         <label className="text-xs text-surface-500 mb-1 block">
                           Expected Output
                         </label>
-                        <pre className="sample-box text-xs">
-                          {tc.expectedOutput}
-                        </pre>
+                        <pre className="sample-box text-xs">{tc.expectedOutput}</pre>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 pt-4">
@@ -725,9 +687,7 @@ export default function QuestionForm() {
                     className="input font-mono text-sm min-h-[80px]"
                     placeholder="5&#10;1 2 3 4 5"
                     value={newTC.input}
-                    onChange={(e) =>
-                      setNewTC((p) => ({ ...p, input: e.target.value }))
-                    }
+                    onChange={(e) => setNewTC((p) => ({ ...p, input: e.target.value }))}
                   />
                 </div>
                 <div>
@@ -750,9 +710,7 @@ export default function QuestionForm() {
                   <input
                     type="checkbox"
                     checked={newTC.isSample}
-                    onChange={(e) =>
-                      setNewTC((p) => ({ ...p, isSample: e.target.checked }))
-                    }
+                    onChange={(e) => setNewTC((p) => ({ ...p, isSample: e.target.checked }))}
                     className="w-4 h-4 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500"
                   />
                   <span className="text-sm text-surface-300">
@@ -793,14 +751,10 @@ export default function QuestionForm() {
             <div className="rounded-xl overflow-hidden border border-surface-800">
               <Editor
                 height="400px"
-                language={
-                  LANGUAGES.find((l) => l.id === activeStarterLang)
-                    ?.monacoLang || 'python'
-                }
+                language={LANGUAGES.find((l) => l.id === activeStarterLang)?.monacoLang || 'python'}
                 value={
                   starterCodes[activeStarterLang] ??
-                  LANGUAGES.find((l) => l.id === activeStarterLang)
-                    ?.defaultCode ??
+                  LANGUAGES.find((l) => l.id === activeStarterLang)?.defaultCode ??
                   ''
                 }
                 onChange={(value) => {
@@ -821,8 +775,7 @@ export default function QuestionForm() {
               />
             </div>
             <p className="text-xs text-surface-500 mt-2">
-              This code will be pre-filled in the editor when a candidate starts
-              the question.
+              This code will be pre-filled in the editor when a candidate starts the question.
             </p>
           </div>
         )}

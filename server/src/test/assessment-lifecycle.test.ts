@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import assessments from '../routes/assessments';
 import attempts from '../routes/attempts';
 import jobs from '../routes/ai-jobs';
@@ -63,12 +63,7 @@ test('assessment attempts serialize starts, protect ownership, submit and enforc
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const address = server.address() as { port: number };
   const base = `http://127.0.0.1:${address.port}`;
-  const request = (
-    path: string,
-    method = 'GET',
-    body?: unknown,
-    otherUser = false,
-  ) =>
+  const request = (path: string, method = 'GET', body?: unknown, otherUser = false) =>
     fetch(base + path, {
       method,
       headers: {
@@ -87,8 +82,7 @@ test('assessment attempts serialize starts, protect ownership, submit and enforc
     const first = (await starts[0].json()) as any;
     assert.equal(((await starts[1].json()) as any).sessionId, first.sessionId);
     assert.equal(
-      (await request(`/attempts/${first.sessionId}`, 'GET', undefined, true))
-        .status,
+      (await request(`/attempts/${first.sessionId}`, 'GET', undefined, true)).status,
       403,
     );
     assert.equal(
@@ -103,10 +97,7 @@ test('assessment attempts serialize starts, protect ownership, submit and enforc
       ).status,
       200,
     );
-    assert.equal(
-      (await request(`/attempts/${first.sessionId}/submit`, 'POST', {})).status,
-      200,
-    );
+    assert.equal((await request(`/attempts/${first.sessionId}/submit`, 'POST', {})).status, 200);
     assert.equal(
       (
         await prisma.assessmentSession.findUniqueOrThrow({
@@ -126,19 +117,11 @@ test('assessment attempts serialize starts, protect ownership, submit and enforc
       ).status,
       400,
     );
-    const retake = await request(
-      `/assessments/${assessment.id}/start`,
-      'POST',
-      { retake: true },
-    );
+    const retake = await request(`/assessments/${assessment.id}/start`, 'POST', { retake: true });
     assert.equal(retake.status, 200);
     const second = (await retake.json()) as any;
     assert.equal(second.attemptNumber, 2);
-    assert.equal(
-      (await request(`/attempts/${second.sessionId}/submit`, 'POST', {}))
-        .status,
-      200,
-    );
+    assert.equal((await request(`/attempts/${second.sessionId}/submit`, 'POST', {})).status, 200);
     assert.equal(
       (
         await request(`/assessments/${assessment.id}/start`, 'POST', {
@@ -214,18 +197,15 @@ test('accepting generated notes twice records only one private note', async () =
   const address = server.address() as { port: number };
   try {
     for (let i = 0; i < 2; i++) {
-      const response = await fetch(
-        `http://127.0.0.1:${address.port}/jobs/${job.id}/review`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            itemId: `${job.id}-technicalNotes-0`,
-            decision: 'accept',
-            content: 'Edited human notes about closures',
-          }),
-        },
-      );
+      const response = await fetch(`http://127.0.0.1:${address.port}/jobs/${job.id}/review`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemId: `${job.id}-technicalNotes-0`,
+          decision: 'accept',
+          content: 'Edited human notes about closures',
+        }),
+      });
       assert.equal(response.status, 200);
     }
     const notes = await prisma.interviewNote.findMany({

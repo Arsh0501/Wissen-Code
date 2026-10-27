@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import prisma from '../prisma';
-import { sendOtpMail } from '../platform/verification-mail';
+import prisma from '../database/prisma';
+import { sendOtpMail } from '../platform/mail/verification-mail';
 import { authenticate, signToken } from '../middleware/auth';
-import { accessRoles, type AccessRole } from '../platform/permissions';
+import { accessRoles, type AccessRole } from '../platform/auth/permissions';
 
 const router = Router();
 
@@ -31,13 +31,9 @@ export async function createSessionForUser(
     await tx.userSession.deleteMany({
       where: { userId, expiresAt: { lte: new Date() } },
     });
-    if (
-      role === 'candidate' &&
-      (await tx.userSession.findFirst({ where: { userId } }))
-    ) {
+    if (role === 'candidate' && (await tx.userSession.findFirst({ where: { userId } }))) {
       return {
-        error:
-          'Active session detected on another device. Please log out from that device first.',
+        error: 'Active session detected on another device. Please log out from that device first.',
       };
     }
     const refreshToken = crypto.randomBytes(40).toString('hex');
@@ -48,13 +44,14 @@ export async function createSessionForUser(
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 86400000),
       },
     });
-    const finalRole = (role === 'interviewer' ? 'interviewer' : role === 'candidate' ? 'candidate' : 'admin');
+    const finalRole =
+      role === 'interviewer' ? 'interviewer' : role === 'candidate' ? 'candidate' : 'admin';
     const authUser = {
       id: userId,
       email,
       name,
       role: finalRole as 'admin' | 'candidate' | 'interviewer',
-      accessRole: role as import('../platform/permissions').AccessRole,
+      accessRole: role as import('../platform/auth/permissions').AccessRole,
       sessionId: session.id,
       guest,
     };
@@ -83,26 +80,20 @@ router.post('/register', async (req: Request, res: Response) => {
       !email.trim() ||
       !password
     ) {
-      return res
-        .status(400)
-        .json({ error: 'name, email and password are required' });
+      return res.status(400).json({ error: 'name, email and password are required' });
     }
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ error: 'Invalid email address' });
     }
     if (password.length < 8) {
-      return res
-        .status(400)
-        .json({ error: 'Password must be at least 8 characters' });
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
     }
 
     const existing = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
     });
     if (existing) {
-      return res
-        .status(409)
-        .json({ error: 'An account with this email already exists' });
+      return res.status(409).json({ error: 'An account with this email already exists' });
     }
 
     const finalRole = role;
@@ -117,12 +108,7 @@ router.post('/register', async (req: Request, res: Response) => {
       },
     });
 
-    const sessionData = await createSessionForUser(
-      user.id,
-      user.email,
-      user.name,
-      user.role,
-    );
+    const sessionData = await createSessionForUser(user.id, user.email, user.name, user.role);
     if ('error' in sessionData) {
       return res.status(403).json({ error: sessionData.error });
     }
@@ -141,12 +127,7 @@ router.post('/register', async (req: Request, res: Response) => {
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    if (
-      typeof email !== 'string' ||
-      typeof password !== 'string' ||
-      !email.trim() ||
-      !password
-    ) {
+    if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
       return res.status(400).json({ error: 'email and password are required' });
     }
 
@@ -162,12 +143,7 @@ router.post('/login', async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const sessionData = await createSessionForUser(
-      user.id,
-      user.email,
-      user.name,
-      user.role,
-    );
+    const sessionData = await createSessionForUser(user.id, user.email, user.name, user.role);
     if ('error' in sessionData) {
       return res.status(403).json({ error: sessionData.error });
     }
@@ -182,10 +158,7 @@ router.post('/login', async (req: Request, res: Response) => {
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
-    if (
-      typeof refreshToken !== 'string' ||
-      !/^[a-f0-9]{80}$/.test(refreshToken)
-    ) {
+    if (typeof refreshToken !== 'string' || !/^[a-f0-9]{80}$/.test(refreshToken)) {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
@@ -200,9 +173,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
 
     if (new Date() > session.expiresAt) {
       await prisma.userSession.delete({ where: { id: session.id } });
-      return res
-        .status(401)
-        .json({ error: 'Refresh token expired. Please log in again.' });
+      return res.status(401).json({ error: 'Refresh token expired. Please log in again.' });
     }
 
     // Optional: Token Rotation - Delete old session, issue new one
@@ -212,8 +183,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
       email: session.user.email,
       name: session.user.name,
       role: session.user.role as 'admin' | 'candidate' | 'interviewer',
-      accessRole: session.user
-        .role as import('../platform/permissions').AccessRole,
+      accessRole: session.user.role as import('../platform/auth/permissions').AccessRole,
       sessionId: session.id,
     };
 
@@ -299,8 +269,7 @@ const handleUpdateProfile = async (req: Request, res: Response) => {
     // Explicitly disallow changing the email address
     if (
       email !== undefined &&
-      (typeof email !== 'string' ||
-        email.trim().toLowerCase() !== currentUser.email.toLowerCase())
+      (typeof email !== 'string' || email.trim().toLowerCase() !== currentUser.email.toLowerCase())
     ) {
       return res.status(400).json({ error: 'Email address cannot be changed' });
     }
@@ -313,8 +282,7 @@ const handleUpdateProfile = async (req: Request, res: Response) => {
       where: { name: name.trim(), NOT: { id: userId } },
       select: { id: true },
     });
-    if (conflict)
-      return res.status(409).json({ error: 'This name is already in use' });
+    if (conflict) return res.status(409).json({ error: 'This name is already in use' });
 
     const updatedUser = await prisma.$transaction(async (tx) => {
       // Assessment records currently use display names as their candidate key.
@@ -348,8 +316,7 @@ const handleUpdateProfile = async (req: Request, res: Response) => {
       email: updatedUser.email,
       name: updatedUser.name,
       role: updatedUser.role as 'admin' | 'candidate' | 'interviewer',
-      accessRole:
-        updatedUser.role as import('../platform/permissions').AccessRole,
+      accessRole: updatedUser.role as import('../platform/auth/permissions').AccessRole,
       sessionId: req.user!.sessionId,
       guest: updatedUser.isGuest,
     };
@@ -386,15 +353,11 @@ const handleUpdatePassword = async (req: Request, res: Response) => {
       !currentPassword ||
       !newPassword
     ) {
-      return res
-        .status(400)
-        .json({ error: 'currentPassword and newPassword are required' });
+      return res.status(400).json({ error: 'currentPassword and newPassword are required' });
     }
 
     if (newPassword.length < 8) {
-      return res
-        .status(400)
-        .json({ error: 'New password must be at least 8 characters' });
+      return res.status(400).json({ error: 'New password must be at least 8 characters' });
     }
 
     const user = await prisma.user.findUnique({
@@ -417,10 +380,7 @@ const handleUpdatePassword = async (req: Request, res: Response) => {
     });
     await prisma.userSession.deleteMany({ where: { userId } });
     try {
-      (await import('../socket'))
-        .getIO()
-        .in(`auth:user:${userId}`)
-        .disconnectSockets(true);
+      (await import('../socket')).getIO().in(`auth:user:${userId}`).disconnectSockets(true);
     } catch {}
     res.json({ success: true, message: 'Password updated. Sign in again.' });
   } catch (error) {

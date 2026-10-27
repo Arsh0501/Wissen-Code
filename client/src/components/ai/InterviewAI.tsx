@@ -1,5 +1,8 @@
 import { useState } from 'react';
-export interface AIGenerationMetadata { createdAt?: string; trigger?: { mode?: string; eventId?: number; eventType?: string; createdAt?: string } }
+export interface AIGenerationMetadata {
+  createdAt?: string;
+  trigger?: { mode?: string; eventId?: number; eventType?: string; createdAt?: string };
+}
 export interface FollowUpSuggestion extends AIGenerationMetadata {
   id: string;
   jobId?: string;
@@ -57,10 +60,7 @@ export function AIFollowUp({
           <button className="btn-primary" onClick={() => onAsk(suggestion)}>
             Ask
           </button>
-          <button
-            className="btn-outline"
-            onClick={() => onDismiss(suggestion.id)}
-          >
+          <button className="btn-outline" onClick={() => onDismiss(suggestion.id)}>
             Dismiss
           </button>
         </div>
@@ -121,11 +121,7 @@ export function AINotes({
           >
             {saving ? 'Saving notes…' : 'Accept notes'}
           </button>
-          <button
-            className="btn-outline"
-            disabled={saving}
-            onClick={() => onReject(note.id)}
-          >
+          <button className="btn-outline" disabled={saving} onClick={() => onReject(note.id)}>
             Reject notes
           </button>
         </div>
@@ -145,9 +141,7 @@ export function AIEvaluation({ evaluation }: { evaluation: AIEvaluationData }) {
       <div>
         <h4 className="text-sm font-semibold mb-2">Skill and evidence</h4>
         {!evaluation.skills.length && (
-          <p className="text-sm text-surface-500">
-            No skill observations provided yet.
-          </p>
+          <p className="text-sm text-surface-500">No skill observations provided yet.</p>
         )}
         {evaluation.skills.map((s, index) => (
           <article
@@ -173,21 +167,36 @@ export function AIEvaluation({ evaluation }: { evaluation: AIEvaluationData }) {
           </article>
         ))}
       </div>
-      <AIList
-        title="Coding observations"
-        values={evaluation.codingObservations}
-      />
+      <AIList title="Coding observations" values={evaluation.codingObservations} />
       <AIList title="Areas to probe" values={evaluation.areasToProbe} />
       <div>
-        <h4 className="text-sm font-semibold">{evaluation.basis === 'skill-evaluations' ? 'Final summary based on skill evaluations' : 'Interview summary'}</h4>
+        <h4 className="text-sm font-semibold">
+          {evaluation.basis === 'skill-evaluations'
+            ? 'Final summary based on skill evaluations'
+            : 'Interview summary'}
+        </h4>
         <p className="text-sm text-surface-400 mt-2">
           {evaluation.summary || 'No interview summary provided yet.'}
         </p>
-        {!!evaluation.summaryEvidence?.length && <details className="mt-3"><summary className="cursor-pointer text-xs text-surface-500">Supporting ratings and feedback</summary>{evaluation.summaryEvidence.map((quote, index) => <blockquote key={index} className="border-l-2 border-primary-500 pl-3 mt-2 text-xs whitespace-pre-wrap">{quote}</blockquote>)}</details>}
+        {!!evaluation.summaryEvidence?.length && (
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs text-surface-500">
+              Supporting ratings and feedback
+            </summary>
+            {evaluation.summaryEvidence.map((quote, index) => (
+              <blockquote
+                key={index}
+                className="border-l-2 border-primary-500 pl-3 mt-2 text-xs whitespace-pre-wrap"
+              >
+                {quote}
+              </blockquote>
+            ))}
+          </details>
+        )}
       </div>
       <p className="text-xs text-surface-500">
-        AI results are suggestions. Review the evidence before accepting notes
-        or making an evaluation.
+        AI results are suggestions. Review the evidence before accepting notes or making an
+        evaluation.
       </p>
     </section>
   );

@@ -14,8 +14,7 @@ export interface InterviewAIResults {
   timeline?: { eventId: number; description: string }[];
 }
 export function parseAIResults(raw: unknown): InterviewAIResults {
-  const data =
-    raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  const data = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const followUps = Array.isArray(data.followUps)
     ? data.followUps.filter(
         (item): item is FollowUpSuggestion =>
@@ -28,9 +27,7 @@ export function parseAIResults(raw: unknown): InterviewAIResults {
   const notes = Array.isArray(data.notes)
     ? data.notes.filter(
         (item): item is GeneratedNote =>
-          !!item &&
-          typeof item.id === 'string' &&
-          typeof item.content === 'string',
+          !!item && typeof item.id === 'string' && typeof item.content === 'string',
       )
     : [];
   const value = data.evaluation as Partial<AIEvaluationData> | undefined;
@@ -50,18 +47,21 @@ export function parseAIResults(raw: unknown): InterviewAIResults {
     typeof value.summary === 'string'
       ? (value as AIEvaluationData)
       : undefined;
-  const timeline = Array.isArray(data.timeline) ? data.timeline.filter(
-    (item): item is { eventId: number; description: string } => !!item && Number.isInteger(item.eventId) && typeof item.description === 'string',
-  ) : [];
+  const timeline = Array.isArray(data.timeline)
+    ? data.timeline.filter(
+        (item): item is { eventId: number; description: string } =>
+          !!item && Number.isInteger(item.eventId) && typeof item.description === 'string',
+      )
+    : [];
   return { followUps, notes, evaluation, timeline };
 }
 export function useInterviewLive(id: number, onChange: () => void) {
   const socketRef = useRef<Socket | null>(null);
   const callback = useRef(onChange);
   callback.current = onChange;
-  const [connection, setConnection] = useState<
-    'connecting' | 'connected' | 'disconnected'
-  >('connecting');
+  const [connection, setConnection] = useState<'connecting' | 'connected' | 'disconnected'>(
+    'connecting',
+  );
   const [snapshot, setSnapshot] = useState<{
     code?: string;
     codeRevision?: number;
@@ -88,32 +88,33 @@ export function useInterviewLive(id: number, onChange: () => void) {
     setConnection('connecting');
     setActivity('idle');
     setResult(null);
-    const socket = io(
-      import.meta.env.VITE_SOCKET_URL || window.location.origin,
-      {
-        auth: (done) => {
-          void socketAccessToken()
-            .then((token) => done({ token, interviewId: id }))
-            .catch((err) => {
-              setError(err.message);
-              done({});
-            });
-        },
+    const socket = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, {
+      auth: (done) => {
+        void socketAccessToken()
+          .then((token) => done({ token, interviewId: id }))
+          .catch((err) => {
+            setError(err.message);
+            done({});
+          });
       },
-    );
+    });
     socketRef.current = socket;
     const sync = (raw: any) => {
       if (!raw || raw.interviewId !== id) return;
-      setSnapshot((previous) => Number.isInteger(raw.codeRevision) && raw.codeRevision < (previous.codeRevision ?? -1) ? previous : ({
-        code: raw.currentCode,
-        codeRevision: raw.codeRevision,
-        languageId: raw.currentLanguageId,
-        questionId: raw.currentQuestionId,
-        question: raw.currentQuestion,
-        status: raw.status,
-        startedAt: raw.startedAt,
-        endedAt: raw.endedAt,
-      }));
+      setSnapshot((previous) =>
+        Number.isInteger(raw.codeRevision) && raw.codeRevision < (previous.codeRevision ?? -1)
+          ? previous
+          : {
+              code: raw.currentCode,
+              codeRevision: raw.codeRevision,
+              languageId: raw.currentLanguageId,
+              questionId: raw.currentQuestionId,
+              question: raw.currentQuestion,
+              status: raw.status,
+              startedAt: raw.startedAt,
+              endedAt: raw.endedAt,
+            },
+      );
       if (raw.aiResults) setAI(parseAIResults(raw.aiResults));
     };
     socket.on('connect', () => {
@@ -132,16 +133,24 @@ export function useInterviewLive(id: number, onChange: () => void) {
     socket.on('CODE_CHANGED', (raw: any) => {
       if (raw?.interviewId && raw.interviewId !== id) return;
       if (raw?.authorSocketId && raw.authorSocketId === socket.id) {
-        setSnapshot((previous) => ({ ...previous, codeRevision: Math.max(previous.codeRevision ?? -1, raw.revision ?? -1), languageId: raw.languageId ?? previous.languageId }));
+        setSnapshot((previous) => ({
+          ...previous,
+          codeRevision: Math.max(previous.codeRevision ?? -1, raw.revision ?? -1),
+          languageId: raw.languageId ?? previous.languageId,
+        }));
         return;
       }
       if (raw && typeof raw.code === 'string')
-        setSnapshot((prev) => Number.isInteger(raw.revision) && raw.revision < (prev.codeRevision ?? -1) ? prev : ({
-          ...prev,
-          code: raw.code,
-          codeRevision: raw.revision ?? prev.codeRevision,
-          languageId: raw.languageId ?? prev.languageId,
-        }));
+        setSnapshot((prev) =>
+          Number.isInteger(raw.revision) && raw.revision < (prev.codeRevision ?? -1)
+            ? prev
+            : {
+                ...prev,
+                code: raw.code,
+                codeRevision: raw.revision ?? prev.codeRevision,
+                languageId: raw.languageId ?? prev.languageId,
+              },
+        );
     });
     socket.on('QUESTION_CHANGED', (raw: any) => {
       setSnapshot((prev) => ({
@@ -157,7 +166,9 @@ export function useInterviewLive(id: number, onChange: () => void) {
       callback.current();
     });
     socket.on('QUESTIONS_UPDATED', (raw: any) => {
-      setSnapshot((prev) => raw.questionId === prev.questionId ? { ...prev, question: raw.question } : prev);
+      setSnapshot((prev) =>
+        raw.questionId === prev.questionId ? { ...prev, question: raw.question } : prev,
+      );
       callback.current();
     });
     socket.on('INTERVIEW_STARTED', (raw: any) => {
@@ -188,18 +199,13 @@ export function useInterviewLive(id: number, onChange: () => void) {
       if (raw?.interviewId === id) setAI(parseAIResults(raw));
     });
     socket.on('disconnect', (reason: string) => {
-      if (
-        reason === 'io server disconnect' &&
-        localStorage.getItem('wissen-refresh-token')
-      ) {
+      if (reason === 'io server disconnect' && localStorage.getItem('wissen-refresh-token')) {
         void socketAccessToken()
           .then(() => socket.connect())
           .catch((err) => setError(err.message));
       }
       setConnection('disconnected');
-      setActivity((prev) =>
-        ['running', 'submitting'].includes(prev) ? 'failed' : prev,
-      );
+      setActivity((prev) => (['running', 'submitting'].includes(prev) ? 'failed' : prev));
     });
     socket.on('connect_error', (err: Error) => {
       setConnection('disconnected');
@@ -248,7 +254,7 @@ export function useInterviewLive(id: number, onChange: () => void) {
       );
   };
   return {
-    updateDraft: (code: string) => setSnapshot(prev => ({ ...prev, code })),
+    updateDraft: (code: string) => setSnapshot((prev) => ({ ...prev, code })),
     socket: socketRef.current,
     connection,
     snapshot,

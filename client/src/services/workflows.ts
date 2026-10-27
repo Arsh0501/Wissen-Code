@@ -108,7 +108,11 @@ export async function apiData<T>(
 }
 export function retryWorkflowRequest(failureCount: number, error: Error) {
   const value = error as { response?: { status?: number }; code?: string };
-  return failureCount < 2 && ([408, 503, 504].includes(value.response?.status ?? 0) || ['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT'].includes(value.code ?? ''));
+  return (
+    failureCount < 2 &&
+    ([408, 503, 504].includes(value.response?.status ?? 0) ||
+      ['ERR_NETWORK', 'ECONNABORTED', 'ETIMEDOUT'].includes(value.code ?? ''))
+  );
 }
 export const workflowKeys = {
   drafts: ['ai-drafts'],

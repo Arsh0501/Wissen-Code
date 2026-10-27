@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
+import AdminLayout from '../../components/layout/AdminLayout';
 import {
   StatCard,
   Spinner,
@@ -11,11 +11,7 @@ import {
   formatPercent,
   scoreTextClass,
 } from '../../components/ui';
-import {
-  getAssessmentSubmissions,
-  downloadAssessmentCsv,
-  apiError,
-} from '../../services/api';
+import { getAssessmentSubmissions, downloadAssessmentCsv, apiError } from '../../services/api';
 import type { AssessmentSubmissionsResponse } from '../../services/api';
 import {
   Users,
@@ -37,9 +33,7 @@ export default function SubmissionsViewer() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [result, setResult] = useState<
-    'all' | 'passed' | 'failed' | 'in-progress'
-  >('all');
+  const [result, setResult] = useState<'all' | 'passed' | 'failed' | 'in-progress'>('all');
   const [sort, setSort] = useState<SortKey>('score');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -49,9 +43,7 @@ export default function SubmissionsViewer() {
     setExporting(true);
     setExportError('');
     try {
-      const { blob, filename } = await downloadAssessmentCsv(
-        parseInt(assessmentId),
-      );
+      const { blob, filename } = await downloadAssessmentCsv(parseInt(assessmentId));
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -101,8 +93,7 @@ export default function SubmissionsViewer() {
     )
     .sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name);
-      if (sort === 'submitted')
-        return (b.submittedAt || '').localeCompare(a.submittedAt || '');
+      if (sort === 'submitted') return (b.submittedAt || '').localeCompare(a.submittedAt || '');
       // Completed first, then by score
       if (a.status !== b.status) return a.status === 'completed' ? -1 : 1;
       return b.overallScore - a.overallScore;
@@ -111,8 +102,7 @@ export default function SubmissionsViewer() {
   const timeTaken = (c: AssessmentSubmissionsResponse['candidates'][number]) =>
     c.session?.finishedAt && c.session.startedAt
       ? Math.round(
-          (new Date(c.session.finishedAt).getTime() -
-            new Date(c.session.startedAt).getTime()) /
+          (new Date(c.session.finishedAt).getTime() - new Date(c.session.startedAt).getTime()) /
             1000,
         )
       : null;
@@ -121,18 +111,14 @@ export default function SubmissionsViewer() {
     <AdminLayout
       title={data?.assessment.name ?? 'Results'}
       subtitle={
-        data &&
-        `${data.assessment.timeLimitMinutes} min · pass at ${data.assessment.passingScore}%`
+        data && `${data.assessment.timeLimitMinutes} min · pass at ${data.assessment.passingScore}%`
       }
       actions={
         <>
           <Link to="/admin/assessments" className="btn-ghost text-sm">
             <ArrowLeft className="w-4 h-4" /> Assessments
           </Link>
-          <Link
-            to={`/admin/assessments/${assessmentId}/edit`}
-            className="btn-outline text-sm"
-          >
+          <Link to={`/admin/assessments/${assessmentId}/edit`} className="btn-outline text-sm">
             <Edit className="w-4 h-4" /> Edit assessment
           </Link>
           <button
@@ -142,8 +128,7 @@ export default function SubmissionsViewer() {
             className="btn-primary text-sm"
             title="Download every candidate's result as a spreadsheet"
           >
-            <FileSpreadsheet className="w-4 h-4" />{' '}
-            {exporting ? 'Exporting...' : 'Export CSV'}
+            <FileSpreadsheet className="w-4 h-4" /> {exporting ? 'Exporting...' : 'Export CSV'}
           </button>
         </>
       }
@@ -232,18 +217,10 @@ export default function SubmissionsViewer() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-surface-800 text-xs text-surface-500 uppercase tracking-wider">
-                    <th className="text-left font-medium px-5 py-3">
-                      Candidate
-                    </th>
-                    <th className="text-left font-medium px-3 py-3">
-                      Submitted
-                    </th>
-                    <th className="text-right font-medium px-3 py-3">
-                      Time taken
-                    </th>
-                    <th className="text-right font-medium px-3 py-3">
-                      Attempted
-                    </th>
+                    <th className="text-left font-medium px-5 py-3">Candidate</th>
+                    <th className="text-left font-medium px-3 py-3">Submitted</th>
+                    <th className="text-right font-medium px-3 py-3">Time taken</th>
+                    <th className="text-right font-medium px-3 py-3">Attempted</th>
                     <th className="text-right font-medium px-3 py-3">Marks</th>
                     <th className="text-right font-medium px-3 py-3">Score</th>
                     <th className="text-left font-medium px-3 py-3">Result</th>
@@ -252,18 +229,13 @@ export default function SubmissionsViewer() {
                 </thead>
                 <tbody className="divide-y divide-surface-800/60">
                   {candidates.map((c) => (
-                    <tr
-                      key={c.candidateUserId ?? c.name}
-                      className="hover:bg-surface-800/30"
-                    >
+                    <tr key={c.candidateUserId ?? c.name} className="hover:bg-surface-800/30">
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-primary-500/15 border border-primary-500/20 flex items-center justify-center text-xs font-bold text-primary-700">
                             {c.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-surface-100">
-                            {c.name}
-                          </span>
+                          <span className="font-medium text-surface-100">{c.name}</span>
                         </div>
                       </td>
                       <td className="px-3 py-3 text-surface-400">
@@ -278,24 +250,18 @@ export default function SubmissionsViewer() {
                         {c.attemptedQuestions}/{c.totalQuestions}
                       </td>
                       <td className="px-3 py-3 text-right text-surface-300 tabular-nums">
-                        {c.status === 'completed'
-                          ? `${c.marksObtained}/${c.totalMarks}`
-                          : '—'}
+                        {c.status === 'completed' ? `${c.marksObtained}/${c.totalMarks}` : '—'}
                       </td>
                       <td
                         className={`px-3 py-3 text-right font-semibold tabular-nums ${c.status === 'completed' ? scoreTextClass(c.overallScore) : 'text-surface-500'}`}
                       >
-                        {c.status === 'completed'
-                          ? `${c.overallScore.toFixed(1)}%`
-                          : '—'}
+                        {c.status === 'completed' ? `${c.overallScore.toFixed(1)}%` : '—'}
                       </td>
                       <td className="px-3 py-3">
                         {c.status === 'completed' ? (
                           <>
                             {c.isProvisional ? (
-                              <span className="badge">
-                                Grading / review pending
-                              </span>
+                              <span className="badge">Grading / review pending</span>
                             ) : (
                               <PassFailBadge passed={c.passed} />
                             )}
@@ -320,10 +286,7 @@ export default function SubmissionsViewer() {
                   ))}
                   {candidates.length === 0 && (
                     <tr>
-                      <td
-                        colSpan={8}
-                        className="text-center py-8 text-surface-500"
-                      >
+                      <td colSpan={8} className="text-center py-8 text-surface-500">
                         No candidates match these filters.
                       </td>
                     </tr>

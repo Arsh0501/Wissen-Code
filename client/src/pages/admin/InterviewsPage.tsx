@@ -2,24 +2,11 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import {
-  Clock,
-  Play,
-  FileText,
-  Star,
-  Upload,
-  CheckCircle2,
-  Eye,
-  X,
-} from 'lucide-react';
-import AdminLayout from '../../components/AdminLayout';
+import { Clock, Play, FileText, Star, Upload, CheckCircle2, Eye, X } from 'lucide-react';
+import AdminLayout from '../../components/layout/AdminLayout';
 import QuestionPicker from '../../components/questions/QuestionPicker';
 import { apiData, workflowKeys } from '../../services/workflows';
-import {
-  apiError,
-  getQuestions,
-  getAssessments,
-} from '../../services/api';
+import { apiError, getQuestions, getAssessments } from '../../services/api';
 import { Question } from '../../types';
 import { Spinner } from '../../components/ui';
 import { useAuth } from '../../context/AuthContext';
@@ -104,9 +91,7 @@ export default function InterviewsPage() {
   const interviewersQuery = useQuery({
     queryKey: ['available-interviewers'],
     queryFn: () =>
-      apiData<{ id: number; name: string; email: string; role: string }[]>(
-        '/users/interviewers',
-      ),
+      apiData<{ id: number; name: string; email: string; role: string }[]>('/users/interviewers'),
     enabled: creating,
   });
 
@@ -128,9 +113,9 @@ export default function InterviewsPage() {
   const assessmentCandidates = useQuery({
     queryKey: ['assessment-candidates', Number(candidateAssessment)],
     queryFn: () =>
-      apiData<{ candidates: { name: string; email?: string | null; candidateUserId?: number | null }[] }>(
-        `/assessments/${candidateAssessment}/candidates`,
-      ),
+      apiData<{
+        candidates: { name: string; email?: string | null; candidateUserId?: number | null }[];
+      }>(`/assessments/${candidateAssessment}/candidates`),
     enabled: creating && step === 1 && !!candidateAssessment,
   });
 
@@ -144,16 +129,9 @@ export default function InterviewsPage() {
             }))
           : []),
         ...(list.data ?? []),
-      ].map((i) => [
-        i.candidateEmail,
-        { name: i.candidateName, email: i.candidateEmail },
-      ]),
+      ].map((i) => [i.candidateEmail, { name: i.candidateName, email: i.candidateEmail }]),
     ).values(),
-  ].filter((c) =>
-    `${c.name} ${c.email}`
-      .toLowerCase()
-      .includes(candidateSearch.toLowerCase()),
-  );
+  ].filter((c) => `${c.name} ${c.email}`.toLowerCase().includes(candidateSearch.toLowerCase()));
 
   const visible = (list.data ?? []).filter(
     (i) =>
@@ -167,21 +145,17 @@ export default function InterviewsPage() {
     mutationFn: async (start: boolean) => {
       let id = createdId;
       if (!id) {
-        const result = await apiData<{ interview: InterviewSummary }>(
-          '/interviews',
-          'post',
-          {
-            title,
-            candidateName: name,
-            candidateEmail: email,
-            interviewerId: interviewerId ? Number(interviewerId) : undefined,
-            candidateResume: candidateResume ? candidateResume.trim() : undefined,
-            candidateResumeUrl: resumePdf || undefined,
-            timeLimitMinutes: duration,
-            scheduledAt: scheduled ? new Date(scheduled).toISOString() : null,
-            questionIds: schedulingOnly ? [] : questionIds,
-          },
-        );
+        const result = await apiData<{ interview: InterviewSummary }>('/interviews', 'post', {
+          title,
+          candidateName: name,
+          candidateEmail: email,
+          interviewerId: interviewerId ? Number(interviewerId) : undefined,
+          candidateResume: candidateResume ? candidateResume.trim() : undefined,
+          candidateResumeUrl: resumePdf || undefined,
+          timeLimitMinutes: duration,
+          scheduledAt: scheduled ? new Date(scheduled).toISOString() : null,
+          questionIds: schedulingOnly ? [] : questionIds,
+        });
         id = result.interview.id;
         setCreatedId(id);
       }
@@ -244,7 +218,10 @@ export default function InterviewsPage() {
     setReadingResume(true);
     setResumeFileName(file.name);
     const reader = new FileReader();
-    reader.onerror = () => { setReadingResume(false); setValidation('Could not read the resume. Try uploading it again.'); };
+    reader.onerror = () => {
+      setReadingResume(false);
+      setValidation('Could not read the resume. Try uploading it again.');
+    };
     reader.onload = (event) => {
       const content = event.target?.result as string;
       if (/\.pdf$/i.test(file.name)) {
@@ -267,9 +244,9 @@ export default function InterviewsPage() {
           ? 'Enter an interview title.'
           : schedulingOnly && !interviewerId
             ? 'Select an interviewer.'
-          : !Number.isInteger(duration) || duration < 5 || duration > 240
-            ? 'Duration must be 5–240 minutes.'
-            : ''
+            : !Number.isInteger(duration) || duration < 5 || duration > 240
+              ? 'Duration must be 5–240 minutes.'
+              : ''
         : step === 1
           ? !name.trim()
             ? 'Select or enter a candidate.'
@@ -303,16 +280,15 @@ export default function InterviewsPage() {
       <InterviewNavigation />
       {creating && (
         <section className="card space-y-5 mb-6 border border-primary-500/30">
-          <nav
-            aria-label="Interview creation steps"
-            className="flex gap-2 flex-wrap"
-          >
+          <nav aria-label="Interview creation steps" className="flex gap-2 flex-wrap">
             {creationSteps.map((label, index) => (
               <span
                 key={label}
                 aria-current={step === index ? 'step' : undefined}
                 className={`badge px-3 py-2 ${
-                  step === index ? 'bg-primary-500/20 text-primary-300 border border-primary-500/40' : ''
+                  step === index
+                    ? 'bg-primary-500/20 text-primary-300 border border-primary-500/40'
+                    : ''
                 }`}
               >
                 {index + 1}. {label}
@@ -367,7 +343,9 @@ export default function InterviewsPage() {
                     value={interviewerId}
                     onChange={(e) => setInterviewerId(e.target.value)}
                   >
-                    <option value="">{schedulingOnly ? 'Select an interviewer' : 'Default (Current Interviewer)'}</option>
+                    <option value="">
+                      {schedulingOnly ? 'Select an interviewer' : 'Default (Current Interviewer)'}
+                    </option>
                     {Array.isArray(interviewersQuery.data)
                       ? interviewersQuery.data.map((interviewer) => (
                           <option key={interviewer.id} value={interviewer.id}>
@@ -377,7 +355,8 @@ export default function InterviewsPage() {
                       : null}
                   </select>
                   <span className="text-[11px] text-surface-400 mt-1 block">
-                    Only users with Interviewer or Admin role can conduct interviews. Candidates cannot be selected as interviewers.
+                    Only users with Interviewer or Admin role can conduct interviews. Candidates
+                    cannot be selected as interviewers.
                   </span>
                 </label>
               </div>
@@ -389,10 +368,14 @@ export default function InterviewsPage() {
             <div className="space-y-4">
               <h2 className="font-semibold text-white">Select Candidate & Candidate Resume</h2>
               {directory.isLoading && (
-                <p role="status" className="text-xs text-surface-400">Loading candidate directory…</p>
+                <p role="status" className="text-xs text-surface-400">
+                  Loading candidate directory…
+                </p>
               )}
               {directory.error && (
-                <p role="alert" className="text-xs text-red-400">{apiError(directory.error)}</p>
+                <p role="alert" className="text-xs text-red-400">
+                  {apiError(directory.error)}
+                </p>
               )}
 
               <label className="label">
@@ -402,9 +385,7 @@ export default function InterviewsPage() {
                   value={candidateAssessment}
                   onChange={(e) => setCandidateAssessment(e.target.value)}
                 >
-                  <option value="">
-                    Choose an assessment to browse participants
-                  </option>
+                  <option value="">Choose an assessment to browse participants</option>
                   {assessmentList.data?.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -416,11 +397,7 @@ export default function InterviewsPage() {
               {assessmentCandidates.data && (
                 <div className="flex gap-2 flex-wrap">
                   {assessmentCandidates.data.candidates
-                    .filter((c) =>
-                      c.name
-                        .toLowerCase()
-                        .includes(candidateSearch.toLowerCase()),
-                    )
+                    .filter((c) => c.name.toLowerCase().includes(candidateSearch.toLowerCase()))
                     .map((c) => (
                       <button
                         key={c.candidateUserId ?? c.name}
@@ -504,7 +481,9 @@ export default function InterviewsPage() {
                   )}
                 </div>
                 <p className="text-xs text-surface-400">
-                  Upload a PDF or text resume (.txt or .md), up to 5 MB. The assigned interviewer can view it and generate questions before the interview. For scanned PDFs, paste the resume text below.
+                  Upload a PDF or text resume (.txt or .md), up to 5 MB. The assigned interviewer
+                  can view it and generate questions before the interview. For scanned PDFs, paste
+                  the resume text below.
                 </p>
 
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
@@ -554,10 +533,7 @@ export default function InterviewsPage() {
               ) : bank.error ? (
                 <div role="alert" className="text-red-400 text-sm">
                   {apiError(bank.error)}
-                  <button
-                    className="btn-outline ml-3"
-                    onClick={() => bank.refetch()}
-                  >
+                  <button className="btn-outline ml-3" onClick={() => bank.refetch()}>
                     Retry
                   </button>
                 </div>
@@ -573,10 +549,7 @@ export default function InterviewsPage() {
                 <div className="p-4 border border-surface-700 rounded-lg space-y-3 bg-surface-950/40">
                   <div className="flex justify-between items-center">
                     <h3 className="font-semibold text-white">{preview.title}</h3>
-                    <button
-                      className="btn-ghost text-xs"
-                      onClick={() => setPreview(null)}
-                    >
+                    <button className="btn-ghost text-xs" onClick={() => setPreview(null)}>
                       Close preview
                     </button>
                   </div>
@@ -627,19 +600,20 @@ export default function InterviewsPage() {
                   <dd className="text-white font-medium">
                     {candidateResume || resumePdf ? (
                       <span className="text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> {resumePdf ? 'PDF attached' : `Attached (${candidateResume.length} chars)`}
+                        <CheckCircle2 className="w-3.5 h-3.5" />{' '}
+                        {resumePdf ? 'PDF attached' : `Attached (${candidateResume.length} chars)`}
                       </span>
                     ) : (
                       <span className="text-surface-500">No resume attached</span>
                     )}
                   </dd>
                 </div>
-                {!schedulingOnly && <div>
-                  <dt className="text-surface-400 text-xs">Questions Selected</dt>
-                  <dd className="text-white font-medium">
-                    {questionIds.length} question(s)
-                  </dd>
-                </div>}
+                {!schedulingOnly && (
+                  <div>
+                    <dt className="text-surface-400 text-xs">Questions Selected</dt>
+                    <dd className="text-white font-medium">{questionIds.length} question(s)</dd>
+                  </div>
+                )}
               </dl>
 
               <ol className="list-decimal pl-5 text-xs space-y-1 text-surface-300">
@@ -650,22 +624,25 @@ export default function InterviewsPage() {
 
               {createdId && (
                 <p className="text-amber-400 text-xs">
-                  Interview #{createdId} was saved. You can enter its workspace now or manage it from the dashboard.
+                  Interview #{createdId} was saved. You can enter its workspace now or manage it
+                  from the dashboard.
                 </p>
               )}
 
               <div className="flex flex-wrap gap-3">
-                {!schedulingOnly && <button
-                  className="btn-primary"
-                  disabled={create.isPending}
-                  onClick={() => create.mutate(true)}
-                >
-                  {create.isPending
-                    ? 'Starting…'
-                    : createdId
-                      ? 'Retry start interview'
-                      : 'Start Interview & enter live room'}
-                </button>}
+                {!schedulingOnly && (
+                  <button
+                    className="btn-primary"
+                    disabled={create.isPending}
+                    onClick={() => create.mutate(true)}
+                  >
+                    {create.isPending
+                      ? 'Starting…'
+                      : createdId
+                        ? 'Retry start interview'
+                        : 'Start Interview & enter live room'}
+                  </button>
+                )}
                 <button
                   className="btn-outline"
                   disabled={create.isPending || readingResume}
@@ -696,8 +673,7 @@ export default function InterviewsPage() {
             </button>
             {step < reviewStep && (
               <button className="btn-outline" onClick={next} disabled={readingResume}>
-                Next:{' '}
-                {creationSteps[step + 1]}
+                Next: {creationSteps[step + 1]}
               </button>
             )}
           </div>
@@ -711,16 +687,18 @@ export default function InterviewsPage() {
           return (
             <button
               className={`card text-left transition-all p-4 ${
-                status === value
-                  ? 'ring-2 ring-primary-500 bg-surface-800'
-                  : 'hover:bg-surface-850'
+                status === value ? 'ring-2 ring-primary-500 bg-surface-800' : 'hover:bg-surface-850'
               }`}
               key={value}
               onClick={() => setStatus((prev) => (prev === value ? '' : value))}
             >
               <div className="flex items-center justify-between text-surface-400">
                 <span className="text-xs uppercase font-semibold tracking-wider capitalize">
-                  {value === 'expired' ? 'Ended — not started' : value === 'in_progress' ? 'Live Now' : value.replace(/_/g, ' ')}
+                  {value === 'expired'
+                    ? 'Ended — not started'
+                    : value === 'in_progress'
+                      ? 'Live Now'
+                      : value.replace(/_/g, ' ')}
                 </span>
                 {value === 'in_progress' && count > 0 && (
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -813,7 +791,11 @@ export default function InterviewsPage() {
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h2 className="font-semibold text-white text-base">{i.title}</h2>
-                    {i.status === 'expired' && <span className="badge bg-surface-800 text-surface-400">Ended — not started</span>}
+                    {i.status === 'expired' && (
+                      <span className="badge bg-surface-800 text-surface-400">
+                        Ended — not started
+                      </span>
+                    )}
                     {isLive && (
                       <span className="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5 flex items-center gap-1 font-semibold">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -887,9 +869,7 @@ export default function InterviewsPage() {
                               />
                             ))}
                           </div>
-                          <span className="font-semibold text-white ml-1">
-                            {i.finalRating}/5
-                          </span>
+                          <span className="font-semibold text-white ml-1">{i.finalRating}/5</span>
                         </div>
                       ) : null}
                       {i.finalRecommendation && (
@@ -912,7 +892,14 @@ export default function InterviewsPage() {
 
                 {/* Right side buttons */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {isCompleted && <InterviewFeedbackReportDownload interviewId={i.id} submitted={!!i.finalFeedback} completed compact />}
+                  {isCompleted && (
+                    <InterviewFeedbackReportDownload
+                      interviewId={i.id}
+                      submitted={!!i.finalFeedback}
+                      completed
+                      compact
+                    />
+                  )}
                   <ScheduledInterviewActions interview={i} />
                   {!schedulingOnly && isScheduled && (
                     <button
@@ -938,11 +925,13 @@ export default function InterviewsPage() {
                     }`}
                     to={`/admin/interviews/${i.id}${isLive && !schedulingOnly ? '?tab=live' : ''}`}
                   >
-                    {schedulingOnly ? 'View interview' : isLive
-                      ? 'Join live room'
-                      : isCompleted
-                        ? 'View Evaluation'
-                        : 'Plan and review'}
+                    {schedulingOnly
+                      ? 'View interview'
+                      : isLive
+                        ? 'Join live room'
+                        : isCompleted
+                          ? 'View Evaluation'
+                          : 'Plan and review'}
                   </Link>
                 </div>
               </article>
@@ -1012,10 +1001,7 @@ export default function InterviewsPage() {
             </div>
 
             <div className="p-4 border-t border-surface-800 flex justify-end">
-              <button
-                onClick={() => setViewingFeedback(null)}
-                className="btn-primary text-xs"
-              >
+              <button onClick={() => setViewingFeedback(null)} className="btn-primary text-xs">
                 Close
               </button>
             </div>
@@ -1023,7 +1009,9 @@ export default function InterviewsPage() {
         </div>
       )}
 
-      {viewingResume && <ResumeDialog interview={viewingResume} onClose={() => setViewingResume(null)} />}
+      {viewingResume && (
+        <ResumeDialog interview={viewingResume} onClose={() => setViewingResume(null)} />
+      )}
     </AdminLayout>
   );
 }

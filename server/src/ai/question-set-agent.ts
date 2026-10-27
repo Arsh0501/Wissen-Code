@@ -4,8 +4,8 @@ import {
   setItemSchema,
   type QuestionSetDraft,
   type QuestionSetGenerationInput,
-} from '../services/question-set-contracts';
-import { WorkflowError } from '../services/structured-ai';
+} from '../services/questions/question-set-contracts';
+import { WorkflowError } from '../services/ai/structured-ai';
 
 const GROQ_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MAX_ATTEMPTS = 3;
@@ -33,11 +33,14 @@ If includeAnswers is true, answer MUST be a nonempty interviewer reference answe
 These are discussion questions, not executable coding problems. Do not generate test harnesses.
 Never save, approve, or assign questions. The administrator reviews drafts separately.`;
 
-const generatedQuestionSchema = setItemSchema.pick({
-  title: true,
-  statement: true,
-  answer: true,
-}).required().strict();
+const generatedQuestionSchema = setItemSchema
+  .pick({
+    title: true,
+    statement: true,
+    answer: true,
+  })
+  .required()
+  .strict();
 
 const FORMAT_CORRECTION =
   'Return exactly one JSON object with a question field containing title, statement, and answer.';
@@ -50,14 +53,16 @@ export interface GroqQuestionSetConfig {
 export interface GroqQuestionSetRequest {
   model: string;
   messages: { role: 'system' | 'user'; content: string }[];
-  response_format: { type: 'json_object' } | {
-    type: 'json_schema';
-    json_schema: {
-      name: string;
-      strict: true;
-      schema: Record<string, unknown>;
-    };
-  };
+  response_format:
+    | { type: 'json_object' }
+    | {
+        type: 'json_schema';
+        json_schema: {
+          name: string;
+          strict: true;
+          schema: Record<string, unknown>;
+        };
+      };
   max_completion_tokens: number;
   reasoning_effort?: 'low';
 }
@@ -95,23 +100,20 @@ export function questionSetGroqConfig(
 
   return {
     apiKey,
-    model: environment.QUESTION_SET_GROQ_MODEL?.trim()
-      || environment.GROQ_MODEL?.trim()
-      || 'openai/gpt-oss-120b',
+    model:
+      environment.QUESTION_SET_GROQ_MODEL?.trim() ||
+      environment.GROQ_MODEL?.trim() ||
+      'openai/gpt-oss-120b',
   };
 }
 
 const groqTransport: GroqQuestionSetTransport = async (request, apiKey) => {
-  const response = await axios.post<GroqQuestionSetResponse>(
-    GROQ_COMPLETIONS_URL,
-    request,
-    {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      timeout: 120000,
-      maxRedirects: 0,
-      maxContentLength: 1024 * 1024,
-    },
-  );
+  const response = await axios.post<GroqQuestionSetResponse>(GROQ_COMPLETIONS_URL, request, {
+    headers: { Authorization: `Bearer ${apiKey}` },
+    timeout: 120000,
+    maxRedirects: 0,
+    maxContentLength: 1024 * 1024,
+  });
   return response.data;
 };
 
@@ -143,13 +145,11 @@ function responseFormat(includeAnswers: boolean): GroqQuestionSetRequest['respon
 }
 
 /** Normalize only unambiguous single-question shapes, then validate every field. */
-export function parseQuestionSetDraft(
-  content: string,
-  includeAnswers: boolean,
-): QuestionSetDraft {
+export function parseQuestionSetDraft(content: string, includeAnswers: boolean): QuestionSetDraft {
   let document: unknown;
   try {
-    const json = content.trim()
+    const json = content
+      .trim()
       .replace(/^```(?:json)?\s*/i, '')
       .replace(/\s*```$/, '');
     document = JSON.parse(json);
@@ -171,7 +171,7 @@ export function parseQuestionSetDraft(
 
   const parsed = generatedQuestionSchema.safeParse(candidate);
   if (!parsed.success) {
-    const issues = parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`);
+    const issues = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`);
     throw new InvalidQuestionSetOutput(`Fix the question fields: ${issues.join('; ')}`);
   }
   if (includeAnswers && !parsed.data.answer) {
@@ -198,9 +198,9 @@ function providerFailure(error: unknown) {
 export function createQuestionSetAgent(dependencies: QuestionSetAgentDependencies = {}) {
   const transport = dependencies.transport ?? groqTransport;
   const getConfig = dependencies.getConfig ?? questionSetGroqConfig;
-  const sleep = dependencies.sleep ?? (
-    milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
-  );
+  const sleep =
+    dependencies.sleep ??
+    ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
 
   async function generate(input: QuestionSetGenerationInput) {
     const settings = generationSchema.parse(input);
@@ -218,76 +218,92 @@ export function createQuestionSetAgent(dependencies: QuestionSetAgentDependencie
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
-          const response = await transport({
-            model: config.model,
-            response_format: strictOutput
-              ? responseFormat(settings.includeAnswers)
-              : { type: 'json_object' },
-            max_completion_tokens: tokenBudget,
-            ...(config.model.startsWith('openai/gpt-oss-')
-              ? { reasoning_effort: 'low' as const }
-              : {}),
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              {
-                role: 'user',
-                content: JSON.stringify({
-                  topics: settings.topics,
-                  ...(settings.description ? { description: settings.description } : {}),
-                  includeAnswers: settings.includeAnswers,
-                  answerDetail: settings.answerDetail,
-                  previousTitles: questions.map(question => question.title),
-                  ...(correction ? { formatCorrection: correction } : {}),
-                }),
-              },
-            ],
-          }, config.apiKey);
+          const response = await transport(
+            {
+              model: config.model,
+              response_format: strictOutput
+                ? responseFormat(settings.includeAnswers)
+                : { type: 'json_object' },
+              max_completion_tokens: tokenBudget,
+              ...(config.model.startsWith('openai/gpt-oss-')
+                ? { reasoning_effort: 'low' as const }
+                : {}),
+              messages: [
+                { role: 'system', content: SYSTEM_PROMPT },
+                {
+                  role: 'user',
+                  content: JSON.stringify({
+                    topics: settings.topics,
+                    ...(settings.description ? { description: settings.description } : {}),
+                    includeAnswers: settings.includeAnswers,
+                    answerDetail: settings.answerDetail,
+                    previousTitles: questions.map((question) => question.title),
+                    ...(correction ? { formatCorrection: correction } : {}),
+                  }),
+                },
+              ],
+            },
+            config.apiKey,
+          );
 
           const choice = response.choices?.[0];
           if (choice?.finish_reason === 'length') {
             tokenBudget = Math.min(MAX_COMPLETION_TOKENS, tokenBudget * 2);
-            throw new InvalidQuestionSetOutput('The output was truncated. Return one complete question; shorten the answer if necessary.');
+            throw new InvalidQuestionSetOutput(
+              'The output was truncated. Return one complete question; shorten the answer if necessary.',
+            );
           }
           if (choice?.finish_reason !== 'stop' || !choice.message.content) {
-            throw new InvalidQuestionSetOutput('Return a complete JSON question object without tools or refusals.');
+            throw new InvalidQuestionSetOutput(
+              'Return a complete JSON question object without tools or refusals.',
+            );
           }
 
           const draft = parseQuestionSetDraft(choice.message.content, settings.includeAnswers);
           const title = draft.title.toLocaleLowerCase();
-          if (questions.some(question => question.title.toLocaleLowerCase() === title)) {
-            throw new InvalidQuestionSetOutput('Generate a different question with a unique title.');
+          if (questions.some((question) => question.title.toLocaleLowerCase() === title)) {
+            throw new InvalidQuestionSetOutput(
+              'Generate a different question with a unique title.',
+            );
           }
           questions.push(draft);
           break;
         } catch (error) {
           const failure = providerFailure(error);
           if (failure?.status === 401 || failure?.status === 403) {
-            throw new WorkflowError('Groq rejected the question-set API credentials. Check GROQ_API_KEY.', 503);
+            throw new WorkflowError(
+              'Groq rejected the question-set API credentials. Check GROQ_API_KEY.',
+              503,
+            );
           }
 
-          const strictUnavailable = strictOutput && failure?.status === 400
-            && /not supported|unsupported|not available/i.test(failure.message)
-            && /json_schema|strict|response_format|structured/i.test(failure.message);
+          const strictUnavailable =
+            strictOutput &&
+            failure?.status === 400 &&
+            /not supported|unsupported|not available/i.test(failure.message) &&
+            /json_schema|strict|response_format|structured/i.test(failure.message);
           if (strictUnavailable && attempt < MAX_ATTEMPTS - 1) {
             strictOutput = false;
             correction = FORMAT_CORRECTION;
             continue;
           }
 
-          const invalidJson = failure?.status === 400
-            && /json_validate_failed|json.*(?:schema|object|valid)|expected object|failed_generation/i
-              .test(`${failure.code} ${failure.message}`);
-          const retryableProvider = failure && (
-            failure.status === 429 || (failure.status !== undefined && failure.status >= 500)
-            || ['ECONNABORTED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'].includes(failure.code)
-          );
+          const invalidJson =
+            failure?.status === 400 &&
+            /json_validate_failed|json.*(?:schema|object|valid)|expected object|failed_generation/i.test(
+              `${failure.code} ${failure.message}`,
+            );
+          const retryableProvider =
+            failure &&
+            (failure.status === 429 ||
+              (failure.status !== undefined && failure.status >= 500) ||
+              ['ECONNABORTED', 'ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'].includes(failure.code));
 
-          const canRetry = error instanceof InvalidQuestionSetOutput
-            || invalidJson || retryableProvider;
+          const canRetry =
+            error instanceof InvalidQuestionSetOutput || invalidJson || retryableProvider;
           if (attempt < MAX_ATTEMPTS - 1 && canRetry) {
-            correction = error instanceof InvalidQuestionSetOutput
-              ? error.message
-              : FORMAT_CORRECTION;
+            correction =
+              error instanceof InvalidQuestionSetOutput ? error.message : FORMAT_CORRECTION;
             if (invalidJson && /max_completion_tokens|truncat/i.test(failure.message)) {
               tokenBudget = Math.min(MAX_COMPLETION_TOKENS, tokenBudget * 2);
             }
@@ -295,11 +311,12 @@ export function createQuestionSetAgent(dependencies: QuestionSetAgentDependencie
             continue;
           }
 
-          const advice = failure?.status === 429
-            ? 'Groq is rate-limited. Wait briefly and retry.'
-            : error instanceof InvalidQuestionSetOutput || invalidJson
-              ? `Groq did not return a valid question after three attempts. ${error instanceof InvalidQuestionSetOutput ? error.message : FORMAT_CORRECTION} Retry with fewer or simpler topics.`
-              : 'The Groq question-set request failed. Check the Groq service and QUESTION_SET_GROQ_MODEL, then retry.';
+          const advice =
+            failure?.status === 429
+              ? 'Groq is rate-limited. Wait briefly and retry.'
+              : error instanceof InvalidQuestionSetOutput || invalidJson
+                ? `Groq did not return a valid question after three attempts. ${error instanceof InvalidQuestionSetOutput ? error.message : FORMAT_CORRECTION} Retry with fewer or simpler topics.`
+                : 'The Groq question-set request failed. Check the Groq service and QUESTION_SET_GROQ_MODEL, then retry.';
           throw new WorkflowError(
             `${advice} No questions from this request were saved; existing questions are unchanged.`,
             failure?.status === 429 ? 429 : 502,

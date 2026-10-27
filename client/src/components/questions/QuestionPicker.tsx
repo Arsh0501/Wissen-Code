@@ -10,17 +10,12 @@ export function filterQuestions(
   return questions.filter(
     (question) =>
       (!term ||
-        [
-          question.title,
-          question.statement,
-          ...parseJsonArray<string>(question.tags),
-        ]
+        [question.title, question.statement, ...parseJsonArray<string>(question.tags)]
           .join(' ')
           .toLowerCase()
           .includes(term)) &&
       (!filters.difficulty || question.difficulty === filters.difficulty) &&
-      (!filters.topic ||
-        parseJsonArray(question.tags).includes(filters.topic)) &&
+      (!filters.topic || parseJsonArray(question.tags).includes(filters.topic)) &&
       (!filters.type || (question.questionType || 'coding') === filters.type),
   );
 }
@@ -42,10 +37,7 @@ export default function QuestionPicker({
   const [topic, setTopic] = useState('');
   const [type, setType] = useState('');
   const topics = useMemo(
-    () =>
-      [
-        ...new Set(questions.flatMap((q) => parseJsonArray<string>(q.tags))),
-      ].sort(),
+    () => [...new Set(questions.flatMap((q) => parseJsonArray<string>(q.tags)))].sort(),
     [questions],
   );
   const visible = filterQuestions(questions, {
@@ -54,8 +46,7 @@ export default function QuestionPicker({
     topic,
     type,
   });
-  const all =
-    visible.length > 0 && visible.every((q) => selectedIds.includes(q.id));
+  const all = visible.length > 0 && visible.every((q) => selectedIds.includes(q.id));
   return (
     <section className="space-y-4" aria-label="Question picker">
       <div className="grid md:grid-cols-4 gap-3">
@@ -96,7 +87,12 @@ export default function QuestionPicker({
         >
           <option value="">All types</option>
           <option value="coding">Coding</option>
-          <option value="debugging">Debugging</option>{['mcq', 'sql', 'written', 'project'].map(type => <option key={type} value={type}>{type.toUpperCase()}</option>)}
+          <option value="debugging">Debugging</option>
+          {['mcq', 'sql', 'written', 'project'].map((type) => (
+            <option key={type} value={type}>
+              {type.toUpperCase()}
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex flex-wrap items-center gap-4 text-sm">
@@ -107,16 +103,13 @@ export default function QuestionPicker({
             disabled={!visible.length}
             ref={(node) => {
               if (node)
-                node.indeterminate =
-                  !all && visible.some((q) => selectedIds.includes(q.id));
+                node.indeterminate = !all && visible.some((q) => selectedIds.includes(q.id));
             }}
             onChange={(e) =>
               onChange(
                 e.target.checked
                   ? [...new Set([...selectedIds, ...visible.map((q) => q.id)])]
-                  : selectedIds.filter(
-                      (id) => !visible.some((q) => q.id === id),
-                    ),
+                  : selectedIds.filter((id) => !visible.some((q) => q.id === id)),
               )
             }
           />
@@ -134,9 +127,7 @@ export default function QuestionPicker({
         </button>
       </div>
       {!questions.length ? (
-        <p className="card text-surface-500">
-          No questions are available in the bank.
-        </p>
+        <p className="card text-surface-500">No questions are available in the bank.</p>
       ) : !visible.length ? (
         <div className="card">
           <p>No questions match these filters.</p>
@@ -153,7 +144,9 @@ export default function QuestionPicker({
           </button>
         </div>
       ) : (
-        <ul className={`${scrollable ? 'max-h-96 overflow-auto ' : ''}divide-y divide-surface-800 border border-surface-800 rounded-lg`}>
+        <ul
+          className={`${scrollable ? 'max-h-96 overflow-auto ' : ''}divide-y divide-surface-800 border border-surface-800 rounded-lg`}
+        >
           {visible.map((q) => (
             <li key={q.id} className="flex gap-3 p-3 items-start">
               <input
@@ -178,9 +171,7 @@ export default function QuestionPicker({
                   {q.title}
                 </button>
                 <div className="flex flex-wrap gap-2 mt-1 text-xs">
-                  <span className={`badge-${q.difficulty}`}>
-                    {q.difficulty}
-                  </span>
+                  <span className={`badge-${q.difficulty}`}>{q.difficulty}</span>
                   <span className="badge">{q.questionType || 'coding'}</span>
                   {parseJsonArray<string>(q.tags).map((tag) => (
                     <span key={tag} className="text-surface-500">
@@ -190,11 +181,7 @@ export default function QuestionPicker({
                 </div>
               </div>
               {onPreview && (
-                <button
-                  type="button"
-                  className="btn-ghost text-xs"
-                  onClick={() => onPreview(q)}
-                >
+                <button type="button" className="btn-ghost text-xs" onClick={() => onPreview(q)}>
                   Preview
                 </button>
               )}
@@ -207,14 +194,10 @@ export default function QuestionPicker({
           <h3 className="font-semibold mb-2">Selected question order</h3>
           <ol className="space-y-2">
             {selectedIds.map((id, index) => (
-              <li
-                key={id}
-                className="flex items-center gap-3 p-2 rounded bg-surface-800/40"
-              >
+              <li key={id} className="flex items-center gap-3 p-2 rounded bg-surface-800/40">
                 <span className="text-xs text-surface-500">{index + 1}</span>
                 <span className="flex-1 text-sm">
-                  {questions.find((q) => q.id === id)?.title ||
-                    `Question ${id}`}
+                  {questions.find((q) => q.id === id)?.title || `Question ${id}`}
                 </span>
                 <button
                   aria-label={`Move question ${index + 1} up`}
@@ -222,10 +205,7 @@ export default function QuestionPicker({
                   disabled={!index}
                   onClick={() => {
                     const next = [...selectedIds];
-                    [next[index - 1], next[index]] = [
-                      next[index],
-                      next[index - 1],
-                    ];
+                    [next[index - 1], next[index]] = [next[index], next[index - 1]];
                     onChange(next);
                   }}
                 >
@@ -237,10 +217,7 @@ export default function QuestionPicker({
                   disabled={index === selectedIds.length - 1}
                   onClick={() => {
                     const next = [...selectedIds];
-                    [next[index + 1], next[index]] = [
-                      next[index],
-                      next[index + 1],
-                    ];
+                    [next[index + 1], next[index]] = [next[index], next[index + 1]];
                     onChange(next);
                   }}
                 >

@@ -1,7 +1,7 @@
-import { accessRoles, type AccessRole } from '../platform/permissions';
+import { accessRoles, type AccessRole } from '../platform/auth/permissions';
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 
 export function validateAuthConfiguration() {
   const value = process.env.JWT_SECRET;
@@ -51,11 +51,12 @@ export async function verifyAccessToken(token: string): Promise<AuthUser> {
   });
   if (!session || !accessRoles.includes(session.user.role as AccessRole))
     throw new Error('Session invalidated');
-  const userRole = session.user.role === 'interviewer'
-    ? 'interviewer'
-    : session.user.role === 'candidate'
-    ? 'candidate'
-    : 'admin';
+  const userRole =
+    session.user.role === 'interviewer'
+      ? 'interviewer'
+      : session.user.role === 'candidate'
+        ? 'candidate'
+        : 'admin';
   return {
     id: session.user.id,
     email: session.user.email,
@@ -67,11 +68,7 @@ export async function verifyAccessToken(token: string): Promise<AuthUser> {
   };
 }
 
-export async function authenticate(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = req.headers.authorization?.startsWith('Bearer ')
     ? req.headers.authorization.slice(7)
     : null;
@@ -80,9 +77,7 @@ export async function authenticate(
     req.user = await verifyAccessToken(token);
     next();
   } catch {
-    return res
-      .status(401)
-      .json({ error: 'Invalid, expired or revoked session' });
+    return res.status(401).json({ error: 'Invalid, expired or revoked session' });
   }
 }
 

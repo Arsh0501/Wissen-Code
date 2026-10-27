@@ -1,6 +1,6 @@
 import type * as Monaco from 'monaco-editor';
 import { useEffect, useRef, useState } from 'react';
-import Editor from '../CodeEditor';
+import Editor from '../editor/CodeEditor';
 import type { Socket } from 'socket.io-client';
 export default function CollaborativeEditor({
   socket,
@@ -25,9 +25,7 @@ export default function CollaborativeEditor({
   socketCurrent.current = socket;
   const previousLanguage = useRef(languageId);
   const [code, setCode] = useState(initialCode);
-  const decorations = useRef<Monaco.editor.IEditorDecorationsCollection | null>(
-    null,
-  );
+  const decorations = useRef<Monaco.editor.IEditorDecorationsCollection | null>(null);
   const lastCursor = useRef(0);
   const [peerPosition, setPeerPosition] = useState('');
   const [message, setMessage] = useState('Synchronizing editor…');
@@ -63,14 +61,7 @@ export default function CollaborativeEditor({
   const send = useRef<() => void>(() => {});
   send.current = () => {
     const s = state.current;
-    if (
-      !socket?.connected ||
-      readOnly ||
-      !s.dirty ||
-      s.sending ||
-      s.conflicted ||
-      s.revision < 0
-    )
+    if (!socket?.connected || readOnly || !s.dirty || s.sending || s.conflicted || s.revision < 0)
       return;
     const pending = s.code;
     const requestId = ++s.requestId;
@@ -122,7 +113,10 @@ export default function CollaborativeEditor({
       if (!Number.isInteger(raw.codeRevision)) return;
       if (raw.codeRevision < s.revision) return;
       s.revision = raw.codeRevision;
-      if (s.sending) { callback.current(s.code); return; }
+      if (s.sending) {
+        callback.current(s.code);
+        return;
+      }
       if (s.dirty && raw.currentCode === s.acknowledgedCode && !s.conflicted) {
         callback.current(s.code);
         queueSend.current();
@@ -130,12 +124,14 @@ export default function CollaborativeEditor({
       }
       if (s.dirty || s.conflicted) {
         if (raw.currentCode === s.code) {
-          s.dirty = false; s.conflicted = false; setConflict(null);
+          s.dirty = false;
+          s.conflicted = false;
+          setConflict(null);
         } else {
-        s.conflicted = true;
-        setConflict({ local: s.code, remote: raw.currentCode ?? '' });
-        callback.current(s.code);
-        return;
+          s.conflicted = true;
+          setConflict({ local: s.code, remote: raw.currentCode ?? '' });
+          callback.current(s.code);
+          return;
         }
       }
       s.code = raw.currentCode ?? '';
@@ -147,7 +143,10 @@ export default function CollaborativeEditor({
     const remote = (raw: any) => {
       const s = state.current;
       if (raw.authorSocketId && raw.authorSocketId === socket.id) {
-        if (raw.revision >= s.revision) { s.revision = raw.revision; s.acknowledgedCode = raw.code; }
+        if (raw.revision >= s.revision) {
+          s.revision = raw.revision;
+          s.acknowledgedCode = raw.code;
+        }
         if (Number.isInteger(raw.languageId)) previousLanguage.current = raw.languageId;
         if (s.sending && s.inFlightCode === raw.code) {
           s.requestId++;
@@ -160,12 +159,13 @@ export default function CollaborativeEditor({
       }
       if (!Number.isInteger(raw.revision) || raw.revision <= s.revision) return;
       s.revision = raw.revision;
-      if ((s.dirty || (s.sending && s.acknowledgedCode !== s.inFlightCode)) && s.code !== raw.code) {
+      if (
+        (s.dirty || (s.sending && s.acknowledgedCode !== s.inFlightCode)) &&
+        s.code !== raw.code
+      ) {
         s.conflicted = true;
         setConflict({ local: s.code, remote: raw.code });
-        setMessage(
-          'Another participant edited this code. Choose which version to continue with.',
-        );
+        setMessage('Another participant edited this code. Choose which version to continue with.');
       } else {
         s.dirty = false;
         s.code = raw.code;
@@ -180,9 +180,7 @@ export default function CollaborativeEditor({
       socket.emit('JOIN_INTERVIEW', {});
     };
     const cursor = (raw: any) => {
-      setPeerPosition(
-        `${raw.name}: line ${raw.lineNumber}, column ${raw.column}`,
-      );
+      setPeerPosition(`${raw.name}: line ${raw.lineNumber}, column ${raw.column}`);
       decorations.current?.set([
         {
           range: {
@@ -232,35 +230,31 @@ export default function CollaborativeEditor({
       if (socketCurrent.current?.connected && !readOnly && s.revision >= 0) {
         s.sending = true;
         s.dirty = false;
-        socketCurrent.current
-          .timeout(10000)
-          .emit(
-            'UPDATE_CODE',
-            {
-              code: resetStarterCode.text,
-              languageId: resetStarterCode.languageId,
-              baseRevision: s.revision,
-            },
-            (timeout: Error | null, response: any) => {
-              s.sending = false;
-              if (timeout || response?.success === false) {
-                s.conflicted = true;
-                if (response?.state) s.revision = response.state.codeRevision;
-                setConflict({
-                  local: s.code,
-                  remote: response?.state?.currentCode ?? '',
-                });
-                setMessage(
-                  timeout
-                    ? 'Save acknowledgement lost.'
-                    : (response?.error ?? 'Save failed'),
-                );
-                return;
-              }
-              s.revision = Math.max(s.revision, response.revision);
-              setMessage('Saved');
-            },
-          );
+        socketCurrent.current.timeout(10000).emit(
+          'UPDATE_CODE',
+          {
+            code: resetStarterCode.text,
+            languageId: resetStarterCode.languageId,
+            baseRevision: s.revision,
+          },
+          (timeout: Error | null, response: any) => {
+            s.sending = false;
+            if (timeout || response?.success === false) {
+              s.conflicted = true;
+              if (response?.state) s.revision = response.state.codeRevision;
+              setConflict({
+                local: s.code,
+                remote: response?.state?.currentCode ?? '',
+              });
+              setMessage(
+                timeout ? 'Save acknowledgement lost.' : (response?.error ?? 'Save failed'),
+              );
+              return;
+            }
+            s.revision = Math.max(s.revision, response.revision);
+            setMessage('Saved');
+          },
+        );
       }
     }
   }, [resetStarterCode]);

@@ -7,7 +7,7 @@ import {
   type GroqQuestionSetRequest,
   type GroqQuestionSetResponse,
 } from '../ai/question-set-agent';
-import type { QuestionSetGenerationInput } from '../services/question-set-contracts';
+import type { QuestionSetGenerationInput } from '../services/questions/question-set-contracts';
 
 const question = {
   title: 'Java locks',
@@ -15,7 +15,10 @@ const question = {
   answer: 'Optimistic locking checks a version; pessimistic locking holds a lock.',
 };
 const input: QuestionSetGenerationInput = {
-  topics: 'Java concurrency', count: 1, includeAnswers: true, answerDetail: 'detailed',
+  topics: 'Java concurrency',
+  count: 1,
+  includeAnswers: true,
+  answerDetail: 'detailed',
 };
 const config = () => ({ apiKey: 'fixture-key', model: 'openai/gpt-oss-120b' });
 
@@ -30,20 +33,38 @@ function providerError(status: number, code: string, message: string) {
 }
 
 test('Groq-only configuration ignores AI_PROVIDER and never falls back to an OpenAI key', () => {
-  assert.deepEqual(questionSetGroqConfig({
-    AI_PROVIDER: 'openai', OPENAI_API_KEY: 'unused', GROQ_API_KEY: ' groq-only ',
-    GROQ_MODEL: 'default-model', QUESTION_SET_GROQ_MODEL: 'dedicated-model',
-  }), { apiKey: 'groq-only', model: 'dedicated-model' });
+  assert.deepEqual(
+    questionSetGroqConfig({
+      AI_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'unused',
+      GROQ_API_KEY: ' groq-only ',
+      GROQ_MODEL: 'default-model',
+      QUESTION_SET_GROQ_MODEL: 'dedicated-model',
+    }),
+    { apiKey: 'groq-only', model: 'dedicated-model' },
+  );
   assert.throws(() => questionSetGroqConfig({ OPENAI_API_KEY: 'unused' }), /requires GROQ_API_KEY/);
 });
 
 test('normalizes object and single-array responses without silently dropping extra questions', () => {
   for (const document of [question, { question }, [question], { questions: [question] }]) {
-    assert.deepEqual(parseQuestionSetDraft(JSON.stringify(document), true), { ...question, source: 'ai' });
+    assert.deepEqual(parseQuestionSetDraft(JSON.stringify(document), true), {
+      ...question,
+      source: 'ai',
+    });
   }
-  assert.throws(() => parseQuestionSetDraft(JSON.stringify([question, question]), true), /exactly one/);
-  assert.throws(() => parseQuestionSetDraft(JSON.stringify({ ...question, title: '\u0000' }), true), /fields/);
-  assert.throws(() => parseQuestionSetDraft(JSON.stringify({ ...question, answer: '' }), true), /nonempty/);
+  assert.throws(
+    () => parseQuestionSetDraft(JSON.stringify([question, question]), true),
+    /exactly one/,
+  );
+  assert.throws(
+    () => parseQuestionSetDraft(JSON.stringify({ ...question, title: '\u0000' }), true),
+    /fields/,
+  );
+  assert.throws(
+    () => parseQuestionSetDraft(JSON.stringify({ ...question, answer: '' }), true),
+    /nonempty/,
+  );
   assert.throws(() => parseQuestionSetDraft('not JSON', true), /valid JSON/);
 });
 
@@ -59,7 +80,7 @@ test('makes one request per question, sends no count, and preserves answer optio
   });
   const result = await agent.generate({ ...input, count: 2, includeAnswers: false });
   assert.equal(result.questions.length, 2);
-  assert.ok(result.questions.every(draft => draft.answer === null && draft.source === 'ai'));
+  assert.ok(result.questions.every((draft) => draft.answer === null && draft.source === 'ai'));
   const format = requests[0].response_format;
   assert.equal(format.type, 'json_schema');
   if (format.type === 'json_schema') assert.equal(format.json_schema.strict, true);
@@ -73,9 +94,10 @@ test('recovers from the reported provider 400 array/object schema error', async 
   let calls = 0;
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async request => {
+    transport: async (request) => {
       calls++;
-      if (calls === 1) throw providerError(400, 'json_validate_failed', 'expected object, but got array');
+      if (calls === 1)
+        throw providerError(400, 'json_validate_failed', 'expected object, but got array');
       assert.match(request.messages[1].content, /formatCorrection/);
       return completion({ question });
     },
@@ -88,7 +110,7 @@ test('retries missing reference answers and increases the budget after truncatio
   const budgets: number[] = [];
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async request => {
+    transport: async (request) => {
       budgets.push(request.max_completion_tokens);
       if (budgets.length === 1) return completion({ question }, 'length');
       if (budgets.length === 2) return completion({ question: { ...question, answer: null } });
@@ -98,16 +120,19 @@ test('retries missing reference answers and increases the budget after truncatio
   assert.ok((await agent.generate(input)).questions[0].answer);
   assert.equal(budgets.length, 3);
   assert.ok(budgets[1] > budgets[0]);
-  assert.ok(budgets.every(budget => budget <= 8192));
+  assert.ok(budgets.every((budget) => budget <= 8192));
 });
 
 test('bounds invalid-output retries and returns an actionable error', async () => {
   let calls = 0;
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async () => { calls++; return completion([question, question]); },
+    transport: async () => {
+      calls++;
+      return completion([question, question]);
+    },
   });
-  await assert.rejects(agent.generate(input), error => {
+  await assert.rejects(agent.generate(input), (error) => {
     assert.match((error as Error).message, /after three attempts/);
     assert.match((error as Error).message, /No questions from this request were saved/);
     return true;
@@ -120,7 +145,9 @@ test('retries rate limits with bounded backoff and does not retry invalid creden
   const waits: number[] = [];
   const agent = createQuestionSetAgent({
     getConfig: config,
-    sleep: async milliseconds => { waits.push(milliseconds); },
+    sleep: async (milliseconds) => {
+      waits.push(milliseconds);
+    },
     transport: async () => {
       calls++;
       if (calls < 3) throw providerError(429, 'rate_limit_exceeded', 'fixture');
@@ -133,7 +160,10 @@ test('retries rate limits with bounded backoff and does not retry invalid creden
   calls = 0;
   const denied = createQuestionSetAgent({
     getConfig: config,
-    transport: async () => { calls++; throw providerError(401, 'invalid_api_key', 'secret-provider-detail'); },
+    transport: async () => {
+      calls++;
+      throw providerError(401, 'invalid_api_key', 'secret-provider-detail');
+    },
   });
   await assert.rejects(denied.generate(input), /Check GROQ_API_KEY/);
   assert.equal(calls, 1);
@@ -143,7 +173,10 @@ test('rejects invalid input before contacting Groq', async () => {
   let calls = 0;
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async () => { calls++; return completion({ question }); },
+    transport: async () => {
+      calls++;
+      return completion({ question });
+    },
   });
   await assert.rejects(agent.generate({ ...input, count: 0 }));
   assert.equal(calls, 0);
@@ -155,11 +188,16 @@ test('retries duplicates without restarting or duplicating earlier questions', a
     getConfig: config,
     transport: async () => {
       calls++;
-      return completion({ question: calls < 3 ? question : { ...question, title: 'Java atomics' } });
+      return completion({
+        question: calls < 3 ? question : { ...question, title: 'Java atomics' },
+      });
     },
   });
   const result = await agent.generate({ ...input, count: 2 });
-  assert.deepEqual(result.questions.map(draft => draft.title), ['Java locks', 'Java atomics']);
+  assert.deepEqual(
+    result.questions.map((draft) => draft.title),
+    ['Java locks', 'Java atomics'],
+  );
   assert.equal(calls, 3);
 });
 
@@ -167,9 +205,10 @@ test('rejects object-valued detailed answers and retries for an editor-compatibl
   let calls = 0;
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async request => {
+    transport: async (request) => {
       calls++;
-      if (calls === 1) return completion({ question: { ...question, answer: { explanation: 'Not text' } } });
+      if (calls === 1)
+        return completion({ question: { ...question, answer: { explanation: 'Not text' } } });
       assert.match(request.messages[1].content, /expected string/);
       return completion({ question });
     },
@@ -183,9 +222,14 @@ test('falls back to Groq JSON mode when strict decoding is unavailable', async (
   let calls = 0;
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async request => {
+    transport: async (request) => {
       calls++;
-      if (calls === 1) throw providerError(400, 'invalid_request_error', 'response_format json_schema strict is not supported');
+      if (calls === 1)
+        throw providerError(
+          400,
+          'invalid_request_error',
+          'response_format json_schema strict is not supported',
+        );
       assert.deepEqual(request.response_format, { type: 'json_object' });
       return completion({ question });
     },
@@ -198,7 +242,7 @@ test('passes the optional description to Groq while allowing requests without it
   const descriptions: unknown[] = [];
   const agent = createQuestionSetAgent({
     getConfig: config,
-    transport: async request => {
+    transport: async (request) => {
       descriptions.push(JSON.parse(request.messages[1].content).description);
       return completion({ question });
     },

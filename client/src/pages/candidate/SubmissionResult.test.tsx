@@ -25,9 +25,7 @@ it('does not confirm a submission when results fail and supports retry', async (
     { loggedInAs: candidateUser, initialEntries: ['/exam/1/result'] },
   );
   expect(await screen.findByText('Results unavailable')).toBeInTheDocument();
-  expect(
-    screen.queryByText('Your test has been submitted successfully.'),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByText('Your test has been submitted successfully.')).not.toBeInTheDocument();
   const user = userEvent.setup();
   await user.click(screen.getByRole('button', { name: 'Refresh Results' }));
   expect(await screen.findByText('Candidate test')).toBeInTheDocument();
@@ -46,9 +44,7 @@ it('shows queued grading without presenting a zero score', async () => {
     </Routes>,
     { loggedInAs: candidateUser, initialEntries: ['/exam/1/result'] },
   );
-  expect(
-    await screen.findByText('Your answers have been received'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Your answers have been received')).toBeInTheDocument();
   expect(screen.queryByText('0.0%')).not.toBeInTheDocument();
 });
 
@@ -66,9 +62,7 @@ it('retries failed grading using the saved attempt', async () => {
       sessionId: 3,
       evaluation: { assessment: { name: 'Retry assessment' } },
     } as any);
-  const finish = vi
-    .spyOn(services, 'finishSession')
-    .mockResolvedValue({} as any);
+  const finish = vi.spyOn(services, 'finishSession').mockResolvedValue({} as any);
   renderWithProviders(
     <Routes>
       <Route path="/exam/:assessmentId/result" element={<SubmissionResult />} />
@@ -76,12 +70,8 @@ it('retries failed grading using the saved attempt', async () => {
     { loggedInAs: candidateUser, initialEntries: ['/exam/1/result'] },
   );
   const user = userEvent.setup();
-  await user.click(
-    await screen.findByRole('button', { name: 'Retry grading' }),
-  );
+  await user.click(await screen.findByRole('button', { name: 'Retry grading' }));
   expect(finish).toHaveBeenCalledWith(3);
-  expect(
-    await screen.findByText('Your answers have been received'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Your answers have been received')).toBeInTheDocument();
   expect(get).toHaveBeenCalledTimes(2);
 });

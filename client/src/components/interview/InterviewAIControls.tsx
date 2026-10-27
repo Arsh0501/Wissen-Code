@@ -2,10 +2,7 @@ import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiData } from '../../services/workflows';
 import { apiError } from '../../services/api';
-import {
-  InterviewAIResults,
-  parseAIResults,
-} from '../../hooks/useInterviewLive';
+import { InterviewAIResults, parseAIResults } from '../../hooks/useInterviewLive';
 interface Job {
   id: string;
   kind: string;
@@ -40,21 +37,27 @@ export default function InterviewAIControls({
   }, [query.data, onResults]);
   const generate = useMutation({
     mutationFn: (kind: string) =>
-      apiData('/ai/jobs', 'post', { kind, interviewId: id, input: kind === 'interview-assistant' && questionId ? { questionId } : {} }),
+      apiData('/ai/jobs', 'post', {
+        kind,
+        interviewId: id,
+        input: kind === 'interview-assistant' && questionId ? { questionId } : {},
+      }),
     onSuccess: () => client.invalidateQueries({ queryKey: key }),
   });
   const retry = useMutation({
-    mutationFn: (jobId: string) =>
-      apiData(`/ai/jobs/${jobId}/retry`, 'post', {}),
+    mutationFn: (jobId: string) => apiData(`/ai/jobs/${jobId}/retry`, 'post', {}),
     onSuccess: () => client.invalidateQueries({ queryKey: key }),
   });
-  const pending = query.data?.jobs.some((j) =>
-    ['queued', 'running'].includes(j.status),
-  );
+  const pending = query.data?.jobs.some((j) => ['queued', 'running'].includes(j.status));
   return (
     <div className={embedded ? 'space-y-3' : 'card space-y-3'}>
       <h4 className="font-semibold">Generate AI assistance</h4>
-      {status === 'completed' && <p className="text-xs text-surface-500">The final report summarizes finalized Evaluation by skill ratings and feedback. Finalize your skill evaluations before generating it.</p>}
+      {status === 'completed' && (
+        <p className="text-xs text-surface-500">
+          The final report summarizes finalized Evaluation by skill ratings and feedback. Finalize
+          your skill evaluations before generating it.
+        </p>
+      )}
       {query.isLoading && <p role="status">Loading AI status…</p>}
       {query.error && (
         <div role="alert">
@@ -89,8 +92,7 @@ export default function InterviewAIControls({
                   ? status !== 'in_progress'
                   : !['in_progress', 'completed'].includes(status)) ||
               query.data.jobs.some(
-                (j) =>
-                  j.kind === kind && ['queued', 'running'].includes(j.status),
+                (j) => j.kind === kind && ['queued', 'running'].includes(j.status),
               )
             }
             onClick={() => generate.mutate(kind)}
@@ -100,11 +102,7 @@ export default function InterviewAIControls({
         ))}
       </div>
       {generate.isPending && <p role="status">Generating AI results…</p>}
-      {pending && (
-        <p role="status">
-          AI work is queued or running. Results will appear here.
-        </p>
-      )}
+      {pending && <p role="status">AI work is queued or running. Results will appear here.</p>}
       {(generate.error || retry.error) && (
         <p role="alert" className="text-red-600">
           {apiError(generate.error || retry.error)}

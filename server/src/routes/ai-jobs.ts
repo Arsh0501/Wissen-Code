@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { generationTopics } from '../services/studio-generation';
+import { generationTopics } from '../services/questions/studio-generation';
 import { aiConfigured } from '../ai/config';
 import { Router } from 'express';
 import { z } from 'zod';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { adminOrInterviewer } from '../middleware/adminOnly';
 import { aiQueue } from '../ai/queue';
 import { agentKinds } from '../ai/agents';
@@ -11,12 +11,9 @@ import { uiResults } from '../ai/results';
 import { runInlineJob } from '../ai/inline';
 import { interviewContext } from '../ai/context';
 import { finalEvaluationContext } from '../ai/final-evaluation-context';
-import { WorkflowError } from '../services/structured-ai';
-import { setCurrentSubquestion } from '../services/current-subquestion';
-import {
-  generationSchema,
-  draftContentSchema,
-} from '../services/workflow-schemas';
+import { WorkflowError } from '../services/ai/structured-ai';
+import { setCurrentSubquestion } from '../services/interviews/current-subquestion';
+import { generationSchema, draftContentSchema } from '../services/questions/workflow-schemas';
 const router = Router();
 router.use(adminOrInterviewer);
 const wrap = (fn: any) => (req: any, res: any, next: any) =>
@@ -25,9 +22,7 @@ router.post(
   '/',
   wrap(async (req: any, res: any) => {
     if (!aiConfigured())
-      return res
-        .status(503)
-        .json({ error: 'An AI provider must be configured to run AI jobs' });
+      return res.status(503).json({ error: 'An AI provider must be configured to run AI jobs' });
     const body = z
       .object({
         kind: z.enum(agentKinds),
@@ -35,50 +30,82 @@ router.post(
         input: z.record(z.string(), z.unknown()).default({}),
       })
       .parse(req.body);
-    if (
-      body.kind.startsWith('question-') &&
-      (req.user.accessRole ?? req.user.role) !== 'admin'
-    )
-      return res
-        .status(403)
-        .json({
-          error:
-            'Question generation and validation require administrator access',
-        });
+    if (body.kind.startsWith('question-') && (req.user.accessRole ?? req.user.role) !== 'admin')
+      return res.status(403).json({
+        error: 'Question generation and validation require administrator access',
+      });
     if (body.kind === 'question-generation') {
       generationTopics(generationSchema.parse(body.input));
       body.input.requestId = randomUUID();
     }
-    if (body.kind === 'question-validation')
-      draftContentSchema.parse(body.input.question);
+    if (body.kind === 'question-validation') draftContentSchema.parse(body.input.question);
     if (!body.kind.startsWith('question-') && !body.interviewId)
       return res.status(400).json({ error: 'Interview ID required' });
     if (body.interviewId) {
-      const interview = await prisma.interview.findFirst({ where: { id: body.interviewId, interviewerId: req.user.id } });
+      const interview = await prisma.interview.findFirst({
+        where: { id: body.interviewId, interviewerId: req.user.id },
+      });
       if (!interview) return res.status(404).json({ error: 'Interview not found' });
       if (body.kind === 'evaluation' && interview.status !== 'completed')
-        return res.status(409).json({ error: 'End the interview before generating the final evaluation' });
+        return res
+          .status(409)
+          .json({ error: 'End the interview before generating the final evaluation' });
       if (body.kind === 'evaluation') await finalEvaluationContext(interview.id, req.user.id);
       if (body.kind === 'interview-assistant' && interview.status !== 'in_progress')
-        return res.status(409).json({ error: 'Follow-up suggestions are available during a live interview' });
+        return res
+          .status(409)
+          .json({ error: 'Follow-up suggestions are available during a live interview' });
       if (body.kind === 'interview-assistant') {
-        body.input.questionId = z.number().int().positive().parse(body.input.questionId ?? interview.currentQuestionId);
+        body.input.questionId = z
+          .number()
+          .int()
+          .positive()
+          .parse(body.input.questionId ?? interview.currentQuestionId);
         await interviewContext(interview.id, req.user.id, 12000, body.input.questionId as number);
       }
       if (body.kind === 'note-writer' && !['in_progress', 'completed'].includes(interview.status))
         return res.status(409).json({ error: 'Start the interview before generating notes' });
     }
-    const recentEvents = body.interviewId ? await prisma.interviewEvent.findMany({ where: { interviewId: body.interviewId, eventType: { notIn: ['CODE_CHANGED', 'CURSOR_CHANGED', 'AI_REVIEWED'] } }, orderBy: { id: 'desc' }, take: 20, select: { id: true, eventType: true, createdAt: true, payload: true } }) : [];
-    const latestEvent = body.kind === 'interview-assistant' ? recentEvents.find((event) => {
-      try { const payload = JSON.parse(event.payload); return (payload.questionId ?? payload.activeQuestionId) === body.input.questionId; }
-      catch { return false; }
-    }) : recentEvents[0];
+    const recentEvents = body.interviewId
+      ? await prisma.interviewEvent.findMany({
+          where: {
+            interviewId: body.interviewId,
+            eventType: { notIn: ['CODE_CHANGED', 'CURSOR_CHANGED', 'AI_REVIEWED'] },
+          },
+          orderBy: { id: 'desc' },
+          take: 20,
+          select: { id: true, eventType: true, createdAt: true, payload: true },
+        })
+      : [];
+    const latestEvent =
+      body.kind === 'interview-assistant'
+        ? recentEvents.find((event) => {
+            try {
+              const payload = JSON.parse(event.payload);
+              return (payload.questionId ?? payload.activeQuestionId) === body.input.questionId;
+            } catch {
+              return false;
+            }
+          })
+        : recentEvents[0];
     const job = await prisma.aIJob.create({
       data: {
         authorId: req.user.id,
         kind: body.kind,
         interviewId: body.interviewId,
-        input: { ...body.input, _trigger: { mode: 'manual', ...(latestEvent ? { eventId: latestEvent.id, eventType: latestEvent.eventType, createdAt: latestEvent.createdAt.toISOString() } : {}) } } as any,
+        input: {
+          ...body.input,
+          _trigger: {
+            mode: 'manual',
+            ...(latestEvent
+              ? {
+                  eventId: latestEvent.id,
+                  eventType: latestEvent.eventType,
+                  createdAt: latestEvent.createdAt.toISOString(),
+                }
+              : {}),
+          },
+        } as any,
       },
     });
     if (!process.env.REDIS_URL) return res.json(await runInlineJob(job.id));
@@ -118,7 +145,12 @@ router.get(
     if (!job) return res.status(404).json({ error: 'Job not found' });
     res.json({
       ...job,
-      aiResults: job.output ? uiResults(job.id, job.kind, job.output, { createdAt: job.createdAt.toISOString(), trigger: (job.input as any)?._trigger }) : null,
+      aiResults: job.output
+        ? uiResults(job.id, job.kind, job.output, {
+            createdAt: job.createdAt.toISOString(),
+            trigger: (job.input as any)?._trigger,
+          })
+        : null,
     });
   }),
 );
@@ -128,14 +160,11 @@ router.post(
     const job = await prisma.aIJob.findFirst({
       where: { id: req.params.id, authorId: req.user.id, status: 'failed' },
     });
-    if (!job)
-      return res.status(409).json({ error: 'Only failed jobs can be retried' });
+    if (!job) return res.status(409).json({ error: 'Only failed jobs can be retried' });
     if (!process.env.REDIS_URL) return res.json(await runInlineJob(job.id));
     const queued = await aiQueue().getJob(job.id);
     if (queued && (await queued.getState()) !== 'failed')
-      return res
-        .status(409)
-        .json({ error: 'Automatic retries are still pending' });
+      return res.status(409).json({ error: 'Automatic retries are still pending' });
     if (queued) await queued.retry();
     else await aiQueue().add(job.kind, { id: job.id }, { jobId: job.id });
     await prisma.aIJob.update({
@@ -175,12 +204,25 @@ router.post(
       if (!item) throw new Error('AI item not found');
       if (job.kind === 'interview-assistant' && input.decision === 'ask') {
         await tx.$queryRaw`SELECT id FROM "Interview" WHERE id = ${job.interviewId} FOR UPDATE`;
-        const interview = await tx.interview.findFirst({ where: { id: job.interviewId, interviewerId: req.user.id } });
-        if (!interview || (req.user.accessRole ?? req.user.role) !== 'interviewer') throw new WorkflowError('Only the assigned interviewer can ask follow-ups.', 403);
-        if (interview.status !== 'in_progress' || !item.questionId || interview.currentQuestionId !== item.questionId) {
-          throw new WorkflowError('Ask this follow-up while its question is current in an ongoing interview.', 409);
+        const interview = await tx.interview.findFirst({
+          where: { id: job.interviewId, interviewerId: req.user.id },
+        });
+        if (!interview || (req.user.accessRole ?? req.user.role) !== 'interviewer')
+          throw new WorkflowError('Only the assigned interviewer can ask follow-ups.', 403);
+        if (
+          interview.status !== 'in_progress' ||
+          !item.questionId ||
+          interview.currentQuestionId !== item.questionId
+        ) {
+          throw new WorkflowError(
+            'Ask this follow-up while its question is current in an ongoing interview.',
+            409,
+          );
         }
-        await setCurrentSubquestion(tx, job.interviewId, item.questionId, { id: item.id, question: item.question });
+        await setCurrentSubquestion(tx, job.interviewId, item.questionId, {
+          id: item.id,
+          question: item.question,
+        });
       }
       const isNote = !!feed.notes;
       if (

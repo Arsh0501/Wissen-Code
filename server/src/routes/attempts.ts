@@ -1,10 +1,10 @@
-import { asynchronousGrading, enqueueGrading } from '../platform/grading-jobs';
-import { queueWebhook } from '../platform/webhooks';
+import { asynchronousGrading, enqueueGrading } from '../platform/jobs/grading-jobs';
+import { queueWebhook } from '../platform/mail/webhooks';
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
-import { gradeAnswer, computeEvaluation } from '../services/grading';
-import { canAccessAssessment } from '../services/guest-access';
-import { WorkflowError } from '../services/structured-ai';
+import prisma from '../database/prisma';
+import { gradeAnswer, computeEvaluation } from '../services/assessments/grading';
+import { canAccessAssessment } from '../services/assessments/guest-access';
+import { WorkflowError } from '../services/ai/structured-ai';
 
 const router = Router();
 
@@ -15,16 +15,12 @@ export const MAX_TAB_SWITCHES = 3;
 const GRACE_PERIOD_MS = 30 * 1000;
 
 function remainingSeconds(startedAt: Date, timeLimitMinutes: number): number {
-  const remainingMs =
-    timeLimitMinutes * 60 * 1000 - (Date.now() - startedAt.getTime());
+  const remainingMs = timeLimitMinutes * 60 * 1000 - (Date.now() - startedAt.getTime());
   return Math.max(0, Math.floor(remainingMs / 1000));
 }
 
 function isPastDeadline(startedAt: Date, timeLimitMinutes: number): boolean {
-  return (
-    Date.now() >
-    startedAt.getTime() + timeLimitMinutes * 60 * 1000 + GRACE_PERIOD_MS
-  );
+  return Date.now() > startedAt.getTime() + timeLimitMinutes * 60 * 1000 + GRACE_PERIOD_MS;
 }
 
 function sessionResponse(
@@ -58,11 +54,9 @@ export function availabilityError(a: {
   startAt: Date | null;
   endAt: Date | null;
 }): string | null {
-  if (a.status !== 'published')
-    return 'This assessment is not open for candidates';
+  if (a.status !== 'published') return 'This assessment is not open for candidates';
   const now = new Date();
-  if (a.startAt && now < a.startAt)
-    return `This assessment opens on ${a.startAt.toISOString()}`;
+  if (a.startAt && now < a.startAt) return `This assessment opens on ${a.startAt.toISOString()}`;
   if (a.endAt && now > a.endAt) return 'This assessment has closed';
   return null;
 }
@@ -77,9 +71,7 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
       where: {
         assessmentId,
         candidateName,
-        ...(req.user?.role === 'candidate'
-          ? { candidateUserId: req.user.id }
-          : {}),
+        ...(req.user?.role === 'candidate' ? { candidateUserId: req.user.id } : {}),
         ...(req.user?.role === 'admin' ? { finishedAt: null } : {}),
       },
       orderBy: { startedAt: 'desc' },
@@ -93,10 +85,7 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
     if (!session) return res.json({ exists: false });
     res.json({
       exists: true,
-      ...sessionResponse(
-        session,
-        session.durationMinutes ?? session.assessment.timeLimitMinutes,
-      ),
+      ...sessionResponse(session, session.durationMinutes ?? session.assessment.timeLimitMinutes),
     });
   } catch (error: any) {
     console.error('Error fetching session status:', error);
@@ -130,16 +119,11 @@ router.get('/:id', async (req: Request, res: Response) => {
         ? session.candidateUserId !== req.user!.id
         : session.candidateName !== req.user!.name)
     )
-      return res
-        .status(403)
-        .json({ error: 'This session belongs to another candidate' });
+      return res.status(403).json({ error: 'This session belongs to another candidate' });
     if (!(await canAccessAssessment(req, session.assessmentId)))
       return res.status(403).json({ error: 'Assessment access denied' });
     res.json({
-      ...sessionResponse(
-        session,
-        session.durationMinutes ?? session.assessment.timeLimitMinutes,
-      ),
+      ...sessionResponse(session, session.durationMinutes ?? session.assessment.timeLimitMinutes),
       assessmentId: session.assessmentId,
       candidateName: session.candidateName,
     });
@@ -177,9 +161,7 @@ async function getWritableSession(req: Request, res: Response) {
       ? session.candidateUserId !== req.user?.id
       : session.candidateName !== req.user?.name
   ) {
-    res
-      .status(403)
-      .json({ error: 'This session belongs to another candidate' });
+    res.status(403).json({ error: 'This session belongs to another candidate' });
     return null;
   }
   if (session.finishedAt) {
@@ -220,15 +202,11 @@ async function checkDraft(
     ![71, 62, 54, 63, 82].includes(draft.languageId) ||
     (link?.question.questionType === 'sql'
       ? draft.languageId !== 82
-      : !['mcq', 'written', 'project'].includes(
-          link?.question.questionType ?? '',
-        ) &&
+      : !['mcq', 'written', 'project'].includes(link?.question.questionType ?? '') &&
         allowed.length > 0 &&
         !allowed.includes(draft.languageId))
   )
-    throw new WorkflowError(
-      'Question or language is not allowed in this assessment',
-    );
+    throw new WorkflowError('Question or language is not allowed in this assessment');
 }
 
 function draftData(d: any) {
@@ -337,11 +315,7 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
     const leftAt = new Date(req.body.leftAt);
     const durationMs = Math.round(Number(req.body.durationMs));
 
-    if (
-      isNaN(leftAt.getTime()) ||
-      !Number.isFinite(durationMs) ||
-      durationMs < 0
-    ) {
+    if (isNaN(leftAt.getTime()) || !Number.isFinite(durationMs) || durationMs < 0) {
       return res.status(400).json({
         error: 'leftAt (ISO date) and durationMs (>= 0) are required',
       });
@@ -415,15 +389,12 @@ type FinalizeResult =
   | { status: 'not-found' };
 
 // Mark a session finished (once, atomically) and grade every saved draft against all test cases
-export async function finalizeSession(
-  sessionId: number,
-): Promise<FinalizeResult> {
+export async function finalizeSession(sessionId: number): Promise<FinalizeResult> {
   const existing = await prisma.assessmentSession.findUnique({
     where: { id: sessionId },
   });
   if (!existing) return { status: 'not-found' };
-  if (existing.gradingStatus === 'completed')
-    return { status: 'already-finished' };
+  if (existing.gradingStatus === 'completed') return { status: 'already-finished' };
   const claimed = await prisma.assessmentSession.updateMany({
     where: {
       id: sessionId,
@@ -441,8 +412,7 @@ export async function finalizeSession(
       gradingStartedAt: new Date(),
     },
   });
-  if (!claimed.count)
-    throw new WorkflowError('Submission is being graded. Retry shortly.', 409);
+  if (!claimed.count) throw new WorkflowError('Submission is being graded. Retry shortly.', 409);
   try {
     const session = await prisma.assessmentSession.findUnique({
       where: { id: sessionId },
@@ -510,9 +480,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
         ? session.candidateUserId !== req.user!.id
         : session.candidateName !== req.user!.name
     )
-      return res
-        .status(403)
-        .json({ error: 'This session belongs to another candidate' });
+      return res.status(403).json({ error: 'This session belongs to another candidate' });
     if (!(await canAccessAssessment(req, session.assessmentId)))
       return res.status(403).json({ error: 'Assessment access denied' });
     if (asynchronousGrading()) {
@@ -536,8 +504,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
     const result = await finalizeSession(session.id);
     if (result.status === 'already-finished')
       return res.json({ message: 'Session is already finished' });
-    if (result.status === 'not-found')
-      return res.status(404).json({ error: 'Session not found' });
+    if (result.status === 'not-found') return res.status(404).json({ error: 'Session not found' });
     res.json(result.body);
   } catch (error: any) {
     if (error instanceof WorkflowError)

@@ -25,7 +25,7 @@ services:
       JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
   grading-worker:
     build: ./server
-    command: [node, dist/platform/grading-worker.js]
+    command: [node, dist/workers/grading.js]
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code
@@ -42,7 +42,7 @@ services:
         condition: service_healthy
   mail-worker:
     build: ./server
-    command: [node, dist/platform/worker.js]
+    command: [node, dist/workers/mail.js]
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://wissen:${POSTGRES_PASSWORD}@postgres:5432/wissen_code

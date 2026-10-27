@@ -3,7 +3,13 @@ import { getStarterCodeForLanguage, getAvailableQuestionLanguages } from './star
 
 describe('starterCodes helper', () => {
   it('offers prepared languages so candidates receive a question-specific starter', () => {
-    expect(getAvailableQuestionLanguages({ starterCodes: [{ languageId: 71, languageName: 'Python', code: 'def solve(n): pass' }] as any })).toEqual([{ id: 71, name: 'Python' }]);
+    expect(
+      getAvailableQuestionLanguages({
+        starterCodes: [
+          { languageId: 71, languageName: 'Python', code: 'def solve(n): pass' },
+        ] as any,
+      }),
+    ).toEqual([{ id: 71, name: 'Python' }]);
   });
   it('returns generic starter code when question has no custom starters', () => {
     const pythonCode = getStarterCodeForLanguage(null, 71);

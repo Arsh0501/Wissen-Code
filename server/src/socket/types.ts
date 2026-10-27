@@ -23,7 +23,7 @@ export const INTERVIEW_EVENTS = {
   ERROR: 'ERROR',
 } as const;
 
-export type InterviewEventName = typeof INTERVIEW_EVENTS[keyof typeof INTERVIEW_EVENTS];
+export type InterviewEventName = (typeof INTERVIEW_EVENTS)[keyof typeof INTERVIEW_EVENTS];
 
 export interface SocketUser {
   role: 'interviewer' | 'candidate';

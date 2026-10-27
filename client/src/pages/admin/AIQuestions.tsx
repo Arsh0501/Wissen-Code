@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import StringListInput from '../../components/StringListInput';
-import AdminLayout from '../../components/AdminLayout';
+import StringListInput from '../../components/forms/StringListInput';
+import AdminLayout from '../../components/layout/AdminLayout';
 import { apiError } from '../../services/api';
 import {
   apiData,
@@ -39,17 +39,23 @@ export default function AIQuestions() {
   const { user } = useAuth();
   const pendingKey = `wissen-ai-studio-pending:${user?.id}`;
   const [pendingGeneration, setPendingGeneration] = useState<GenerationRequest | null>(() => {
-    try { const value = JSON.parse(localStorage.getItem(pendingKey) ?? 'null'); return value?.requestId && value?.topic ? value : null; }
-    catch { return null; }
+    try {
+      const value = JSON.parse(localStorage.getItem(pendingKey) ?? 'null');
+      return value?.requestId && value?.topic ? value : null;
+    } catch {
+      return null;
+    }
   });
   const rememberGeneration = (request: GenerationRequest | null) => {
     setPendingGeneration(request);
-    try { if (request) localStorage.setItem(pendingKey, JSON.stringify(request)); else localStorage.removeItem(pendingKey); } catch {}
+    try {
+      if (request) localStorage.setItem(pendingKey, JSON.stringify(request));
+      else localStorage.removeItem(pendingKey);
+    } catch {}
   };
   const status = useQuery({
     queryKey: ['ai-status'],
-    queryFn: () =>
-      apiData<{ configured: boolean; canVerify: boolean }>('/ai/status'),
+    queryFn: () => apiData<{ configured: boolean; canVerify: boolean }>('/ai/status'),
   });
   const drafts = useQuery({
     queryKey: workflowKeys.drafts,
@@ -64,29 +70,47 @@ export default function AIQuestions() {
   const [selected, setSelected] = useState<number | null>(null);
   const [batchIds, setBatchIds] = useState<number[]>([]);
   const [batchNotice, setBatchNotice] = useState('');
-  const queue = (drafts.data ?? []).filter(d => !['approved', 'rejected'].includes(d.status) && !d.questionId);
-  const mcqs = queue.filter(d => d.content.questionType === 'mcq');
-  const batchSelection = mcqs.filter(d => batchIds.includes(d.id));
+  const queue = (drafts.data ?? []).filter(
+    (d) => !['approved', 'rejected'].includes(d.status) && !d.questionId,
+  );
+  const mcqs = queue.filter((d) => d.content.questionType === 'mcq');
+  const batchSelection = mcqs.filter((d) => batchIds.includes(d.id));
   const batch = useMutation({
     mutationFn: async (items: QuestionDraft[]) => {
       const failures: string[] = [];
       let approved = 0;
       for (const item of items) {
         try {
-          await apiData(`/ai/drafts/${item.id}/approve`, 'post', { revision: item.revision, directApprove: true });
+          await apiData(`/ai/drafts/${item.id}/approve`, 'post', {
+            revision: item.revision,
+            directApprove: true,
+          });
           approved++;
-          setBatchIds(old => old.filter(id => id !== item.id));
-          setSelected(old => old === item.id ? null : old);
-          queryClient.setQueryData<QuestionDraft[]>(workflowKeys.drafts, old => old?.filter(d => d.id !== item.id));
-        } catch (error) { failures.push(`${item.content.title}: ${apiError(error)}`); }
+          setBatchIds((old) => old.filter((id) => id !== item.id));
+          setSelected((old) => (old === item.id ? null : old));
+          queryClient.setQueryData<QuestionDraft[]>(workflowKeys.drafts, (old) =>
+            old?.filter((d) => d.id !== item.id),
+          );
+        } catch (error) {
+          failures.push(`${item.content.title}: ${apiError(error)}`);
+        }
       }
       return { approved, failures };
     },
-    onSuccess: result => setBatchNotice(`Approved ${result.approved} MCQ(s).${result.failures.length ? ` ${result.failures.length} could not be approved: ${result.failures.join('; ')}` : ''}`),
-    onSettled: async () => { await Promise.all([queryClient.invalidateQueries({ queryKey: workflowKeys.drafts }), queryClient.invalidateQueries({ queryKey: ['question-bank'] })]); },
+    onSuccess: (result) =>
+      setBatchNotice(
+        `Approved ${result.approved} MCQ(s).${result.failures.length ? ` ${result.failures.length} could not be approved: ${result.failures.join('; ')}` : ''}`,
+      ),
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: workflowKeys.drafts }),
+        queryClient.invalidateQueries({ queryKey: ['question-bank'] }),
+      ]);
+    },
   });
   const generate = useMutation({
-    mutationFn: (request: GenerationRequest) => apiData<QuestionDraft[]>('/ai/generate', 'post', request),
+    mutationFn: (request: GenerationRequest) =>
+      apiData<QuestionDraft[]>('/ai/generate', 'post', request),
     retry: retryWorkflowRequest,
     retryDelay: (attempt) => 1000 * (attempt + 1),
     onSuccess: async (result) => {
@@ -94,10 +118,13 @@ export default function AIQuestions() {
       setSelected(result[0]?.id ?? null);
       await queryClient.invalidateQueries({ queryKey: workflowKeys.drafts });
     },
-    onError: () => { void queryClient.invalidateQueries({ queryKey: workflowKeys.drafts }); },
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: workflowKeys.drafts });
+    },
   });
   const remove = useMutation({
-    mutationFn: (draft: QuestionDraft) => apiData(`/ai/drafts/${draft.id}`, 'delete', { revision: draft.revision }),
+    mutationFn: (draft: QuestionDraft) =>
+      apiData(`/ai/drafts/${draft.id}`, 'delete', { revision: draft.revision }),
     retry: retryWorkflowRequest,
     onSuccess: async (_, draft) => {
       if (selected === draft.id) setSelected(null);
@@ -117,14 +144,14 @@ export default function AIQuestions() {
     >
       {!status.isLoading && !status.data?.configured && (
         <p className="card mb-4 text-amber-700">
-          AI generation requires a Groq or OpenAI API key configured on the backend.
-          You can still inspect existing drafts.
+          AI generation requires a Groq or OpenAI API key configured on the backend. You can still
+          inspect existing drafts.
         </p>
       )}
       {questionType === 'coding' && status.data && !status.data.canVerify && (
         <p className="card mb-4 text-amber-700">
-          The judge is in mock mode. Reference solutions must pass real
-          execution before approval; MCQs do not require a code judge.
+          The judge is in mock mode. Reference solutions must pass real execution before approval;
+          MCQs do not require a code judge.
         </p>
       )}
       <form
@@ -132,17 +159,31 @@ export default function AIQuestions() {
         onSubmit={(e) => {
           e.preventDefault();
           const request: GenerationRequest = {
-            requestId: crypto.randomUUID(), topic, topics: topic.split(/[,;\n]/).map(t => t.trim()).filter(Boolean), difficulty, questionType, count,
-            starterLanguages: questionType === 'coding' ? selectedLanguages.map((id) => {
-              const language = AVAILABLE_STARTER_LANGUAGES.find((item) => item.id === id)!;
-              return { id, name: language.name };
-            }) : undefined,
+            requestId: crypto.randomUUID(),
+            topic,
+            topics: topic
+              .split(/[,;\n]/)
+              .map((t) => t.trim())
+              .filter(Boolean),
+            difficulty,
+            questionType,
+            count,
+            starterLanguages:
+              questionType === 'coding'
+                ? selectedLanguages.map((id) => {
+                    const language = AVAILABLE_STARTER_LANGUAGES.find((item) => item.id === id)!;
+                    return { id, name: language.name };
+                  })
+                : undefined,
           };
           rememberGeneration(request);
           generate.mutate(request);
         }}
       >
-        <p className="text-sm text-surface-500 md:col-span-3">Enter multiple topics separated by commas. The total count is distributed evenly across topics. Each question is saved with its assigned topic tag.</p>
+        <p className="text-sm text-surface-500 md:col-span-3">
+          Enter multiple topics separated by commas. The total count is distributed evenly across
+          topics. Each question is saved with its assigned topic tag.
+        </p>
         <label className="label">
           Topics (comma separated)
           <input
@@ -179,11 +220,10 @@ export default function AIQuestions() {
         {questionType === 'coding' && (
           <div className="md:col-span-3 card bg-surface-900/60 p-4 border border-surface-700/60 rounded-xl space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-sm font-semibold text-surface-200">
-                Starter Code Languages
-              </span>
+              <span className="text-sm font-semibold text-surface-200">Starter Code Languages</span>
               <span className="text-xs text-surface-400">
-                Select languages. Starters include input/output handling; candidates implement only the marked core logic.
+                Select languages. Starters include input/output handling; candidates implement only
+                the marked core logic.
               </span>
             </div>
             <div className="flex flex-wrap gap-2 pt-1">
@@ -196,9 +236,7 @@ export default function AIQuestions() {
                     onClick={() => {
                       if (isSelected) {
                         if (selectedLanguages.length > 1) {
-                          setSelectedLanguages((prev) =>
-                            prev.filter((id) => id !== lang.id),
-                          );
+                          setSelectedLanguages((prev) => prev.filter((id) => id !== lang.id));
                         }
                       } else {
                         setSelectedLanguages((prev) => [...prev, lang.id]);
@@ -211,9 +249,7 @@ export default function AIQuestions() {
                     }`}
                   >
                     <span
-                      className={
-                        isSelected ? 'text-primary-400 font-bold' : 'text-surface-500'
-                      }
+                      className={isSelected ? 'text-primary-400 font-bold' : 'text-surface-500'}
                     >
                       {isSelected ? '✓' : '+'}
                     </span>
@@ -241,11 +277,26 @@ export default function AIQuestions() {
         >
           {generate.isPending ? 'Generating drafts…' : 'Generate'}
         </button>
-        {generate.error && <p role="alert" className="text-red-600 md:col-span-3">{apiError(generate.error)}</p>}
-        {pendingGeneration && !generate.isPending && <div className="md:col-span-3 flex flex-wrap items-center gap-3">
-          <p className="text-sm text-surface-500">Resume the unfinished request for {pendingGeneration.count} question(s) on {pendingGeneration.topic}. Saved drafts will be kept.</p>
-          <button type="button" className="btn-outline" onClick={() => generate.mutate(pendingGeneration)}>Retry generation</button>
-        </div>}
+        {generate.error && (
+          <p role="alert" className="text-red-600 md:col-span-3">
+            {apiError(generate.error)}
+          </p>
+        )}
+        {pendingGeneration && !generate.isPending && (
+          <div className="md:col-span-3 flex flex-wrap items-center gap-3">
+            <p className="text-sm text-surface-500">
+              Resume the unfinished request for {pendingGeneration.count} question(s) on{' '}
+              {pendingGeneration.topic}. Saved drafts will be kept.
+            </p>
+            <button
+              type="button"
+              className="btn-outline"
+              onClick={() => generate.mutate(pendingGeneration)}
+            >
+              Retry generation
+            </button>
+          </div>
+        )}
       </form>
       {drafts.isLoading ? (
         <Spinner />
@@ -254,44 +305,115 @@ export default function AIQuestions() {
       ) : (
         <div className="grid lg:grid-cols-[280px_1fr] gap-5">
           <div className="card space-y-2">
-            <h2 className="font-semibold mb-4">
-              Draft queue ({queue.length})
-            </h2>
-            {queue.length === 0 && (
-              <p className="text-surface-500">Generate questions to begin.</p>
+            <h2 className="font-semibold mb-4">Draft queue ({queue.length})</h2>
+            {queue.length === 0 && <p className="text-surface-500">Generate questions to begin.</p>}
+            {remove.error && (
+              <p role="alert" className="text-sm text-red-600">
+                {apiError(remove.error)}
+              </p>
             )}
-            {remove.error && <p role="alert" className="text-sm text-red-600">{apiError(remove.error)}</p>}
-            {mcqs.length > 0 && <div className="space-y-2 border-b border-surface-700 pb-3">
-              <label className="flex gap-2 items-center text-sm"><input type="checkbox" checked={batchSelection.length === mcqs.length} disabled={batch.isPending} onChange={e => setBatchIds(e.target.checked ? mcqs.map(d => d.id) : [])} />Select all MCQs</label>
-              <button className="btn-primary text-xs" disabled={!batchSelection.length || batch.isPending || remove.isPending} onClick={() => { setBatchNotice(''); batch.mutate(batchSelection); }}>{batch.isPending ? 'Approving MCQs…' : `Approve selected MCQs (${batchSelection.length})`}</button>
-              <p className="text-xs text-surface-400">Batch approval uses saved drafts and skips AI review. Correct answer keys and duplicate checks still apply.</p>
-            </div>}
-            {batchNotice && <p role="status" className="text-sm">{batchNotice}</p>}
-            {queue.map((d) => (
-              <div key={d.id} className={`rounded-lg ${selected === d.id ? 'bg-primary-500/15' : 'bg-surface-800/40'}`}>
-                {d.content.questionType === 'mcq' && <label className="flex items-center gap-2 px-3 pt-3 text-xs"><input type="checkbox" aria-label={`Select MCQ ${d.content.title}`} checked={batchIds.includes(d.id)} disabled={batch.isPending} onChange={e => setBatchIds(old => e.target.checked ? [...old, d.id] : old.filter(id => id !== d.id))} />Select for approval</label>}
-                <button disabled={batch.isPending} onClick={() => setSelected(d.id)} className="w-full text-left p-3">
-                  <strong className="block text-sm">{d.content.title}</strong>
-                  <span className="text-xs text-surface-500">{d.status.replace(/_/g, ' ')} · revision {d.revision}</span>
+            {mcqs.length > 0 && (
+              <div className="space-y-2 border-b border-surface-700 pb-3">
+                <label className="flex gap-2 items-center text-sm">
+                  <input
+                    type="checkbox"
+                    checked={batchSelection.length === mcqs.length}
+                    disabled={batch.isPending}
+                    onChange={(e) => setBatchIds(e.target.checked ? mcqs.map((d) => d.id) : [])}
+                  />
+                  Select all MCQs
+                </label>
+                <button
+                  className="btn-primary text-xs"
+                  disabled={!batchSelection.length || batch.isPending || remove.isPending}
+                  onClick={() => {
+                    setBatchNotice('');
+                    batch.mutate(batchSelection);
+                  }}
+                >
+                  {batch.isPending
+                    ? 'Approving MCQs…'
+                    : `Approve selected MCQs (${batchSelection.length})`}
                 </button>
-                {d.status !== 'approved' && <div className="px-3 pb-3">
-                  <button type="button" className="btn-ghost text-xs text-red-500" aria-label={`Reject draft ${d.content.title}`} disabled={remove.isPending || batch.isPending} onClick={() => remove.mutate(d)}>
-                    {remove.isPending && remove.variables?.id === d.id ? 'Rejecting…' : 'Reject'}
-                  </button>
-                </div>}
+                <p className="text-xs text-surface-400">
+                  Batch approval uses saved drafts and skips AI review. Correct answer keys and
+                  duplicate checks still apply.
+                </p>
+              </div>
+            )}
+            {batchNotice && (
+              <p role="status" className="text-sm">
+                {batchNotice}
+              </p>
+            )}
+            {queue.map((d) => (
+              <div
+                key={d.id}
+                className={`rounded-lg ${selected === d.id ? 'bg-primary-500/15' : 'bg-surface-800/40'}`}
+              >
+                {d.content.questionType === 'mcq' && (
+                  <label className="flex items-center gap-2 px-3 pt-3 text-xs">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select MCQ ${d.content.title}`}
+                      checked={batchIds.includes(d.id)}
+                      disabled={batch.isPending}
+                      onChange={(e) =>
+                        setBatchIds((old) =>
+                          e.target.checked ? [...old, d.id] : old.filter((id) => id !== d.id),
+                        )
+                      }
+                    />
+                    Select for approval
+                  </label>
+                )}
+                <button
+                  disabled={batch.isPending}
+                  onClick={() => setSelected(d.id)}
+                  className="w-full text-left p-3"
+                >
+                  <strong className="block text-sm">{d.content.title}</strong>
+                  <span className="text-xs text-surface-500">
+                    {d.status.replace(/_/g, ' ')} · revision {d.revision}
+                  </span>
+                </button>
+                {d.status !== 'approved' && (
+                  <div className="px-3 pb-3">
+                    <button
+                      type="button"
+                      className="btn-ghost text-xs text-red-500"
+                      aria-label={`Reject draft ${d.content.title}`}
+                      disabled={remove.isPending || batch.isPending}
+                      onClick={() => remove.mutate(d)}
+                    >
+                      {remove.isPending && remove.variables?.id === d.id ? 'Rejecting…' : 'Reject'}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
-          <fieldset disabled={batch.isPending} className="min-w-0">{draft?.content.questionType === 'mcq' ? <MCQDraftEditor key={`${draft.id}:${draft.revision}:${draft.status}`} draft={draft as QuestionDraft & { content: import('../../services/workflows').MCQContent }} /> : draft ? (
-            <DraftEditor
-              key={`${draft.id}:${draft.revision}:${draft.status}`}
-              draft={draft as QuestionDraft & { content: QuestionContent }}
-            />
-          ) : (
-            <div className="card text-surface-500">
-              Select a draft to preview, edit and validate it.
-            </div>
-          )}</fieldset>
+          <fieldset disabled={batch.isPending} className="min-w-0">
+            {draft?.content.questionType === 'mcq' ? (
+              <MCQDraftEditor
+                key={`${draft.id}:${draft.revision}:${draft.status}`}
+                draft={
+                  draft as QuestionDraft & {
+                    content: import('../../services/workflows').MCQContent;
+                  }
+                }
+              />
+            ) : draft ? (
+              <DraftEditor
+                key={`${draft.id}:${draft.revision}:${draft.status}`}
+                draft={draft as QuestionDraft & { content: QuestionContent }}
+              />
+            ) : (
+              <div className="card text-surface-500">
+                Select a draft to preview, edit and validate it.
+              </div>
+            )}
+          </fieldset>
         </div>
       )}
     </AdminLayout>
@@ -300,9 +422,7 @@ export default function AIQuestions() {
 function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionContent } }) {
   const client = useQueryClient();
   const [content, setContent] = useState<QuestionContent>(draft.content);
-  const [testCases, setTestCases] = useState(
-    JSON.stringify(content.testCases, null, 2),
-  );
+  const [testCases, setTestCases] = useState(JSON.stringify(content.testCases, null, 2));
   const [testError, setTestError] = useState('');
 
   const currentStarters =
@@ -321,9 +441,7 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
   );
 
   const updateStarterCode = (langId: number, code: string) => {
-    const updated = currentStarters.map((sc) =>
-      sc.languageId === langId ? { ...sc, code } : sc,
-    );
+    const updated = currentStarters.map((sc) => (sc.languageId === langId ? { ...sc, code } : sc));
     if (!updated.some((sc) => sc.languageId === langId)) {
       const info = AVAILABLE_STARTER_LANGUAGES.find((l) => l.id === langId);
       updated.push({
@@ -349,12 +467,12 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
       langId === 71
         ? '# Write your solution here\n'
         : langId === 63
-        ? '// Write your solution here\n'
-        : langId === 62
-        ? '// Write your solution here\n'
-        : langId === 54
-        ? '// Write your solution here\n'
-        : '-- Write your query here\n';
+          ? '// Write your solution here\n'
+          : langId === 62
+            ? '// Write your solution here\n'
+            : langId === 54
+              ? '// Write your solution here\n'
+              : '-- Write your query here\n';
     const updated = [
       ...currentStarters,
       {
@@ -386,16 +504,12 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
     JSON.stringify(content) !== JSON.stringify(draft.content) ||
     testCases !== JSON.stringify(draft.content.testCases, null, 2);
   const approved = draft.status === 'approved';
-  const change = <K extends keyof QuestionContent>(
-    key: K,
-    value: QuestionContent[K],
-  ) => setContent((c) => ({ ...c, [key]: value }));
+  const change = <K extends keyof QuestionContent>(key: K, value: QuestionContent[K]) =>
+    setContent((c) => ({ ...c, [key]: value }));
   const action = useMutation({
     retry: retryWorkflowRequest,
     retryDelay: (attempt) => 1000 * (attempt + 1),
-    mutationFn: async (
-      operation: 'save' | 'validate' | 'approve' | 'directApprove',
-    ) => {
+    mutationFn: async (operation: 'save' | 'validate' | 'approve' | 'directApprove') => {
       let currentRevision = draft.revision;
       if (dirty || operation === 'save') {
         let cases;
@@ -406,14 +520,10 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
           setTestError('Test cases must be valid JSON.');
           throw new Error('Test cases must be valid JSON.');
         }
-        const updated = await apiData<QuestionDraft>(
-          `/ai/drafts/${draft.id}`,
-          'put',
-          {
-            content: { ...content, testCases: cases },
-            revision: draft.revision,
-          },
-        );
+        const updated = await apiData<QuestionDraft>(`/ai/drafts/${draft.id}`, 'put', {
+          content: { ...content, testCases: cases },
+          revision: draft.revision,
+        });
         currentRevision = updated.revision;
         if (operation === 'save') return updated;
       }
@@ -428,7 +538,8 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
       });
     },
     onError: (error) => {
-      if ((error as any).response?.data?.diagnostics || (error as any).response?.data?.fixes) void client.invalidateQueries({ queryKey: workflowKeys.drafts });
+      if ((error as any).response?.data?.diagnostics || (error as any).response?.data?.fixes)
+        void client.invalidateQueries({ queryKey: workflowKeys.drafts });
     },
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: workflowKeys.drafts });
@@ -457,10 +568,7 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
               className="input mt-2"
               value={content.difficulty}
               onChange={(e) =>
-                change(
-                  'difficulty',
-                  e.target.value as QuestionContent['difficulty'],
-                )
+                change('difficulty', e.target.value as QuestionContent['difficulty'])
               }
             >
               {['easy', 'medium', 'hard'].map((v) => (
@@ -474,10 +582,7 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
               className="input mt-2"
               value={content.questionType}
               onChange={(e) =>
-                change(
-                  'questionType',
-                  e.target.value as QuestionContent['questionType'],
-                )
+                change('questionType', e.target.value as QuestionContent['questionType'])
               }
             >
               <option value="coding">Coding</option>
@@ -486,10 +591,7 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
         </div>
         <label className="label">
           Topics
-          <StringListInput
-            value={content.topics}
-            onChange={(values) => change('topics', values)}
-          />
+          <StringListInput value={content.topics} onChange={(values) => change('topics', values)} />
         </label>
         <label className="label">
           Problem statement
@@ -564,12 +666,11 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
           <textarea
             rows={5}
             className="input font-mono text-xs w-full mt-1"
-            value={
-              currentStarters.find((s) => s.languageId === activeLangId)?.code ?? ''
-            }
+            value={currentStarters.find((s) => s.languageId === activeLangId)?.code ?? ''}
             onChange={(e) => updateStarterCode(activeLangId, e.target.value)}
             placeholder={`Write starter code for ${
-              currentStarters.find((s) => s.languageId === activeLangId)?.languageName || 'selected language'
+              currentStarters.find((s) => s.languageId === activeLangId)?.languageName ||
+              'selected language'
             }...`}
           />
         </div>
@@ -596,9 +697,19 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
           {testError || apiError(action.error)}
         </p>
       )}
-      {action.error && action.variables && <button className="btn-outline" disabled={action.isPending} onClick={() => action.mutate(action.variables!)}>
-        {action.variables === 'save' ? 'Retry save' : action.variables === 'validate' ? 'Retry validation' : 'Retry approval'}
-      </button>}
+      {action.error && action.variables && (
+        <button
+          className="btn-outline"
+          disabled={action.isPending}
+          onClick={() => action.mutate(action.variables!)}
+        >
+          {action.variables === 'save'
+            ? 'Retry save'
+            : action.variables === 'validate'
+              ? 'Retry validation'
+              : 'Retry approval'}
+        </button>
+      )}
       {!approved && (
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <button
@@ -624,15 +735,18 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
             Approve into Question Bank
           </button>
           <div className="inline-flex items-center gap-1">
-          <button
-            className="btn-outline border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer font-medium"
-            disabled={action.isPending}
-            onClick={() => action.mutate('directApprove')}
-            title="Skip AI review; generated starter input/output drivers still require execution checks"
-          >
-            Direct Approve (Skip AI)
-          </button>
-          <DirectApproveInfo id={draft.id} verifiesStarters={content.starterContractVersion === 2} />
+            <button
+              className="btn-outline border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer font-medium"
+              disabled={action.isPending}
+              onClick={() => action.mutate('directApprove')}
+              title="Skip AI review; generated starter input/output drivers still require execution checks"
+            >
+              Direct Approve (Skip AI)
+            </button>
+            <DirectApproveInfo
+              id={draft.id}
+              verifiesStarters={content.starterContractVersion === 2}
+            />
           </div>
         </div>
       )}
@@ -640,10 +754,7 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
         <p className="text-emerald-700">
           Approved by reviewer #{draft.approvedBy} on{' '}
           {draft.approvedAt && new Date(draft.approvedAt).toLocaleString()}.{' '}
-          <Link
-            className="underline"
-            to={`/admin/questions/${draft.questionId}/edit`}
-          >
+          <Link className="underline" to={`/admin/questions/${draft.questionId}/edit`}>
             Open bank question
           </Link>
         </p>

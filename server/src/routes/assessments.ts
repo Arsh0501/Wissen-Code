@@ -1,15 +1,12 @@
-import { WorkflowError } from '../services/structured-ai';
+import { WorkflowError } from '../services/ai/structured-ai';
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
-import { computeEvaluation } from '../services/grading';
-import {
-  canAccessAssessment,
-  guestAssessmentIds,
-} from '../services/guest-access';
+import prisma from '../database/prisma';
+import { computeEvaluation } from '../services/assessments/grading';
+import { canAccessAssessment, guestAssessmentIds } from '../services/assessments/guest-access';
 import { adminOnly } from '../middleware/adminOnly';
-import { summarizeCandidates, aggregate } from '../services/stats';
+import { summarizeCandidates, aggregate } from '../services/assessments/stats';
 import { availabilityError } from './attempts';
-import { candidateRestrictionError } from '../services/assessment-policy';
+import { candidateRestrictionError } from '../services/assessments/assessment-policy';
 
 const router = Router();
 
@@ -37,11 +34,7 @@ function isAdmin(req: Request) {
   return req.user?.role === 'admin';
 }
 
-function availability(a: {
-  status: string;
-  startAt: Date | null;
-  endAt: Date | null;
-}) {
+function availability(a: { status: string; startAt: Date | null; endAt: Date | null }) {
   if (a.status !== 'published') return a.status;
   const now = new Date();
   if (a.startAt && now < a.startAt) return 'upcoming';
@@ -52,8 +45,7 @@ function availability(a: {
 // Deterministic per-candidate shuffle so a reload shows the same order
 function seededShuffle<T>(items: T[], seed: string): T[] {
   let h = 2166136261;
-  for (let i = 0; i < seed.length; i++)
-    h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+  for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
   const out = [...items];
   for (let i = out.length - 1; i > 0; i--) {
     h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
@@ -133,12 +125,8 @@ async function candidateCounts(
       a.id,
       new Set([
         ...JSON.parse(a.allowedEmails),
-        ...invites
-          .filter((r) => r.invite.assessmentId === a.id)
-          .map((r) => r.user.email),
-        ...(stats.get(a.id) ?? []).map(
-          (c) => emailByName.get(c.name) ?? c.name,
-        ),
+        ...invites.filter((r) => r.invite.assessmentId === a.id).map((r) => r.user.email),
+        ...(stats.get(a.id) ?? []).map((c) => emailByName.get(c.name) ?? c.name),
       ]).size,
     ]),
   );
@@ -155,24 +143,19 @@ function parseAssessmentBody(body: any, isUpdate: boolean) {
   const errors: string[] = [];
 
   if (body.name !== undefined || !isUpdate) {
-    if (typeof body.name !== 'string' || !body.name.trim())
-      errors.push('Name is required');
+    if (typeof body.name !== 'string' || !body.name.trim()) errors.push('Name is required');
     else data.name = body.name.trim();
   }
-  if (body.description !== undefined)
-    data.description = String(body.description);
-  if (body.instructions !== undefined)
-    data.instructions = String(body.instructions);
+  if (body.description !== undefined) data.description = String(body.description);
+  if (body.instructions !== undefined) data.instructions = String(body.instructions);
   if (body.timeLimitMinutes !== undefined) {
     const t = Number(body.timeLimitMinutes);
-    if (!Number.isInteger(t) || t < 1 || t > 600)
-      errors.push('Time limit must be 1–600 minutes');
+    if (!Number.isInteger(t) || t < 1 || t > 600) errors.push('Time limit must be 1–600 minutes');
     else data.timeLimitMinutes = t;
   }
   if (body.passingScore !== undefined) {
     const p = Number(body.passingScore);
-    if (!Number.isFinite(p) || p < 0 || p > 100)
-      errors.push('Passing score must be 0–100');
+    if (!Number.isFinite(p) || p < 0 || p > 100) errors.push('Passing score must be 0–100');
     else data.passingScore = Math.round(p);
   }
   if (body.status !== undefined) {
@@ -192,14 +175,11 @@ function parseAssessmentBody(body: any, isUpdate: boolean) {
   }
   if (data.startAt && data.endAt && data.endAt <= data.startAt)
     errors.push('End time must be after start time');
-  if (body.shuffleQuestions !== undefined)
-    data.shuffleQuestions = !!body.shuffleQuestions;
+  if (body.shuffleQuestions !== undefined) data.shuffleQuestions = !!body.shuffleQuestions;
   if (body.showResults !== undefined) data.showResults = !!body.showResults;
   if (body.allowedLanguages !== undefined) {
-    if (!Array.isArray(body.allowedLanguages))
-      errors.push('allowedLanguages must be an array');
-    else
-      data.allowedLanguages = JSON.stringify(body.allowedLanguages.map(Number));
+    if (!Array.isArray(body.allowedLanguages)) errors.push('allowedLanguages must be an array');
+    else data.allowedLanguages = JSON.stringify(body.allowedLanguages.map(Number));
   }
 
   if (body.difficulty !== undefined) {
@@ -221,40 +201,22 @@ function parseAssessmentBody(body: any, isUpdate: boolean) {
       )
         errors.push(`${key} must contain non-empty strings`);
       else {
-        const values = [
-          ...new Set(body[key].map((v: string) => v.trim())),
-        ] as string[];
+        const values = [...new Set(body[key].map((v: string) => v.trim()))] as string[];
         if (
           key === 'questionTypes' &&
           (!values.length ||
             values.some(
-              (v) =>
-                ![
-                  'coding',
-                  'debugging',
-                  'mcq',
-                  'sql',
-                  'written',
-                  'project',
-                ].includes(v),
+              (v) => !['coding', 'debugging', 'mcq', 'sql', 'written', 'project'].includes(v),
             ))
         )
           errors.push('Select supported question types: coding, debugging');
-        if (
-          key === 'allowedEmails' &&
-          values.some((v) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v))
-        )
+        if (key === 'allowedEmails' && values.some((v) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)))
           errors.push('Invalid candidate email');
-        if (
-          key === 'allowedDomains' &&
-          values.some((v) => !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(v))
-        )
+        if (key === 'allowedDomains' && values.some((v) => !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(v)))
           errors.push('Invalid email domain');
         data[key] = JSON.stringify(
           values.map((v) =>
-            ['allowedEmails', 'allowedDomains'].includes(key)
-              ? v.toLowerCase()
-              : v,
+            ['allowedEmails', 'allowedDomains'].includes(key) ? v.toLowerCase() : v,
           ),
         );
       }
@@ -263,11 +225,7 @@ function parseAssessmentBody(body: any, isUpdate: boolean) {
   for (const key of ['maxAttempts', 'questionCount']) {
     if (body[key] !== undefined) {
       const value = Number(body[key]);
-      if (
-        !Number.isInteger(value) ||
-        value < 1 ||
-        value > (key === 'maxAttempts' ? 10 : 100)
-      )
+      if (!Number.isInteger(value) || value < 1 || value > (key === 'maxAttempts' ? 10 : 100))
         errors.push(`${key} is outside the supported range`);
       else data[key] = value;
     }
@@ -280,25 +238,18 @@ function parseAssessmentBody(body: any, isUpdate: boolean) {
     questions = body.questionIds.map((id: number) => ({ questionId: id }));
   if (questions) {
     const ids = questions.map((q) => Number(q.questionId));
-    if (new Set(ids).size !== ids.length)
-      errors.push('A question can only be added once');
+    if (new Set(ids).size !== ids.length) errors.push('A question can only be added once');
     for (const q of questions) {
       if (
         q.marks !== undefined &&
-        (!Number.isInteger(Number(q.marks)) ||
-          Number(q.marks) < 1 ||
-          Number(q.marks) > 1000)
+        (!Number.isInteger(Number(q.marks)) || Number(q.marks) < 1 || Number(q.marks) > 1000)
       ) {
         errors.push('Marks must be a whole number between 1 and 1000');
         break;
       }
     }
   }
-  if (
-    !isUpdate &&
-    data.status === 'published' &&
-    (!questions || questions.length === 0)
-  ) {
+  if (!isUpdate && data.status === 'published' && (!questions || questions.length === 0)) {
     errors.push('Add at least one question before publishing');
   }
 
@@ -348,8 +299,7 @@ router.get('/dashboard', adminOnly, async (_req: Request, res: Response) => {
       range: `${lo}–${lo + 20}%`,
       count: allCompleted.filter(
         (c) =>
-          c.overallScore >= lo &&
-          (lo === 80 ? c.overallScore <= 100 : c.overallScore < lo + 20),
+          c.overallScore >= lo && (lo === 80 ? c.overallScore <= 100 : c.overallScore < lo + 20),
       ).length,
     }));
 
@@ -367,13 +317,8 @@ router.get('/dashboard', adminOnly, async (_req: Request, res: Response) => {
         finishedAt: s.finishedAt?.toISOString() ?? null,
         status: s.finishedAt ? 'completed' : 'in-progress',
         overallScore:
-          s.finishedAt && !summary?.isProvisional
-            ? (summary?.overallScore ?? null)
-            : null,
-        passed:
-          s.finishedAt && !summary?.isProvisional
-            ? (summary?.passed ?? null)
-            : null,
+          s.finishedAt && !summary?.isProvisional ? (summary?.overallScore ?? null) : null,
+        passed: s.finishedAt && !summary?.isProvisional ? (summary?.passed ?? null) : null,
       };
     });
 
@@ -385,10 +330,7 @@ router.get('/dashboard', adminOnly, async (_req: Request, res: Response) => {
         questions: questionCount,
         ...aggregate(allCompleted),
         inProgress: rows.reduce((acc, r) => acc + r.stats.inProgress, 0),
-        candidatesStarted: rows.reduce(
-          (acc, r) => acc + r.stats.candidatesStarted,
-          0,
-        ),
+        candidatesStarted: rows.reduce((acc, r) => acc + r.stats.candidatesStarted, 0),
       },
       assessments: rows,
       scoreDistribution: scoreBuckets,
@@ -436,9 +378,7 @@ router.get('/', async (req: Request, res: Response) => {
 
     // Candidates also see closed/archived tests they already took, so they can view results.
     // Invite-link guests only see the tests they were invited to.
-    const guestIds = req.user?.guest
-      ? await guestAssessmentIds(req.user.id)
-      : null;
+    const guestIds = req.user?.guest ? await guestAssessmentIds(req.user.id) : null;
     const assessments = await prisma.assessment.findMany({
       where: guestIds
         ? {
@@ -456,8 +396,7 @@ router.get('/', async (req: Request, res: Response) => {
         .map(async (a) => {
           const session = sessions.find((s) => s.assessmentId === a.id);
           const deadline = session
-            ? session.startedAt.getTime() +
-              (session.durationMinutes ?? a.timeLimitMinutes) * 60000
+            ? session.startedAt.getTime() + (session.durationMinutes ?? a.timeLimitMinutes) * 60000
             : 0;
           const candidateStatus = !session
             ? 'not-started'
@@ -472,11 +411,7 @@ router.get('/', async (req: Request, res: Response) => {
             a.showResults &&
             session?.gradingStatus === 'completed'
           ) {
-            const evaluation = await computeEvaluation(
-              a.id,
-              candidateName,
-              req.user!.id,
-            );
+            const evaluation = await computeEvaluation(a.id, candidateName, req.user!.id);
             if (evaluation?.hasSubmissions || session?.finishedAt) {
               result = {
                 percentage: evaluation?.percentage ?? 0,
@@ -501,12 +436,10 @@ router.get('/', async (req: Request, res: Response) => {
             availability: availability(a),
             candidateStatus,
             maxAttempts: a.maxAttempts,
-            attemptsUsed: sessions.filter((s) => s.assessmentId === a.id)
-              .length,
+            attemptsUsed: sessions.filter((s) => s.assessmentId === a.id).length,
             canRetake:
               candidateStatus === 'completed' &&
-              sessions.filter((s) => s.assessmentId === a.id).length <
-                a.maxAttempts &&
+              sessions.filter((s) => s.assessmentId === a.id).length < a.maxAttempts &&
               availability(a) === 'open',
             startedAt: session?.startedAt.toISOString() ?? null,
             finishedAt: session?.finishedAt?.toISOString() ?? null,
@@ -568,9 +501,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     if (!(await canAccessAssessment(req, id))) {
-      return res
-        .status(403)
-        .json({ error: 'You were not invited to this assessment' });
+      return res.status(403).json({ error: 'You were not invited to this assessment' });
     }
 
     const restriction = candidateRestrictionError(req.user!.email, assessment);
@@ -583,9 +514,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
     const blocked = availabilityError(assessment);
     if (blocked && !session) {
-      return res
-        .status(403)
-        .json({ error: blocked, availability: availability(assessment) });
+      return res.status(403).json({ error: blocked, availability: availability(assessment) });
     }
 
     // Apply configuration: allowed languages + question shuffling
@@ -600,9 +529,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       question: {
         ...aq.question,
         starterCodes: allowed.length
-          ? aq.question.starterCodes.filter((sc) =>
-              allowed.includes(sc.languageId),
-            )
+          ? aq.question.starterCodes.filter((sc) => allowed.includes(sc.languageId))
           : aq.question.starterCodes,
       },
     }));
@@ -662,9 +589,7 @@ router.post('/:id/start', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Assessment not found' });
     }
     if (!(await canAccessAssessment(req, assessment.id))) {
-      return res
-        .status(403)
-        .json({ error: 'You were not invited to this assessment' });
+      return res.status(403).json({ error: 'You were not invited to this assessment' });
     }
 
     const restriction = candidateRestrictionError(req.user!.email, assessment);
@@ -679,10 +604,7 @@ router.post('/:id/start', async (req: Request, res: Response) => {
       });
       const retake = req.body.retake === true;
       if (retake && session && !session.finishedAt)
-        throw new WorkflowError(
-          'Finish the current attempt before retaking',
-          409,
-        );
+        throw new WorkflowError('Finish the current attempt before retaking', 409);
       if (retake || !session) {
         const used = await tx.assessmentSession.count({
           where: { assessmentId, ...identity },
@@ -707,8 +629,7 @@ router.post('/:id/start', async (req: Request, res: Response) => {
 
     // We can just construct a sessionResponse manually without moving it
     const remainingSeconds = (startedAt: Date, timeLimitMinutes: number) => {
-      const remainingMs =
-        timeLimitMinutes * 60 * 1000 - (Date.now() - startedAt.getTime());
+      const remainingMs = timeLimitMinutes * 60 * 1000 - (Date.now() - startedAt.getTime());
       return Math.max(0, Math.floor(remainingMs / 1000));
     };
 
@@ -740,118 +661,121 @@ router.post('/:id/start', async (req: Request, res: Response) => {
 });
 
 // GET /api/assessments/:id/candidates
-router.get(
-  '/:id/candidates',
-  adminOnly,
-  async (req: Request, res: Response) => {
-    try {
-      const assessmentId = parseInt(req.params.id);
-      if (isNaN(assessmentId)) {
-        return res.status(400).json({ error: 'Invalid assessmentId' });
-      }
+router.get('/:id/candidates', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const assessmentId = parseInt(req.params.id);
+    if (isNaN(assessmentId)) {
+      return res.status(400).json({ error: 'Invalid assessmentId' });
+    }
 
-      const assessment = await prisma.assessment.findUnique({
-        where: { id: assessmentId },
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        name: true,
+        timeLimitMinutes: true,
+        passingScore: true,
+        questions: { select: { questionId: true, marks: true } },
+      },
+    });
+
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    const [submissions, sessions] = await Promise.all([
+      prisma.submission.findMany({
+        where: { assessmentId },
+        select: {
+          candidateName: true,
+          sessionId: true,
+          status: true,
+          score: true,
+          createdAt: true,
+          questionId: true,
+        },
+      }),
+      prisma.assessmentSession.findMany({
+        where: { assessmentId },
         select: {
           id: true,
-          name: true,
-          timeLimitMinutes: true,
-          passingScore: true,
-          questions: { select: { questionId: true, marks: true } },
+          candidateUserId: true,
+          gradingStatus: true,
+          candidateName: true,
+          finishedAt: true,
+          startedAt: true,
         },
-      });
+      }),
+    ]);
 
-      if (!assessment) {
-        return res.status(404).json({ error: 'Assessment not found' });
-      }
-
-      const [submissions, sessions] = await Promise.all([
-        prisma.submission.findMany({
-          where: { assessmentId },
-          select: {
-            candidateName: true,
-            sessionId: true,
-            status: true,
-            score: true,
-            createdAt: true,
-            questionId: true,
+    const candidateAccounts = await prisma.user.findMany({
+      where: {
+        OR: [
+          { id: { in: sessions.flatMap((s) => (s.candidateUserId ? [s.candidateUserId] : [])) } },
+          {
+            name: {
+              in: [
+                ...sessions.map((s) => s.candidateName),
+                ...submissions.map((s) => s.candidateName),
+              ],
+            },
           },
-        }),
-        prisma.assessmentSession.findMany({
-          where: { assessmentId },
-          select: {
-            id: true,
-            candidateUserId: true,
-            gradingStatus: true,
-            candidateName: true,
-            finishedAt: true,
-            startedAt: true,
-          },
-        }),
-      ]);
-
-      const candidateAccounts = await prisma.user.findMany({
-        where: {
-          OR: [
-            { id: { in: sessions.flatMap((s) => s.candidateUserId ? [s.candidateUserId] : []) } },
-            { name: { in: [...sessions.map((s) => s.candidateName), ...submissions.map((s) => s.candidateName)] } },
-          ],
-        },
-        select: { id: true, name: true, email: true },
-      });
-      const emailById = new Map(candidateAccounts.map((u) => [u.id, u.email]));
-      const accountsByName = new Map<string, typeof candidateAccounts>();
-      for (const account of candidateAccounts) {
-        accountsByName.set(account.name, [...(accountsByName.get(account.name) ?? []), account]);
-      }
-
-      const candidates = summarizeCandidates(
-        assessment.questions,
-        assessment.passingScore,
-        submissions,
-        sessions,
-      )
-        .map((c) => {
-          const s = sessions.find((x) =>
-            c.sessionId ? x.id === c.sessionId : x.candidateName === c.name,
-          );
-          return {
-            ...c,
-            email: c.candidateUserId
-              ? emailById.get(c.candidateUserId) ?? null
-              : accountsByName.get(c.name)?.length === 1
-                ? accountsByName.get(c.name)![0].email
-                : null,
-            session: s
-              ? {
-                  startedAt: s.startedAt.toISOString(),
-                  finishedAt: s.finishedAt?.toISOString() || null,
-                }
-              : null,
-          };
-        })
-        .sort((a, b) =>
-          (b.submittedAt || '').localeCompare(a.submittedAt || ''),
-        );
-
-      const { questions: _q, ...assessmentInfo } = assessment;
-      res.json({
-        assessment: assessmentInfo,
-        candidates,
-        stats: aggregate(candidates),
-      });
-    } catch (error) {
-      console.error('Error fetching assessment submissions:', error);
-      res.status(500).json({ error: 'Failed to fetch submissions' });
+        ],
+      },
+      select: { id: true, name: true, email: true },
+    });
+    const emailById = new Map(candidateAccounts.map((u) => [u.id, u.email]));
+    const accountsByName = new Map<string, typeof candidateAccounts>();
+    for (const account of candidateAccounts) {
+      accountsByName.set(account.name, [...(accountsByName.get(account.name) ?? []), account]);
     }
-  },
-);
 
-async function validateQuestionSelection(
-  config: any,
-  questions: QuestionInput[],
-) {
-  const privateQuestions = await prisma.question.count({ where: { id: { in: questions.map((q) => Number(q.questionId)) }, ownerInterviewId: { not: null } } });
+    const candidates = summarizeCandidates(
+      assessment.questions,
+      assessment.passingScore,
+      submissions,
+      sessions,
+    )
+      .map((c) => {
+        const s = sessions.find((x) =>
+          c.sessionId ? x.id === c.sessionId : x.candidateName === c.name,
+        );
+        return {
+          ...c,
+          email: c.candidateUserId
+            ? (emailById.get(c.candidateUserId) ?? null)
+            : accountsByName.get(c.name)?.length === 1
+              ? accountsByName.get(c.name)![0].email
+              : null,
+          session: s
+            ? {
+                startedAt: s.startedAt.toISOString(),
+                finishedAt: s.finishedAt?.toISOString() || null,
+              }
+            : null,
+        };
+      })
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
+
+    const { questions: _q, ...assessmentInfo } = assessment;
+    res.json({
+      assessment: assessmentInfo,
+      candidates,
+      stats: aggregate(candidates),
+    });
+  } catch (error) {
+    console.error('Error fetching assessment submissions:', error);
+    res.status(500).json({ error: 'Failed to fetch submissions' });
+  }
+});
+
+async function validateQuestionSelection(config: any, questions: QuestionInput[]) {
+  const privateQuestions = await prisma.question.count({
+    where: {
+      id: { in: questions.map((q) => Number(q.questionId)) },
+      ownerInterviewId: { not: null },
+    },
+  });
   if (privateQuestions) return 'Interview-private questions cannot be used in assessments';
   if (config.status !== 'published') return null;
   if (config.questionCount && config.questionCount !== questions.length)
@@ -860,16 +784,13 @@ async function validateQuestionSelection(
     where: { id: { in: questions.map((q) => q.questionId) } },
     include: { _count: { select: { testCases: true } } },
   });
-  if (rows.length !== questions.length)
-    return 'One or more selected questions no longer exist';
+  if (rows.length !== questions.length) return 'One or more selected questions no longer exist';
   const types: string[] = JSON.parse(config.questionTypes || '["coding"]');
   const topics: string[] = JSON.parse(config.topics || '[]');
   if (
     rows.some(
       (q) =>
-        config.difficulty &&
-        config.difficulty !== 'mixed' &&
-        q.difficulty !== config.difficulty,
+        config.difficulty && config.difficulty !== 'mixed' && q.difficulty !== config.difficulty,
     )
   )
     return 'Selected questions must match the configured difficulty';
@@ -879,18 +800,14 @@ async function validateQuestionSelection(
     topics.some(
       (topic) =>
         !rows.some((q) =>
-          JSON.parse(q.tags).some(
-            (tag: string) => tag.toLowerCase() === topic.toLowerCase(),
-          ),
+          JSON.parse(q.tags).some((tag: string) => tag.toLowerCase() === topic.toLowerCase()),
         ),
     )
   )
     return 'Selected questions must cover every configured topic';
   if (
     rows.some(
-      (q) =>
-        ['coding', 'debugging', 'sql'].includes(q.questionType) &&
-        q._count.testCases === 0,
+      (q) => ['coding', 'debugging', 'sql'].includes(q.questionType) && q._count.testCases === 0,
     )
   )
     return 'Every published question needs test cases';
@@ -908,9 +825,7 @@ router.post('/', adminOnly, async (req: Request, res: Response) => {
     const assessment = await prisma.assessment.create({
       data: {
         ...(data as { name: string }),
-        questions: questions?.length
-          ? { create: questionRows(questions) }
-          : undefined,
+        questions: questions?.length ? { create: questionRows(questions) } : undefined,
       },
       include: questionSummaryInclude,
     });
@@ -933,27 +848,16 @@ router.put('/:id', adminOnly, async (req: Request, res: Response) => {
       where: { id },
       include: { _count: { select: { questions: true } } },
     });
-    if (!existing)
-      return res.status(404).json({ error: 'Assessment not found' });
+    if (!existing) return res.status(404).json({ error: 'Assessment not found' });
 
-    const startAt =
-      data.startAt !== undefined ? data.startAt : existing.startAt;
+    const startAt = data.startAt !== undefined ? data.startAt : existing.startAt;
     const endAt = data.endAt !== undefined ? data.endAt : existing.endAt;
     if (startAt && endAt && endAt <= startAt) {
-      return res
-        .status(400)
-        .json({ error: 'End time must be after start time' });
+      return res.status(400).json({ error: 'End time must be after start time' });
     }
-    const questionCount = questions
-      ? questions.length
-      : existing._count.questions;
-    if (
-      (data.status ?? existing.status) === 'published' &&
-      questionCount === 0
-    ) {
-      return res
-        .status(400)
-        .json({ error: 'Add at least one question before publishing' });
+    const questionCount = questions ? questions.length : existing._count.questions;
+    if ((data.status ?? existing.status) === 'published' && questionCount === 0) {
+      return res.status(400).json({ error: 'Add at least one question before publishing' });
     }
 
     const selection =
@@ -962,22 +866,16 @@ router.put('/:id', adminOnly, async (req: Request, res: Response) => {
         where: { assessmentId: id },
         select: { questionId: true, marks: true },
       }));
-    const configError = await validateQuestionSelection(
-      { ...existing, ...data },
-      selection,
-    );
+    const configError = await validateQuestionSelection({ ...existing, ...data }, selection);
     if (configError) return res.status(400).json({ error: configError });
     if (
       existing.status === 'published' &&
       (questions ||
-        Object.keys(data).some(
-          (k) => !['status', 'showResults', 'description'].includes(k),
-        )) &&
+        Object.keys(data).some((k) => !['status', 'showResults', 'description'].includes(k))) &&
       (await prisma.assessmentSession.count({ where: { assessmentId: id } }))
     ) {
       return res.status(409).json({
-        error:
-          'This assessment has started attempts. Duplicate it to change exam configuration.',
+        error: 'This assessment has started attempts. Duplicate it to change exam configuration.',
       });
     }
     const assessment = await prisma.$transaction(async (tx) => {
@@ -1005,49 +903,44 @@ router.put('/:id', adminOnly, async (req: Request, res: Response) => {
 });
 
 // POST /api/assessments/:id/duplicate — Copy config + questions into a new draft
-router.post(
-  '/:id/duplicate',
-  adminOnly,
-  async (req: Request, res: Response) => {
-    try {
-      const source = await prisma.assessment.findUnique({
-        where: { id: parseInt(req.params.id) },
-        include: { questions: { orderBy: { orderIndex: 'asc' } } },
-      });
-      if (!source)
-        return res.status(404).json({ error: 'Assessment not found' });
+router.post('/:id/duplicate', adminOnly, async (req: Request, res: Response) => {
+  try {
+    const source = await prisma.assessment.findUnique({
+      where: { id: parseInt(req.params.id) },
+      include: { questions: { orderBy: { orderIndex: 'asc' } } },
+    });
+    if (!source) return res.status(404).json({ error: 'Assessment not found' });
 
-      const {
-        id: _id,
-        createdAt: _c,
-        updatedAt: _u,
-        questions,
-        ...config
-      } = source;
-      if (await prisma.question.count({ where: { id: { in: questions.map((q) => q.questionId) }, ownerInterviewId: { not: null } } }))
-        return res.status(400).json({ error: 'Interview-private questions cannot be copied into assessments' });
-      const copy = await prisma.assessment.create({
-        data: {
-          ...config,
-          name: `${source.name} (Copy)`,
-          status: 'draft',
-          questions: {
-            create: questions.map((q) => ({
-              questionId: q.questionId,
-              orderIndex: q.orderIndex,
-              marks: q.marks,
-            })),
-          },
+    const { id: _id, createdAt: _c, updatedAt: _u, questions, ...config } = source;
+    if (
+      await prisma.question.count({
+        where: { id: { in: questions.map((q) => q.questionId) }, ownerInterviewId: { not: null } },
+      })
+    )
+      return res
+        .status(400)
+        .json({ error: 'Interview-private questions cannot be copied into assessments' });
+    const copy = await prisma.assessment.create({
+      data: {
+        ...config,
+        name: `${source.name} (Copy)`,
+        status: 'draft',
+        questions: {
+          create: questions.map((q) => ({
+            questionId: q.questionId,
+            orderIndex: q.orderIndex,
+            marks: q.marks,
+          })),
         },
-        include: questionSummaryInclude,
-      });
-      res.status(201).json(copy);
-    } catch (error) {
-      console.error('Error duplicating assessment:', error);
-      res.status(500).json({ error: 'Failed to duplicate assessment' });
-    }
-  },
-);
+      },
+      include: questionSummaryInclude,
+    });
+    res.status(201).json(copy);
+  } catch (error) {
+    console.error('Error duplicating assessment:', error);
+    res.status(500).json({ error: 'Failed to duplicate assessment' });
+  }
+});
 
 // DELETE /api/assessments/:id — Delete an assessment
 router.delete('/:id', adminOnly, async (req: Request, res: Response) => {

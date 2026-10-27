@@ -53,7 +53,7 @@ services:
         condition: service_healthy
   worker:
     build: ./server
-    command: [node, dist/ai/worker.js]
+    command: [node, dist/workers/ai.js]
     environment: *backend-env
     depends_on:
       migrate:

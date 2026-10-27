@@ -75,7 +75,7 @@ services:
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
     preDeployCommand: npx prisma migrate deploy
-    dockerCommand: node dist/ai/worker.js
+    dockerCommand: node dist/workers/ai.js
     envVars:
       - key: AI_PROVIDER
         fromService:
@@ -137,7 +137,7 @@ services:
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
     preDeployCommand: npx prisma migrate deploy
-    dockerCommand: node dist/platform/grading-worker.js
+    dockerCommand: node dist/workers/grading.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -174,7 +174,7 @@ services:
     dockerfilePath: ./server/Dockerfile
     dockerContext: ./server
     preDeployCommand: npx prisma migrate deploy
-    dockerCommand: node dist/platform/worker.js
+    dockerCommand: node dist/workers/mail.js
     envVars:
       - key: NODE_ENV
         value: production

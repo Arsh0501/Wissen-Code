@@ -1,0 +1,152 @@
+# Standalone backend deployment: Vercel or Render hosts the frontend; EC2 hosts these services.
+# Run from the repository root with --env-file .env.aws -f compose.aws.yaml.
+name: wissen-aws-demo
+
+x-backend: &backend
+  image: wissen-code-backend:aws-demo
+  build:
+    context: ./server
+  env_file: ${AWS_ENV_FILE:-.env.aws}
+  environment:
+    NODE_ENV: production
+    PORT: '4001'
+    TRUST_PROXY: '1'
+    ASYNC_GRADING: '1'
+    JUDGE_MODE: live
+    DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL in .env.aws}
+    REDIS_URL: redis://redis:6379
+    TRANSCRIPTION_URL: http://127.0.0.1:8765
+  restart: unless-stopped
+
+x-job-dependencies: &job-dependencies
+  migrate:
+    condition: service_completed_successfully
+  redis:
+    condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wissen
+      POSTGRES_DB: wissen_code
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.aws}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U wissen -d wissen_code]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    <<: *backend
+    restart: 'no'
+    command: [npx, prisma, migrate, deploy]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    depends_on: *job-dependencies
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4001/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 8s
+      retries: 10
+      start_period: 30s
+
+  ai-worker:
+    <<: *backend
+    command: [node, dist/workers/ai.js]
+    depends_on: *job-dependencies
+
+  mail-worker:
+    <<: *backend
+    command: [node, dist/workers/mail.js]
+    depends_on: *job-dependencies
+
+  grading-worker:
+    <<: *backend
+    command: [node, dist/workers/grading.js]
+    depends_on: *job-dependencies
+
+  transcription:
+    image: wissen-code-transcription:aws-demo
+    build:
+      context: .
+      dockerfile: deployment/aws/Transcription.Dockerfile
+    env_file: ${AWS_ENV_FILE:-.env.aws}
+    environment:
+      TRANSCRIPTION_PORT: '8765'
+    # Python continues binding only to loopback, shared privately with the API.
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    restart: unless-stopped
+    volumes:
+      - whisper-models:/app/services/transcription/.models
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/health', timeout=5)"
+      interval: 30s
+      timeout: 8s
+      retries: 10
+      start_period: 5m
+
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      API_HOST: ${API_HOST:?Set API_HOST to your DuckDNS hostname}
+    volumes:
+      - ./deployment/aws/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+  bootstrap-admin:
+    <<: *backend
+    profiles: [tools]
+    restart: 'no'
+    command: [node, /app/tools/bootstrap-admin.cjs]
+    volumes:
+      - ./deployment/aws/bootstrap-admin.cjs:/app/tools/bootstrap-admin.cjs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  whisper-models:
+  caddy-data:
+  caddy-config:

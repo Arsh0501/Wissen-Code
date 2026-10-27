@@ -44,31 +44,18 @@ it('combines assessment search and status filters and lets users clear an empty 
   renderWithProviders(<AssessmentDashboard />, { loggedInAs: adminUser });
   const region = await screen.findByRole('region', { name: 'Assessments' });
   const user = userEvent.setup();
-  expect(
-    within(region).getByRole('link', { name: 'Alpha Draft' }),
-  ).toBeInTheDocument();
+  expect(within(region).getByRole('link', { name: 'Alpha Draft' })).toBeInTheDocument();
   const active = within(
     screen.getByRole('navigation', { name: 'Assessment status filters' }),
   ).getByRole('button', { name: /^active/i });
   await user.click(active);
   expect(active).toHaveAttribute('aria-pressed', 'true');
-  expect(
-    within(region).queryByRole('link', { name: 'Alpha Draft' }),
-  ).not.toBeInTheDocument();
-  expect(
-    within(region).getByRole('link', { name: 'Beta Active' }),
-  ).toBeInTheDocument();
-  await user.type(
-    screen.getByRole('searchbox', { name: 'Search assessments' }),
-    'Alpha',
-  );
+  expect(within(region).queryByRole('link', { name: 'Alpha Draft' })).not.toBeInTheDocument();
+  expect(within(region).getByRole('link', { name: 'Beta Active' })).toBeInTheDocument();
+  await user.type(screen.getByRole('searchbox', { name: 'Search assessments' }), 'Alpha');
   expect(within(region).getByText('No assessments match')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Clear filters' }));
   expect(screen.getByRole('searchbox')).toHaveValue('');
-  expect(
-    within(region).getByRole('link', { name: 'Alpha Draft' }),
-  ).toBeInTheDocument();
-  expect(
-    within(region).getByRole('link', { name: 'Beta Active' }),
-  ).toBeInTheDocument();
+  expect(within(region).getByRole('link', { name: 'Alpha Draft' })).toBeInTheDocument();
+  expect(within(region).getByRole('link', { name: 'Beta Active' })).toBeInTheDocument();
 });

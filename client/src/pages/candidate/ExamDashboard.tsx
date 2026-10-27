@@ -101,19 +101,11 @@ function minutesLeft(seconds: number | null | undefined): string {
 }
 
 function scoreText(pct: number) {
-  return pct >= 70
-    ? 'text-emerald-600'
-    : pct >= 40
-      ? 'text-amber-600'
-      : 'text-red-600';
+  return pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-red-600';
 }
 
 function scoreFill(pct: number) {
-  return pct >= 70
-    ? 'bg-emerald-500'
-    : pct >= 40
-      ? 'bg-amber-500'
-      : 'bg-red-500';
+  return pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-500' : 'bg-red-500';
 }
 
 export default function ExamDashboard() {
@@ -127,9 +119,11 @@ export default function ExamDashboard() {
   useEffect(() => {
     let active = true;
     const refreshInterviews = () => {
-      void getCandidateInterviews().then((data) => {
-        if (active && Array.isArray(data)) setInterviews(data);
-      }).catch(() => {});
+      void getCandidateInterviews()
+        .then((data) => {
+          if (active && Array.isArray(data)) setInterviews(data);
+        })
+        .catch(() => {});
     };
     Promise.allSettled([getAssessments(), getCandidateInterviews()])
       .then(([assessmentsRes, interviewsRes]) => {
@@ -143,7 +137,9 @@ export default function ExamDashboard() {
           setInterviews(interviewsRes.value);
         }
       })
-      .finally(() => { if (active) setLoading(false); });
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     const interval = window.setInterval(refreshInterviews, 15000);
     window.addEventListener('focus', refreshInterviews);
     return () => {
@@ -168,8 +164,7 @@ export default function ExamDashboard() {
           : a.availability === 'upcoming'
             ? 2
             : 3;
-    const deadline = (a: Assessment) =>
-      a.endAt ? new Date(a.endAt).getTime() : Infinity;
+    const deadline = (a: Assessment) => (a.endAt ? new Date(a.endAt).getTime() : Infinity);
     const pending = assessments
       .filter((a) => a.candidateStatus !== 'completed')
       .sort((x, y) => rank(x) - rank(y) || deadline(x) - deadline(y));
@@ -178,9 +173,7 @@ export default function ExamDashboard() {
     const completed = assessments
       .filter((a) => a.candidateStatus === 'completed')
       .sort((x, y) =>
-        (y.finishedAt || y.startedAt || '').localeCompare(
-          x.finishedAt || x.startedAt || '',
-        ),
+        (y.finishedAt || y.startedAt || '').localeCompare(x.finishedAt || x.startedAt || ''),
       );
 
     const scored = completed.filter((a) => a.result);
@@ -188,19 +181,11 @@ export default function ExamDashboard() {
       ? scored.reduce((s, a) => s + a.result!.percentage, 0) / scored.length
       : null;
     const passed = scored.filter((a) => a.result!.passed).length;
-    const timeSpent = completed.reduce(
-      (s, a) => s + (a.result?.timeTakenSeconds ?? 0),
-      0,
-    );
-    const best = scored.length
-      ? Math.max(...scored.map((a) => a.result!.percentage))
-      : null;
-    const inProgress =
-      pending.find((a) => a.candidateStatus === 'in-progress') ?? null;
+    const timeSpent = completed.reduce((s, a) => s + (a.result?.timeTakenSeconds ?? 0), 0);
+    const best = scored.length ? Math.max(...scored.map((a) => a.result!.percentage)) : null;
+    const inProgress = pending.find((a) => a.candidateStatus === 'in-progress') ?? null;
     const nextOpen =
-      pending.find(
-        (a) => a.candidateStatus !== 'in-progress' && a.availability === 'open',
-      ) ?? null;
+      pending.find((a) => a.candidateStatus !== 'in-progress' && a.availability === 'open') ?? null;
 
     return {
       upNext,
@@ -319,19 +304,13 @@ export default function ExamDashboard() {
           tone="bg-primary-500/10 text-primary-700"
           label="Average score"
           value={data.average === null ? '—' : `${data.average.toFixed(0)}%`}
-          hint={
-            data.best === null
-              ? 'No results yet'
-              : `Best ${data.best.toFixed(0)}%`
-          }
+          hint={data.best === null ? 'No results yet' : `Best ${data.best.toFixed(0)}%`}
         />
         <Stat
           icon={Trophy}
           tone="bg-amber-500/10 text-amber-700"
           label="Passed"
-          value={
-            data.scored.length ? `${data.passed} / ${data.scored.length}` : '—'
-          }
+          value={data.scored.length ? `${data.passed} / ${data.scored.length}` : '—'}
           hint="Tests with results"
         />
         <Stat
@@ -386,7 +365,15 @@ export default function ExamDashboard() {
                             {isLive && (
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                             )}
-                            {interview.status === 'expired' ? 'Ended — not started' : isLive ? 'Live Now' : isScheduled ? 'Scheduled' : interview.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+                            {interview.status === 'expired'
+                              ? 'Ended — not started'
+                              : isLive
+                                ? 'Live Now'
+                                : isScheduled
+                                  ? 'Scheduled'
+                                  : interview.status === 'cancelled'
+                                    ? 'Cancelled'
+                                    : 'Completed'}
                           </span>
                         </div>
                         <h3 className="text-base font-semibold text-white">{interview.title}</h3>
@@ -412,7 +399,9 @@ export default function ExamDashboard() {
                           <div>
                             <span className="text-surface-500 block">Schedule</span>
                             <span className="font-medium text-surface-300">
-                              {interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Flexible'}
+                              {interview.scheduledAt
+                                ? formatDate(interview.scheduledAt)
+                                : 'Flexible'}
                             </span>
                           </div>
                           <div>
@@ -425,7 +414,13 @@ export default function ExamDashboard() {
                       </div>
 
                       <div className="flex items-center justify-end pt-2">
-                        {interview.status === 'expired' ? <span className="text-sm text-surface-400">Interview ended without being started</span> : interview.status === 'cancelled' ? <span className="text-sm text-surface-400">Interview cancelled</span> : isCompleted ? (
+                        {interview.status === 'expired' ? (
+                          <span className="text-sm text-surface-400">
+                            Interview ended without being started
+                          </span>
+                        ) : interview.status === 'cancelled' ? (
+                          <span className="text-sm text-surface-400">Interview cancelled</span>
+                        ) : isCompleted ? (
                           <Link
                             to={`/interview/${interview.roomToken}`}
                             className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5"
@@ -467,11 +462,7 @@ export default function ExamDashboard() {
             ) : (
               <div className="space-y-3">
                 {data.upNext.map((a) => (
-                  <UpcomingCard
-                    key={a.id}
-                    a={a}
-                    onOpen={() => navigate(`/exam/${a.id}`)}
-                  />
+                  <UpcomingCard key={a.id} a={a} onOpen={() => navigate(`/exam/${a.id}`)} />
                 ))}
               </div>
             )}
@@ -500,18 +491,11 @@ export default function ExamDashboard() {
               <SectionHeader title="Closed" count={data.missed.length} />
               <div className="card p-0 overflow-hidden divide-y divide-surface-800">
                 {data.missed.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center justify-between gap-3 px-5 py-3"
-                  >
+                  <div key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-surface-300 truncate">
-                        {a.name}
-                      </p>
+                      <p className="text-sm font-medium text-surface-300 truncate">{a.name}</p>
                       <p className="text-xs text-surface-500">
-                        {a.endAt
-                          ? `Closed ${formatDate(a.endAt, false)}`
-                          : 'No longer available'}
+                        {a.endAt ? `Closed ${formatDate(a.endAt, false)}` : 'No longer available'}
                       </p>
                     </div>
                     <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700 gap-1 shrink-0">
@@ -557,16 +541,10 @@ function NextAction({
         {urgent ? 'Continue where you left off' : 'Recommended next'}
       </p>
       <p className="text-sm font-semibold text-white mt-1 truncate">{title}</p>
-      <p
-        className={`text-xs mt-0.5 ${urgent ? 'text-sky-700 font-medium' : 'text-surface-500'}`}
-      >
+      <p className={`text-xs mt-0.5 ${urgent ? 'text-sky-700 font-medium' : 'text-surface-500'}`}>
         {meta}
       </p>
-      <button
-        type="button"
-        onClick={onClick}
-        className="btn-primary w-full mt-3 text-sm"
-      >
+      <button type="button" onClick={onClick} className="btn-primary w-full mt-3 text-sm">
         <Icon className="w-4 h-4" /> {label}
       </button>
     </div>
@@ -590,22 +568,14 @@ function Stat({
     <div className="card p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider">
-            {label}
-          </p>
-          <p className="text-3xl font-bold text-white mt-2 tabular-nums tracking-tight">
-            {value}
-          </p>
+          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider">{label}</p>
+          <p className="text-3xl font-bold text-white mt-2 tabular-nums tracking-tight">{value}</p>
         </div>
-        <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone}`}
-        >
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
-      <p className="text-xs text-surface-500 mt-3 pt-3 border-t border-surface-800">
-        {hint}
-      </p>
+      <p className="text-xs text-surface-500 mt-3 pt-3 border-t border-surface-800">{hint}</p>
     </div>
   );
 }
@@ -619,15 +589,7 @@ function SectionHeader({ title, count }: { title: string; count: number }) {
   );
 }
 
-function EmptyCard({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: LucideIcon;
-  title: string;
-  body: string;
-}) {
+function EmptyCard({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
   return (
     <div className="card text-center py-10">
       <div className="w-12 h-12 rounded-xl bg-surface-800 flex items-center justify-center mx-auto mb-3">
@@ -673,40 +635,30 @@ function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
       className={`card relative overflow-hidden p-0 group transition-all duration-200 ${open ? 'cursor-pointer hover:shadow-md hover:shadow-surface-700/30 hover:border-primary-500/40' : ''}`}
       onClick={() => open && onOpen()}
     >
-      <span
-        className={`absolute inset-y-0 left-0 w-1 ${status.stripe}`}
-        aria-hidden="true"
-      />
+      <span className={`absolute inset-y-0 left-0 w-1 ${status.stripe}`} aria-hidden="true" />
       <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5 pl-6">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-white group-hover:text-primary-700 transition-colors">
               {a.name}
             </h3>
-            <span className={`badge ring-1 ${status.pill}`}>
-              {status.label}
-            </span>
+            <span className={`badge ring-1 ${status.pill}`}>{status.label}</span>
           </div>
           {a.description && (
-            <p className="text-sm text-surface-500 mt-1 line-clamp-1">
-              {a.description}
-            </p>
+            <p className="text-sm text-surface-500 mt-1 line-clamp-1">{a.description}</p>
           )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-surface-500">
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" /> {a.timeLimitMinutes} min
             </span>
             <span className="flex items-center gap-1">
-              <FileText className="w-3.5 h-3.5" /> {a._count?.questions ?? 0}{' '}
-              questions
+              <FileText className="w-3.5 h-3.5" /> {a._count?.questions ?? 0} questions
             </span>
             <span className="flex items-center gap-1">
               <Target className="w-3.5 h-3.5" /> Pass {a.passingScore}%
             </span>
           </div>
-          <p
-            className={`flex items-center gap-1 mt-2 text-xs ${when.className}`}
-          >
+          <p className={`flex items-center gap-1 mt-2 text-xs ${when.className}`}>
             <WhenIcon className="w-3.5 h-3.5" /> {when.text}
           </p>
         </div>
@@ -750,9 +702,7 @@ function CompletedRow({ a }: { a: Assessment }) {
         <p className="text-sm font-semibold text-white truncate">{a.name}</p>
         <p className="text-xs text-surface-500 mt-0.5">
           Submitted {formatDate(a.finishedAt || a.startedAt, false)}
-          {r?.timeTakenSeconds
-            ? ` · ${formatDuration(r.timeTakenSeconds)}`
-            : ''}
+          {r?.timeTakenSeconds ? ` · ${formatDuration(r.timeTakenSeconds)}` : ''}
         </p>
       </div>
       <div className="flex items-center gap-4 shrink-0">
@@ -785,9 +735,7 @@ function CompletedRow({ a }: { a: Assessment }) {
           </>
         ) : (
           <span className="text-xs text-surface-500 w-[13.5rem] text-right">
-            {a.showResults
-              ? 'No answers were submitted'
-              : 'Results not shared by the organiser'}
+            {a.showResults ? 'No answers were submitted' : 'Results not shared by the organiser'}
           </span>
         )}
         {a.canRetake && (
@@ -814,10 +762,7 @@ function CompletedRow({ a }: { a: Assessment }) {
             {retakeError}
           </p>
         )}
-        <Link
-          to={`/exam/${a.id}/result`}
-          className="btn-ghost text-xs px-2 py-1"
-        >
+        <Link to={`/exam/${a.id}/result`} className="btn-ghost text-xs px-2 py-1">
           View <ChevronRight className="w-3.5 h-3.5" />
         </Link>
       </div>
@@ -833,8 +778,7 @@ function PerformanceCard({ completed }: { completed: Assessment[] }) {
     .slice(-8);
   const trend =
     points.length >= 2
-      ? points[points.length - 1].result!.percentage -
-        points[0].result!.percentage
+      ? points[points.length - 1].result!.percentage - points[0].result!.percentage
       : null;
 
   return (
@@ -852,9 +796,7 @@ function PerformanceCard({ completed }: { completed: Assessment[] }) {
           </span>
         )}
       </div>
-      <p className="text-xs text-surface-500 mb-4">
-        Score in each completed test
-      </p>
+      <p className="text-xs text-surface-500 mb-4">Score in each completed test</p>
 
       {points.length === 0 ? (
         <p className="text-sm text-surface-500 text-center py-8">
@@ -959,9 +901,7 @@ function RulesCard() {
             </div>
             <div>
               <p className="text-sm font-medium text-white">{title}</p>
-              <p className="text-xs text-surface-500 mt-0.5 leading-relaxed">
-                {body}
-              </p>
+              <p className="text-xs text-surface-500 mt-0.5 leading-relaxed">{body}</p>
             </div>
           </li>
         ))}

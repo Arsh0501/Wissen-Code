@@ -6,36 +6,36 @@ Protected routes require `Authorization: Bearer <accessToken>`. Candidates have 
 
 ## Authentication and accounts
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| POST | `/auth/register` | Register a candidate |
-| POST | `/auth/login` | Return access token, refresh token and user |
-| POST | `/auth/refresh` | Exchange a refresh token for an access token |
-| POST | `/auth/logout` | Revoke the current session |
-| GET / PUT | `/auth/me` | Read or update the profile |
-| PUT | `/auth/password` | Change the password |
-| GET | `/users`, `/roles` | Administrator account directory and roles |
-| PUT | `/users/:id/role` | Change a role and revoke the user's sessions |
-| GET | `/candidates` | Search candidates |
+| Method    | Route              | Purpose                                      |
+| --------- | ------------------ | -------------------------------------------- |
+| POST      | `/auth/register`   | Register a candidate                         |
+| POST      | `/auth/login`      | Return access token, refresh token and user  |
+| POST      | `/auth/refresh`    | Exchange a refresh token for an access token |
+| POST      | `/auth/logout`     | Revoke the current session                   |
+| GET / PUT | `/auth/me`         | Read or update the profile                   |
+| PUT       | `/auth/password`   | Change the password                          |
+| GET       | `/users`, `/roles` | Administrator account directory and roles    |
+| PUT       | `/users/:id/role`  | Change a role and revoke the user's sessions |
+| GET       | `/candidates`      | Search candidates                            |
 
 ## Questions and assessments
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET / POST | `/questions` | List or create questions |
-| GET / PUT / DELETE | `/questions/:id` | Read, edit or delete a question |
-| GET / POST | `/assessments` | List or create assessments |
-| GET / PUT / DELETE | `/assessments/:id` | Read, edit or delete an assessment |
-| GET | `/assessments/dashboard` | Dashboard totals, assessments and activity |
-| POST | `/assessments/:id/start` | Start or resume an attempt |
-| GET | `/attempts/:id` | Read an owned attempt |
-| PUT | `/attempts/:id/answer` | Save a question's draft answer |
-| POST | `/attempts/:id/save-all-drafts` | Save all draft answers |
-| POST | `/attempts/:id/submit` | Finalize and grade saved answers |
-| GET | `/assessments/:id/candidates` | Assessment participants and statistics |
-| GET | `/candidates/:id/report?assessmentId=:id` | Candidate report |
-| GET | `/submissions/:assessmentId/:candidateName` | Candidate results |
-| POST | `/judge/run` | Run code using the configured judge |
+| Method             | Route                                       | Purpose                                    |
+| ------------------ | ------------------------------------------- | ------------------------------------------ |
+| GET / POST         | `/questions`                                | List or create questions                   |
+| GET / PUT / DELETE | `/questions/:id`                            | Read, edit or delete a question            |
+| GET / POST         | `/assessments`                              | List or create assessments                 |
+| GET / PUT / DELETE | `/assessments/:id`                          | Read, edit or delete an assessment         |
+| GET                | `/assessments/dashboard`                    | Dashboard totals, assessments and activity |
+| POST               | `/assessments/:id/start`                    | Start or resume an attempt                 |
+| GET                | `/attempts/:id`                             | Read an owned attempt                      |
+| PUT                | `/attempts/:id/answer`                      | Save a question's draft answer             |
+| POST               | `/attempts/:id/save-all-drafts`             | Save all draft answers                     |
+| POST               | `/attempts/:id/submit`                      | Finalize and grade saved answers           |
+| GET                | `/assessments/:id/candidates`               | Assessment participants and statistics     |
+| GET                | `/candidates/:id/report?assessmentId=:id`   | Candidate report                           |
+| GET                | `/submissions/:assessmentId/:candidateName` | Candidate results                          |
+| POST               | `/judge/run`                                | Run code using the configured judge        |
 
 Candidate attempts enforce ownership, question membership, permitted languages, attempt limits and time limits. A retake uses `{ "retake": true }` with the assessment start endpoint.
 

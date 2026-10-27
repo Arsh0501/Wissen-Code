@@ -62,8 +62,9 @@ export const NAV_ITEMS: NavItem[] = [
 
 export function getNavItemsForRole(role: Role, accessRole?: string): NavItem[] {
   const effectiveRole = accessRole || role;
-  return NAV_ITEMS.filter((item) =>
-    item.roles.includes(role) &&
-    (effectiveRole !== 'interviewer' || ['/', '/admin/interviews', '/profile'].includes(item.to))
+  return NAV_ITEMS.filter(
+    (item) =>
+      item.roles.includes(role) &&
+      (effectiveRole !== 'interviewer' || ['/', '/admin/interviews', '/profile'].includes(item.to)),
   );
 }

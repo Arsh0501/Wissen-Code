@@ -5,7 +5,7 @@ import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import { Queue, Worker, QueueEvents } from 'bullmq';
 import Redis from 'ioredis';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { createSessionForUser, hashRefreshToken } from '../routes/auth';
 import { verifyAccessToken } from '../middleware/auth';
 import { runAgent } from '../ai/gateway';
@@ -33,9 +33,7 @@ test('candidate session binding serializes concurrent logins and rejects expired
     assert.notEqual(stored.refreshToken, session.refreshToken);
     assert.equal((await verifyAccessToken(session.token!)).id, user.id);
     await assert.rejects(
-      verifyAccessToken(
-        jwt.sign({ ...session.user, id: user.id + 1 }, process.env.JWT_SECRET!),
-      ),
+      verifyAccessToken(jwt.sign({ ...session.user, id: user.id + 1 }, process.env.JWT_SECRET!)),
     );
     await prisma.userSession.update({
       where: { id: stored.id },
@@ -61,25 +59,19 @@ test('gateway validates tool arguments, rejects unauthorized tools, and bounds t
       return args.query;
     },
   };
-  const output = await runAgent(
-    'test_result',
-    schema,
-    'instructions',
-    {},
-    [tool],
-    async () =>
-      ++rounds === 1
-        ? {
-            output: [
-              {
-                type: 'function_call',
-                name: 'search',
-                call_id: 'x',
-                arguments: '{"query":"React"}',
-              },
-            ],
-          }
-        : { status: 'completed', output: [], output_text: '{"ok":true}' },
+  const output = await runAgent('test_result', schema, 'instructions', {}, [tool], async () =>
+    ++rounds === 1
+      ? {
+          output: [
+            {
+              type: 'function_call',
+              name: 'search',
+              call_id: 'x',
+              arguments: '{"query":"React"}',
+            },
+          ],
+        }
+      : { status: 'completed', output: [], output_text: '{"ok":true}' },
   );
   assert.equal(output.ok, true);
   assert.equal(calls, 1);
@@ -146,20 +138,14 @@ test('evidence rejects invented quotes and unknown timeline events', () => {
       ),
     /unsupported/,
   );
-  assert.throws(
-    () => validateEvidence({ timeline: [{ eventId: 99 }] }, {}, [7]),
-    /unknown/,
-  );
+  assert.throws(() => validateEvidence({ timeline: [{ eventId: 99 }] }, {}, [7]), /unknown/);
 });
 test('BullMQ retries failed work and preserves job identity', async (t) => {
   if (!process.env.REDIS_URL) {
     t.skip('Redis is required for the BullMQ integration test.');
     return;
   }
-  const connection = new Redis(
-    process.env.REDIS_URL,
-    { maxRetriesPerRequest: null },
-  );
+  const connection = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null });
   const name = `wissen-test-${Date.now()}`;
   const queue = new Queue(name, { connection: connection as any });
   const eventConnection = connection.duplicate();
@@ -185,10 +171,7 @@ test('BullMQ retries failed work and preserves job identity', async (t) => {
         backoff: { type: 'fixed', delay: 20 },
       },
     );
-    assert.equal(
-      (await queue.add('evaluation', {}, { jobId: 'same-request' })).id,
-      job.id,
-    );
+    assert.equal((await queue.add('evaluation', {}, { jobId: 'same-request' })).id, job.id);
     assert.deepEqual(await job.waitUntilFinished(events, 10000), {
       evidence: ['recorded answer'],
     });

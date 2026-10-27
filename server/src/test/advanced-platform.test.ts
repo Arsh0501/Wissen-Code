@@ -1,6 +1,6 @@
-import { summarizeCandidates, aggregate } from '../services/stats';
+import { summarizeCandidates, aggregate } from '../services/assessments/stats';
 import { buildReportData } from '../routes/admin-reports';
-import { ExecutionLimiter } from '../platform/execution-limit';
+import { ExecutionLimiter } from '../platform/jobs/execution-limit';
 import { verifyAccessToken } from '../middleware/auth';
 import axios from 'axios';
 import 'dotenv/config';
@@ -10,28 +10,24 @@ import express from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import {
   candidatePayload,
   scoreChoices,
   validateQuestionSettings,
-} from '../platform/questions';
-import {
-  deliverOutbox,
-  tokenHash,
-  calendarEvent,
-} from '../platform/communication';
-import { webhookSignature } from '../platform/webhooks';
-import platformRoutes from '../platform/routes';
-import accountRoutes from '../platform/account-routes';
+} from '../services/questions/candidate-payload';
+import { deliverOutbox, tokenHash, calendarEvent } from '../platform/mail/communication';
+import { webhookSignature } from '../platform/mail/webhooks';
+import platformRoutes from '../routes/system';
+import accountRoutes from '../routes/auth/account';
 import questionRoutes from '../routes/questions';
 import userRoutes from '../routes/users';
 import assessmentRoutes from '../routes/assessments';
 import attemptRoutes from '../routes/attempts';
 import { createSessionForUser } from '../routes/auth';
 import { authenticate } from '../middleware/auth';
-import { staffPermissions } from '../platform/permissions';
-import { gradeAnswer, computeEvaluation } from '../services/grading';
+import { staffPermissions } from '../platform/auth/permissions';
+import { gradeAnswer, computeEvaluation } from '../services/assessments/grading';
 
 test('multiple choice grading requires exact unique choices and never exposes answer keys in nested payloads', () => {
   const settings = {
@@ -45,17 +41,9 @@ test('multiple choice grading requires exact unique choices and never exposes an
     explanation: 'Private key rationale',
   };
   assert.equal(scoreChoices('["c","a"]', settings), 100);
-  for (const answer of [
-    '["a"]',
-    '["a","b","c"]',
-    '["a","a","c"]',
-    'oops',
-    '{}',
-  ])
+  for (const answer of ['["a"]', '["a","b","c"]', '["a","a","c"]', 'oops', '{}'])
     assert.equal(scoreChoices(answer, settings), 0);
-  assert.throws(() =>
-    validateQuestionSettings('mcq', { ...settings, multiple: false }),
-  );
+  assert.throws(() => validateQuestionSettings('mcq', { ...settings, multiple: false }));
   assert.throws(() =>
     validateQuestionSettings('mcq', {
       ...settings,
@@ -63,10 +51,7 @@ test('multiple choice grading requires exact unique choices and never exposes an
     }),
   );
   const result = candidatePayload({ questions: [{ question: { settings } }] });
-  assert.equal(
-    result.questions[0].question.settings.correctOptionIds,
-    undefined,
-  );
+  assert.equal(result.questions[0].question.settings.correctOptionIds, undefined);
   assert.equal(result.questions[0].question.settings.explanation, undefined);
   assert.equal(result.questions[0].question.settings.options.length, 3);
   assert.throws(() =>
@@ -88,11 +73,7 @@ test('calendar fields escape newlines and webhook signatures bind ID, timestamp,
   });
   assert.ok(calendar.includes('DTEND:20261101T104500Z'));
   assert.ok(calendar.includes('SUMMARY:Interview\\nATTENDEE:malicious'));
-  assert.equal(
-    calendar.split('\r\n').filter((line) => line.startsWith('ATTENDEE:'))
-      .length,
-    1,
-  );
+  assert.equal(calendar.split('\r\n').filter((line) => line.startsWith('ATTENDEE:')).length, 1);
   assert.notEqual(
     webhookSignature('a', '1', '{}', 'secret'),
     webhookSignature('b', '1', '{}', 'secret'),
@@ -101,11 +82,14 @@ test('calendar fields escape newlines and webhook signatures bind ID, timestamp,
 
 test('durable email outbox claims concurrent delivery once and records provider failures for retry', async () => {
   const previous = {
-    key: process.env.SMTP_PASS, host: process.env.SMTP_HOST, smtpUser: process.env.SMTP_USER,
+    key: process.env.SMTP_PASS,
+    host: process.env.SMTP_HOST,
+    smtpUser: process.env.SMTP_USER,
     from: process.env.MAIL_FROM,
   };
   process.env.SMTP_PASS = 'test-only-not-a-real-key';
-  process.env.SMTP_HOST = 'smtp.test.invalid'; process.env.SMTP_USER = 'sender@test.invalid';
+  process.env.SMTP_HOST = 'smtp.test.invalid';
+  process.env.SMTP_USER = 'sender@test.invalid';
   process.env.MAIL_FROM = 'Wissen <sender@test.invalid>';
   const first = await prisma.outboundMessage.create({
     data: {
@@ -123,16 +107,18 @@ test('durable email outbox claims concurrent delivery once and records provider 
   });
   try {
     let calls = 0;
-    const transport = async (message: { id: string; to: string; subject: string; body: string }) => {
+    const transport = async (message: {
+      id: string;
+      to: string;
+      subject: string;
+      body: string;
+    }) => {
       calls++;
       assert.equal(message.id, first.id);
       assert.equal(message.to, 'recipient@test.invalid');
       return 'provider-test';
     };
-    await Promise.all([
-      deliverOutbox(transport, [first.id]),
-      deliverOutbox(transport, [first.id]),
-    ]);
+    await Promise.all([deliverOutbox(transport, [first.id]), deliverOutbox(transport, [first.id])]);
     assert.equal(calls, 1);
     assert.equal(
       (
@@ -142,10 +128,9 @@ test('durable email outbox claims concurrent delivery once and records provider 
       ).status,
       'sent',
     );
-    await deliverOutbox(
-      async () => { throw new Error('SMTP unavailable'); },
-      [second.id],
-    );
+    await deliverOutbox(async () => {
+      throw new Error('SMTP unavailable');
+    }, [second.id]);
     const failed = await prisma.outboundMessage.findUniqueOrThrow({
       where: { id: second.id },
     });
@@ -156,8 +141,10 @@ test('durable email outbox claims concurrent delivery once and records provider 
     await prisma.outboundMessage.deleteMany({
       where: { id: { in: [first.id, second.id] } },
     });
-    if (previous.host === undefined) delete process.env.SMTP_HOST; else process.env.SMTP_HOST = previous.host;
-    if (previous.smtpUser === undefined) delete process.env.SMTP_USER; else process.env.SMTP_USER = previous.smtpUser;
+    if (previous.host === undefined) delete process.env.SMTP_HOST;
+    else process.env.SMTP_HOST = previous.host;
+    if (previous.smtpUser === undefined) delete process.env.SMTP_USER;
+    else process.env.SMTP_USER = previous.smtpUser;
     if (previous.key === undefined) delete process.env.SMTP_PASS;
     else process.env.SMTP_PASS = previous.key;
     if (previous.from === undefined) delete process.env.MAIL_FROM;
@@ -186,8 +173,7 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
   app.use((req, res, next) => {
     const json = res.json.bind(res);
     if (req.user!.role === 'candidate')
-      res.json = ((body: any) =>
-        json(candidatePayload(body))) as typeof res.json;
+      res.json = ((body: any) => json(candidatePayload(body))) as typeof res.json;
     next();
   });
   app.use('/questions', questionRoutes);
@@ -195,35 +181,21 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
   app.use('/assessments', assessmentRoutes);
   app.use('/attempts', attemptRoutes);
   app.use('/platform', platformRoutes);
-  app.use(
-    (
-      error: any,
-      _req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction,
-    ) =>
-      res
-        .status(error instanceof z.ZodError ? 400 : (error.status ?? 500))
-        .json({ error: error.message }),
+  app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) =>
+    res
+      .status(error instanceof z.ZodError ? 400 : (error.status ?? 500))
+      .json({ error: error.message }),
   );
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', resolve));
   const url = `http://127.0.0.1:${(server.address() as any).port}`;
   const tokens: string[] = [];
   for (const user of users) {
-    const auth = await createSessionForUser(
-      user.id,
-      user.email,
-      user.name,
-      user.role,
-    );
+    const auth = await createSessionForUser(user.id, user.email, user.name, user.role);
     if (!('token' in auth)) throw new Error('Session fixture failed');
     tokens.push(auth.token!);
     const claims = await verifyAccessToken(auth.token!);
-    assert.equal(
-      claims.role,
-      user.role,
-    );
+    assert.equal(claims.role, user.role);
     assert.equal(claims.accessRole, user.role);
   }
   const call = (index: number, path: string, method = 'GET', body?: unknown) =>
@@ -238,9 +210,26 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
   const questionIds: number[] = [];
   let assessmentId: number | undefined;
   try {
-    assert.equal((await call(0, `/users/${users[2].id}/role`, 'PUT', { role: 'recruiter' })).status, 400);
-    assert.equal((await call(0, '/users/invite', 'POST', { name: 'Removed role', email: `removed-${suffix}@test.invalid`, role: 'recruiter' })).status, 400);
-    const unsupported = await createSessionForUser(users[2].id, users[2].email, users[2].name, 'recruiter');
+    assert.equal(
+      (await call(0, `/users/${users[2].id}/role`, 'PUT', { role: 'recruiter' })).status,
+      400,
+    );
+    assert.equal(
+      (
+        await call(0, '/users/invite', 'POST', {
+          name: 'Removed role',
+          email: `removed-${suffix}@test.invalid`,
+          role: 'recruiter',
+        })
+      ).status,
+      400,
+    );
+    const unsupported = await createSessionForUser(
+      users[2].id,
+      users[2].email,
+      users[2].name,
+      'recruiter',
+    );
     assert.ok('error' in unsupported);
     const choices = await call(0, '/questions', 'POST', {
       title: 'MCQ fixture',
@@ -281,33 +270,23 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
     assert.equal(create.status, 201);
     const assessment = (await create.json()) as any;
     assessmentId = assessment.id;
-    const candidateView = (await (
-      await call(1, `/assessments/${assessmentId}`)
-    ).json()) as any;
+    const candidateView = (await (await call(1, `/assessments/${assessmentId}`)).json()) as any;
     assert.equal(
-      candidateView.questions.find((q: any) => q.questionId === mcq.id).question
-        .settings.correctOptionIds,
+      candidateView.questions.find((q: any) => q.questionId === mcq.id).question.settings
+        .correctOptionIds,
       undefined,
     );
     assert.equal(candidateView.questionsLocked, true);
     assert.equal(candidateView.questions[0].question.statement, '');
-    const start = await call(
-      1,
-      `/assessments/${assessmentId}/start`,
-      'POST',
-      {},
-    );
+    const start = await call(1, `/assessments/${assessmentId}/start`, 'POST', {});
     assert.equal(start.status, 200);
     const session = (await start.json()) as any;
     assert.equal(session.timeLimitMinutes, 30);
     assert.ok(session.remainingSeconds > 1700);
-    const unlocked = (await (
-      await call(1, `/assessments/${assessmentId}`)
-    ).json()) as any;
+    const unlocked = (await (await call(1, `/assessments/${assessmentId}`)).json()) as any;
     assert.equal(unlocked.questionsLocked, false);
     assert.equal(
-      unlocked.questions.find((q: any) => q.questionId === mcq.id).question
-        .settings.options.length,
+      unlocked.questions.find((q: any) => q.questionId === mcq.id).question.settings.options.length,
       2,
     );
     for (const [questionId, code] of [
@@ -326,12 +305,7 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
         ).status,
         200,
       );
-    const submit = await call(
-      1,
-      `/attempts/${session.sessionId}/submit`,
-      'POST',
-      {},
-    );
+    const submit = await call(1, `/attempts/${session.sessionId}/submit`, 'POST', {});
     assert.equal(submit.status, 200);
     const subs = await prisma.submission.findMany({
       where: { sessionId: session.sessionId },
@@ -351,12 +325,7 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
       },
     });
     users.push(twin);
-    const twinAuth = await createSessionForUser(
-      twin.id,
-      twin.email,
-      twin.name,
-      twin.role,
-    );
+    const twinAuth = await createSessionForUser(twin.id, twin.email, twin.name, twin.role);
     tokens.push(twinAuth.token!);
     assert.equal(
       await computeEvaluation(assessmentId!, twin.name, twin.id),
@@ -366,21 +335,12 @@ test('assessment API supports MCQ, provisional written answers, key redaction, a
     const legacy = await prisma.assessmentSession.create({
       data: { assessmentId: assessmentId!, candidateName: twin.name },
     });
-    const twinStart = await call(
-      3,
-      `/assessments/${assessmentId}/start`,
-      'POST',
-      {},
-    );
+    const twinStart = await call(3, `/assessments/${assessmentId}/start`, 'POST', {});
     assert.equal(twinStart.status, 200);
     const ownSession = (await twinStart.json()) as any;
     assert.notEqual(ownSession.sessionId, legacy.id);
     assert.notEqual(ownSession.sessionId, session.sessionId);
-    assert.equal(
-      (await buildReportData(String(users[1].id), assessmentId!))?.marks
-        .percentage,
-      50,
-    );
+    assert.equal((await buildReportData(String(users[1].id), assessmentId!))?.marks.percentage, 50);
     assert.equal(await buildReportData(String(twin.id), assessmentId!), null);
     // No compiler is invoked for manual answers; MCQ grading also works independently.
     const direct = await gradeAnswer(
@@ -428,13 +388,8 @@ test('password reset tokens are single use and revoke every existing login sessi
   const app = express();
   app.use(express.json());
   app.use(accountRoutes);
-  app.use(
-    (
-      error: any,
-      _req: express.Request,
-      res: express.Response,
-      _next: express.NextFunction,
-    ) => res.status(400).json({ error: error.message }),
+  app.use((error: any, _req: express.Request, res: express.Response, _next: express.NextFunction) =>
+    res.status(400).json({ error: error.message }),
   );
   const server = app.listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', resolve));
@@ -451,15 +406,11 @@ test('password reset tokens are single use and revoke every existing login sessi
       });
     const responses = await Promise.all([reset(), reset()]);
     assert.deepEqual(responses.map((r) => r.status).sort(), [200, 400]);
-    assert.equal(
-      await prisma.userSession.count({ where: { userId: user.id } }),
-      0,
-    );
+    assert.equal(await prisma.userSession.count({ where: { userId: user.id } }), 0);
     assert.equal(
       await bcrypt.compare(
         'new-secure-password-123!',
-        (await prisma.user.findUniqueOrThrow({ where: { id: user.id } }))
-          .password,
+        (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).password,
       ),
       true,
     );
@@ -482,8 +433,7 @@ test('SQL is executed inside the judge with fixture setup and provider outages r
       questionType: 'sql',
       testCases: {
         create: {
-          input:
-            'CREATE TABLE items (id INTEGER); INSERT INTO items VALUES (7);',
+          input: 'CREATE TABLE items (id INTEGER); INSERT INTO items VALUES (7);',
           expectedOutput: '7',
           isSample: false,
         },
@@ -524,14 +474,7 @@ test('SQL is executed inside the judge with fixture setup and provider outages r
       code: 'SELECT id FROM items;',
     };
     assert.equal(
-      (
-        await gradeAnswer(
-          assessment.id,
-          session.candidateName,
-          answer,
-          session.id,
-        )
-      ).score,
+      (await gradeAnswer(assessment.id, session.candidateName, answer, session.id)).score,
       100,
     );
     assert.equal(calls, 1);
@@ -586,11 +529,11 @@ test('execution limits bound provider concurrency and reject excess queued work'
 });
 
 test('queued submissions acknowledge saved answers and expose pending results until the worker completes', async (t) => {
-  if (!process.env.REDIS_URL) return t.skip('Redis is required for the queued-grading integration test.');
+  if (!process.env.REDIS_URL)
+    return t.skip('Redis is required for the queued-grading integration test.');
   const { Worker, QueueEvents } = await import('bullmq');
   const { redisConnection } = await import('../ai/queue');
-  const { gradingQueue, closeGradingQueue } =
-    await import('../platform/grading-jobs');
+  const { gradingQueue, closeGradingQueue } = await import('../platform/jobs/grading-jobs');
   const { finalizeSession } = await import('../routes/attempts');
   const { default: submissions } = await import('../routes/submissions');
   const previous = {
@@ -643,12 +586,7 @@ test('queued submissions acknowledge saved answers and expose pending results un
       },
     },
   });
-  const auth = await createSessionForUser(
-    user.id,
-    user.email,
-    user.name,
-    user.role,
-  );
+  const auth = await createSessionForUser(user.id, user.email, user.name, user.role);
   const app = express();
   app.use(express.json());
   app.use(authenticate);
@@ -683,10 +621,7 @@ test('queued submissions acknowledge saved answers and expose pending results un
     const pending = await call(path);
     assert.equal(pending.status, 202);
     assert.equal(((await pending.json()) as any).resultsPending, true);
-    assert.equal(
-      (await call(`/attempts/${session.id}/submit`, 'POST')).status,
-      202,
-    );
+    assert.equal((await call(`/attempts/${session.id}/submit`, 'POST')).status, 202);
     const queue = gradingQueue();
     const job = await queue.getJob(`attempt-${session.id}`);
     assert.ok(job);
@@ -699,10 +634,7 @@ test('queued submissions acknowledge saved answers and expose pending results un
     const completed = await call(path);
     assert.equal(completed.status, 200);
     assert.equal(((await completed.json()) as any).overallScore, 100);
-    assert.equal(
-      (await call(`/attempts/${session.id}/submit`, 'POST')).status,
-      200,
-    );
+    assert.equal((await call(`/attempts/${session.id}/submit`, 'POST')).status, 200);
   } finally {
     await worker?.close();
     await events.close();
@@ -780,13 +712,7 @@ test('candidate summaries separate identical display names, latest attempts, and
     ],
   );
   assert.equal(summaries.length, 2);
-  assert.equal(
-    summaries.find((s) => s.candidateUserId === 10)?.overallScore,
-    50,
-  );
-  assert.equal(
-    summaries.find((s) => s.candidateUserId === 20)?.isProvisional,
-    true,
-  );
+  assert.equal(summaries.find((s) => s.candidateUserId === 10)?.overallScore, 50);
+  assert.equal(summaries.find((s) => s.candidateUserId === 20)?.isProvisional, true);
   assert.equal(aggregate(summaries).averageScore, 50);
 });

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import AdminLayout from '../../components/AdminLayout';
-import DashboardCommandCenter from '../../components/DashboardCommandCenter';
+import AdminLayout from '../../components/layout/AdminLayout';
+import DashboardCommandCenter from '../../components/dashboard/DashboardCommandCenter';
 import {
   PassFailBadge,
   StatCard,
@@ -28,11 +28,7 @@ import {
   Search,
 } from 'lucide-react';
 
-function ScoreDistribution({
-  buckets,
-}: {
-  buckets: DashboardData['scoreDistribution'];
-}) {
+function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribution'] }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(1, ...buckets.map((b) => b.count));
   const total = buckets.reduce((a, b) => a + b.count, 0);
@@ -46,13 +42,9 @@ function ScoreDistribution({
     <div className="card">
       <div className="flex items-center justify-between mb-1">
         <h2 className="text-sm font-semibold text-white">Score distribution</h2>
-        <span className="text-xs text-surface-500">
-          {total} completed attempts
-        </span>
+        <span className="text-xs text-surface-500">{total} completed attempts</span>
       </div>
-      <p className="text-xs text-surface-500 mb-6">
-        Candidates by overall score, all assessments
-      </p>
+      <p className="text-xs text-surface-500 mb-6">Candidates by overall score, all assessments</p>
 
       <div className="relative h-44 flex">
         {/* Y axis */}
@@ -127,10 +119,7 @@ function ScoreDistribution({
       </div>
       <div className="flex gap-[2px] pl-7 pr-1 mt-2">
         {buckets.map((b) => (
-          <span
-            key={b.range}
-            className="flex-1 text-center text-[10px] text-surface-500"
-          >
+          <span key={b.range} className="flex-1 text-center text-[10px] text-surface-500">
             {b.range}
           </span>
         ))}
@@ -146,9 +135,7 @@ export default function AssessmentDashboard() {
     refetchInterval: 30000,
   });
   const data = dashboard.data;
-  const error = dashboard.error
-    ? apiError(dashboard.error, 'Failed to load dashboard')
-    : '';
+  const error = dashboard.error ? apiError(dashboard.error, 'Failed to load dashboard') : '';
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const lifecycle = (a: DashboardData['assessments'][number]) =>
@@ -187,10 +174,7 @@ export default function AssessmentDashboard() {
       {error ? (
         <div role="alert" className="card text-center text-red-600">
           <p>{error}</p>
-          <button
-            className="btn-outline mt-4"
-            onClick={() => dashboard.refetch()}
-          >
+          <button className="btn-outline mt-4" onClick={() => dashboard.refetch()}>
             Retry dashboard
           </button>
         </div>
@@ -199,30 +183,22 @@ export default function AssessmentDashboard() {
       ) : (
         <div className="dashboard-stack space-y-6 animate-fade-in">
           <DashboardCommandCenter
-            active={
-              data.assessments.filter((a) => lifecycle(a) === 'active').length
-            }
+            active={data.assessments.filter((a) => lifecycle(a) === 'active').length}
             inProgress={data.totals.inProgress}
             completed={data.totals.candidatesCompleted}
             onExplore={() => {
               setSearch('');
               setFilter('active');
-              document
-                .getElementById('dashboard-assessments-title')
-                ?.scrollIntoView({
-                  behavior: window.matchMedia(
-                    '(prefers-reduced-motion: reduce)',
-                  ).matches
-                    ? 'auto'
-                    : 'smooth',
-                  block: 'start',
-                });
+              document.getElementById('dashboard-assessments-title')?.scrollIntoView({
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                  ? 'auto'
+                  : 'smooth',
+                block: 'start',
+              });
             }}
           />
           <div>
-            <h2 className="text-sm font-semibold text-surface-200 mb-3">
-              Overview
-            </h2>
+            <h2 className="text-sm font-semibold text-surface-200 mb-3">Overview</h2>
             {/* KPI row */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCard
@@ -303,19 +279,11 @@ export default function AssessmentDashboard() {
                 aria-label="Assessment status filters"
                 className="flex gap-1 overflow-x-auto pb-1"
               >
-                {[
-                  'all',
-                  'draft',
-                  'active',
-                  'scheduled',
-                  'completed',
-                  'expired',
-                ].map((status) => {
+                {['all', 'draft', 'active', 'scheduled', 'completed', 'expired'].map((status) => {
                   const count =
                     status === 'all'
                       ? data.assessments.length
-                      : data.assessments.filter((a) => lifecycle(a) === status)
-                          .length;
+                      : data.assessments.filter((a) => lifecycle(a) === status).length;
                   return (
                     <button
                       key={status}
@@ -339,11 +307,7 @@ export default function AssessmentDashboard() {
             {visible.length === 0 ? (
               <EmptyState
                 icon={ClipboardList}
-                title={
-                  data.assessments.length
-                    ? 'No assessments match'
-                    : 'No assessments yet'
-                }
+                title={data.assessments.length ? 'No assessments match' : 'No assessments yet'}
                 body={
                   data.assessments.length
                     ? 'Try another search or assessment status.'
@@ -372,30 +336,14 @@ export default function AssessmentDashboard() {
                 <table className="w-full min-w-[920px] text-sm">
                   <thead>
                     <tr className="border-b border-surface-800 text-xs text-surface-500 uppercase tracking-wider">
-                      <th className="text-left font-medium px-5 py-3">
-                        Assessment
-                      </th>
-                      <th className="text-left font-medium px-3 py-3">
-                        Status
-                      </th>
-                      <th className="text-right font-medium px-3 py-3">
-                        Questions
-                      </th>
-                      <th className="text-right font-medium px-3 py-3">
-                        Candidates
-                      </th>
-                      <th className="text-right font-medium px-3 py-3">
-                        Started
-                      </th>
-                      <th className="text-right font-medium px-3 py-3">
-                        Completed
-                      </th>
-                      <th className="text-right font-medium px-3 py-3">
-                        Avg score
-                      </th>
-                      <th className="text-right font-medium px-3 py-3">
-                        Pass rate
-                      </th>
+                      <th className="text-left font-medium px-5 py-3">Assessment</th>
+                      <th className="text-left font-medium px-3 py-3">Status</th>
+                      <th className="text-right font-medium px-3 py-3">Questions</th>
+                      <th className="text-right font-medium px-3 py-3">Candidates</th>
+                      <th className="text-right font-medium px-3 py-3">Started</th>
+                      <th className="text-right font-medium px-3 py-3">Completed</th>
+                      <th className="text-right font-medium px-3 py-3">Avg score</th>
+                      <th className="text-right font-medium px-3 py-3">Pass rate</th>
                       <th className="px-5 py-3" />
                     </tr>
                   </thead>
@@ -411,11 +359,9 @@ export default function AssessmentDashboard() {
                             {a.name}
                           </Link>
                           <p className="text-xs text-surface-500 flex items-center gap-1 mt-0.5">
-                            <Clock className="w-3 h-3" /> {a.timeLimitMinutes}{' '}
-                            min · pass at {a.passingScore}%
-                            {a.endAt && (
-                              <> · closes {formatDate(a.endAt, false)}</>
-                            )}
+                            <Clock className="w-3 h-3" /> {a.timeLimitMinutes} min · pass at{' '}
+                            {a.passingScore}%
+                            {a.endAt && <> · closes {formatDate(a.endAt, false)}</>}
                           </p>
                         </td>
                         <td className="px-3 py-3">
@@ -460,8 +406,8 @@ export default function AssessmentDashboard() {
               </div>
             )}
             <div className="px-5 py-3 border-t border-surface-800 text-xs text-surface-500">
-              Candidate counts include invited and started candidates. Completed
-              assessments are archived after review.
+              Candidate counts include invited and started candidates. Completed assessments are
+              archived after review.
             </div>
           </section>
           <section aria-labelledby="dashboard-performance-title">
@@ -480,8 +426,7 @@ export default function AssessmentDashboard() {
               <div className="card lg:col-span-1 p-0 overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
                   <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-primary-600" /> Recent
-                    activity
+                    <Activity className="w-4 h-4 text-primary-600" /> Recent activity
                   </h2>
                 </div>
                 {data.recentActivity.length === 0 ? (
@@ -513,8 +458,7 @@ export default function AssessmentDashboard() {
                           </p>
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
-                          {r.status === 'completed' &&
-                          r.overallScore !== null ? (
+                          {r.status === 'completed' && r.overallScore !== null ? (
                             <>
                               <span
                                 className={`text-sm font-semibold tabular-nums ${scoreTextClass(r.overallScore)}`}

@@ -1,0 +1,14 @@
+**/node_modules/**
+**/dist/**
+**/coverage/**
+.git/**
+.tmp/**
+**/.venv/**
+**/.models/**
+**/__pycache__/**
+**/package-lock.json
+**/*.tsbuildinfo
+**/.env*
+**/prisma/migrations/**
+client/public/**
+backups/**

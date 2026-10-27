@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
-import AdminLayout from '../../components/AdminLayout';
+import AdminLayout from '../../components/layout/AdminLayout';
 import { apiData } from '../../services/workflows';
 import { apiError } from '../../services/api';
 type Member = {
@@ -37,10 +37,7 @@ export default function TeamPage() {
     onSuccess: () => client.invalidateQueries({ queryKey: ['team-users'] }),
   });
   return (
-    <AdminLayout
-      title="Team access"
-      subtitle="Manage administrator and interviewer permissions."
-    >
+    <AdminLayout title="Team access" subtitle="Manage administrator and interviewer permissions.">
       {!owner ? (
         <p className="card">Only an administrator can manage team access.</p>
       ) : (
@@ -48,9 +45,8 @@ export default function TeamPage() {
           <section className="card space-y-4">
             <h2 className="font-semibold">Invite a team member</h2>
             <p className="text-sm text-surface-500">
-              Administrators manage team access, assessments, and candidate
-              operations. Interviewers work with their assigned
-              interviews. Role changes revoke existing login sessions.
+              Administrators manage team access, assessments, and candidate operations. Interviewers
+              work with their assigned interviews. Role changes revoke existing login sessions.
             </p>
             <form
               className="grid sm:grid-cols-2 gap-4"
@@ -90,16 +86,11 @@ export default function TeamPage() {
                   ))}
                 </select>
               </label>
-              <button
-                className="btn-primary self-end"
-                disabled={invite.isPending}
-              >
+              <button className="btn-primary self-end" disabled={invite.isPending}>
                 Send invitation
               </button>
             </form>
-            {invite.isSuccess && (
-              <p role="status">Team invitation queued. Check email delivery.</p>
-            )}
+            {invite.isSuccess && <p role="status">Team invitation queued. Check email delivery.</p>}
             {invite.error && <p role="alert">{apiError(invite.error)}</p>}
           </section>
           <section className="card overflow-auto">
@@ -127,15 +118,9 @@ export default function TeamPage() {
                           className="input"
                           disabled={m.id === user?.id || update.isPending}
                           value={m.role}
-                          onChange={(e) =>
-                            update.mutate({ id: m.id, role: e.target.value })
-                          }
+                          onChange={(e) => update.mutate({ id: m.id, role: e.target.value })}
                         >
-                          {[
-                            'candidate',
-                            'interviewer',
-                            'admin',
-                          ].map((v) => (
+                          {['candidate', 'interviewer', 'admin'].map((v) => (
                             <option key={v}>{v}</option>
                           ))}
                         </select>

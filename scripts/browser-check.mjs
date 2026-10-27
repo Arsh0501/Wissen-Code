@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
-const require = createRequire(
-  new URL('../server/package.json', import.meta.url),
-);
+const require = createRequire(new URL('../server/package.json', import.meta.url));
 require('dotenv').config({
   path: new URL('../server/.env', import.meta.url).pathname,
 });
@@ -132,10 +130,7 @@ try {
     waitUntil: 'networkidle0',
   });
   await waitText(adminPage, 'Hiring operations');
-  await adminPage.select(
-    'select[aria-label="Assessment"]',
-    String(assessment.id),
-  );
+  await adminPage.select('select[aria-label="Assessment"]', String(assessment.id));
   await waitText(adminPage, 'Question performance');
   await click(adminPage, '^Integrity review$');
   await waitText(adminPage, 'No submission pairs');
@@ -150,10 +145,7 @@ try {
   await waitText(candidatePage, 'Correct fixture answer');
   await candidatePage.click('input[type="radio"]');
   await click(candidatePage, '^Submit Test$');
-  await click(
-    candidatePage,
-    'confirm.*submit|submit.*assessment|confirm submission',
-  );
+  await click(candidatePage, 'confirm.*submit|submit.*assessment|confirm submission');
   await waitText(candidatePage, 'Assessment Submitted');
   const graded = await prisma.submission.findFirstOrThrow({
     where: { assessmentId: assessment.id, candidateName: candidate.user.name },
@@ -164,16 +156,12 @@ try {
       const headers = {
         Authorization: `Bearer ${localStorage.getItem('wissen-token')}`,
       };
-      const report = await fetch(
-        `/api/candidates/${userId}/report?assessmentId=${assessmentId}`,
-        { headers },
-      );
+      const report = await fetch(`/api/candidates/${userId}/report?assessmentId=${assessmentId}`, {
+        headers,
+      });
       if (!report.ok) throw new Error(`Report HTTP ${report.status}`);
       const data = await report.json();
-      const pdf = await fetch(
-        `/api/admin/reports/${userId}/${assessmentId}/download`,
-        { headers },
-      );
+      const pdf = await fetch(`/api/admin/reports/${userId}/${assessmentId}/download`, { headers });
       if (!pdf.ok) throw new Error(`PDF HTTP ${pdf.status}`);
       const bytes = new Uint8Array(await pdf.arrayBuffer());
       return {
@@ -256,23 +244,16 @@ try {
   assert.equal(saved.currentCode, 'print("industry")');
   await adminPage.waitForFunction(
     () =>
-      [...document.querySelectorAll('.view-lines')].some((e) =>
-        e.textContent.includes('industry'),
-      ),
+      [...document.querySelectorAll('.view-lines')].some((e) => e.textContent.includes('industry')),
     { timeout: 10000 },
   );
   stage = 'synchronize interview chat';
-  await adminPage.type(
-    'input[aria-label="Chat message"]',
-    'Browser chat evidence',
-  );
+  await adminPage.type('input[aria-label="Chat message"]', 'Browser chat evidence');
   await click(adminPage, '^Send$');
   await waitText(room, 'Browser chat evidence');
   stage = 'synchronize interview whiteboard';
   await click(adminPage, '^Whiteboard$');
-  const board = await adminPage.$(
-    'svg[aria-label="Shared drawing whiteboard"]',
-  );
+  const board = await adminPage.$('svg[aria-label="Shared drawing whiteboard"]');
   await board.scrollIntoView();
   const bounds = await board.boundingBox();
   await adminPage.mouse.move(bounds.x + 80, bounds.y + 80);
@@ -280,9 +261,7 @@ try {
   await adminPage.mouse.move(bounds.x + 180, bounds.y + 140, { steps: 8 });
   await adminPage.mouse.up();
   await click(room, '^Whiteboard$');
-  await room.waitForSelector(
-    'svg[aria-label="Shared drawing whiteboard"] polyline',
-  );
+  await room.waitForSelector('svg[aria-label="Shared drawing whiteboard"] polyline');
   stage = 'connect interview video';
   await click(adminPage, '^Video$');
   await click(room, '^Video$');
@@ -298,25 +277,20 @@ try {
       eventType: { in: ['CANDIDATE_JOINED', 'INTERVIEWER_JOINED'] },
     },
   });
-  const socketIds = joinEvents.map(
-    (event) => JSON.parse(event.payload).socketId,
-  );
+  const socketIds = joinEvents.map((event) => JSON.parse(event.payload).socketId);
   assert.equal(
     new Set(socketIds).size,
     socketIds.length,
     'Room synchronization must not duplicate join events',
   );
   stage = 'load interview replay';
-  await adminPage.goto(
-    `${origin}/admin/interviews/${interview.id}?tab=replay`,
-    { waitUntil: 'networkidle0' },
-  );
+  await adminPage.goto(`${origin}/admin/interviews/${interview.id}?tab=replay`, {
+    waitUntil: 'networkidle0',
+  });
   await waitText(adminPage, 'Interview replay');
   await waitText(adminPage, 'CODE CHANGED');
   await adminPage.screenshot({
-    path:
-      process.env.BROWSER_SCREENSHOT ||
-      path.join(os.tmpdir(), 'wissen-advanced-replay.png'),
+    path: process.env.BROWSER_SCREENSHOT || path.join(os.tmpdir(), 'wissen-advanced-replay.png'),
     fullPage: true,
   });
   assert.deepEqual(errors, []);
@@ -325,14 +299,15 @@ try {
   );
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error);
-  console.log(`::error title=Browser workflow failed at ${stage}::${detail.replace(/\r?\n/g, ' ')}`);
+  console.log(
+    `::error title=Browser workflow failed at ${stage}::${detail.replace(/\r?\n/g, ' ')}`,
+  );
   console.error(`Browser validation failed at ${stage}:`, detail);
   console.error('Page errors:', errors);
   throw error;
 } finally {
   await browser?.close();
-  if (interviewId)
-    await prisma.interview.deleteMany({ where: { id: interviewId } });
+  if (interviewId) await prisma.interview.deleteMany({ where: { id: interviewId } });
   await prisma.auditEvent.deleteMany({ where: { actorId: { in: userIds } } });
   await prisma.assessment.deleteMany({ where: { id: { in: assessmentIds } } });
   await prisma.question.deleteMany({ where: { id: { in: questionIds } } });

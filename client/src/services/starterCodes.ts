@@ -1,9 +1,20 @@
 import { Question } from '../types';
 
-export function getAvailableQuestionLanguages(question: Pick<Question, 'questionType' | 'starterCodes'> | null | undefined) {
+export function getAvailableQuestionLanguages(
+  question: Pick<Question, 'questionType' | 'starterCodes'> | null | undefined,
+) {
   if (question?.questionType === 'sql') return [{ id: 82, name: 'SQL (SQLite)' }];
-  const languages = [{ id: 71, name: 'Python' }, { id: 63, name: 'JavaScript' }, { id: 62, name: 'Java' }, { id: 54, name: 'C++' }];
-  const prepared = languages.filter((language) => question?.starterCodes?.some((starter) => starter.languageId === language.id && starter.code.trim()));
+  const languages = [
+    { id: 71, name: 'Python' },
+    { id: 63, name: 'JavaScript' },
+    { id: 62, name: 'Java' },
+    { id: 54, name: 'C++' },
+  ];
+  const prepared = languages.filter((language) =>
+    question?.starterCodes?.some(
+      (starter) => starter.languageId === language.id && starter.code.trim(),
+    ),
+  );
   return prepared.length ? prepared : languages;
 }
 

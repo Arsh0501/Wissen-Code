@@ -1,16 +1,265 @@
-.wissen-world{max-width:1240px;margin:30px auto 70px;display:grid;grid-template-columns:1fr 1.2fr;align-items:center;padding:50px 55px;background:#030811;color:#f1f5ff;border:1px solid #1b2b44;border-radius:20px;overflow:hidden;position:relative;isolation:isolate}.wissen-world-copy{position:relative;z-index:1}.wissen-world .landing-kicker{justify-content:flex-start;color:#7cb6ff;font-size:10px}.wissen-world h2{font-size:clamp(30px,3.3vw,44px);margin:22px 0;letter-spacing:-1.5px;line-height:1.18}.wissen-world h2 span{color:#70adff}.wissen-world-copy>p:not(.landing-kicker){font-size:14px;line-height:1.9;color:#94a5be;max-width:360px}.world-location{display:flex;align-items:center;gap:13px;border-top:1px solid #1e2b40;padding-top:26px;margin:30px 0 22px;max-width:360px;color:#79b3ff}.world-location strong{display:block;color:#f1f5ff;font-size:19px;font-weight:550}.world-location div>span{font-size:12px;color:#94a5be;display:block;margin-top:4px}.world-location-count{margin-left:auto;font-size:11px;color:#6781a3;font-variant-numeric:tabular-nums}.world-select-label{display:block;color:#94a5be;font-size:11px;margin-bottom:8px}.wissen-world select{width:100%;max-width:360px;border:1px solid #2a3d58;background:#0b1525;color:#e2edff;border-radius:6px;padding:12px;font-size:12px;color-scheme:dark}.wissen-world-copy>a{display:block;color:#89bcff;font-size:11px;margin-top:20px}.wissen-world-visual{position:relative;min-width:0;aspect-ratio:1}.wissen-world canvas{display:block;width:100%;height:100%;position:relative;z-index:1}.world-orbit{position:absolute;inset:9%;border:1px dotted #31619a33;border-radius:50%;transform:rotate(-30deg) scaleY(.45);pointer-events:none}.orbit-two{transform:rotate(40deg) scaleY(.65);inset:3%}.world-caption{position:absolute;bottom:55px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:2.5px;color:#6983a5;white-space:nowrap}.world-pause{position:relative;z-index:2;margin:15px auto 0;display:flex;align-items:center;justify-content:center;gap:7px;color:#94a5be;font-size:10px;min-height:34px;padding:0 10px;border:1px solid #24334b;border-radius:5px}.world-pause:disabled{opacity:.6}.wissen-world button:focus-visible,.wissen-world select:focus-visible,.wissen-world a:focus-visible{outline:2px solid #60a5fa;outline-offset:5px}@media(max-width:800px){.wissen-world{margin:24px;grid-template-columns:1fr;padding:35px 25px}.wissen-world-copy>p:not(.landing-kicker),.world-location,.wissen-world select{max-width:none}.wissen-world-visual{max-width:520px;width:100%;margin:15px auto 0}.wissen-world h2{font-size:34px}.world-caption{bottom:55px}}
+.wissen-world {
+  max-width: 1240px;
+  margin: 30px auto 70px;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  align-items: center;
+  padding: 50px 55px;
+  background: #030811;
+  color: #f1f5ff;
+  border: 1px solid #1b2b44;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+.wissen-world-copy {
+  position: relative;
+  z-index: 1;
+}
+.wissen-world .landing-kicker {
+  justify-content: flex-start;
+  color: #7cb6ff;
+  font-size: 10px;
+}
+.wissen-world h2 {
+  font-size: clamp(30px, 3.3vw, 44px);
+  margin: 22px 0;
+  letter-spacing: -1.5px;
+  line-height: 1.18;
+}
+.wissen-world h2 span {
+  color: #70adff;
+}
+.wissen-world-copy > p:not(.landing-kicker) {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #94a5be;
+  max-width: 360px;
+}
+.world-location {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border-top: 1px solid #1e2b40;
+  padding-top: 26px;
+  margin: 30px 0 22px;
+  max-width: 360px;
+  color: #79b3ff;
+}
+.world-location strong {
+  display: block;
+  color: #f1f5ff;
+  font-size: 19px;
+  font-weight: 550;
+}
+.world-location div > span {
+  font-size: 12px;
+  color: #94a5be;
+  display: block;
+  margin-top: 4px;
+}
+.world-location-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: #6781a3;
+  font-variant-numeric: tabular-nums;
+}
+.world-select-label {
+  display: block;
+  color: #94a5be;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+.wissen-world select {
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid #2a3d58;
+  background: #0b1525;
+  color: #e2edff;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  color-scheme: dark;
+}
+.wissen-world-copy > a {
+  display: block;
+  color: #89bcff;
+  font-size: 11px;
+  margin-top: 20px;
+}
+.wissen-world-visual {
+  position: relative;
+  min-width: 0;
+  aspect-ratio: 1;
+}
+.wissen-world canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+.world-orbit {
+  position: absolute;
+  inset: 9%;
+  border: 1px dotted #31619a33;
+  border-radius: 50%;
+  transform: rotate(-30deg) scaleY(0.45);
+  pointer-events: none;
+}
+.orbit-two {
+  transform: rotate(40deg) scaleY(0.65);
+  inset: 3%;
+}
+.world-caption {
+  position: absolute;
+  bottom: 55px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+  letter-spacing: 2.5px;
+  color: #6983a5;
+  white-space: nowrap;
+}
+.world-pause {
+  position: relative;
+  z-index: 2;
+  margin: 15px auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #94a5be;
+  font-size: 10px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #24334b;
+  border-radius: 5px;
+}
+.world-pause:disabled {
+  opacity: 0.6;
+}
+.wissen-world button:focus-visible,
+.wissen-world select:focus-visible,
+.wissen-world a:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 5px;
+}
+@media (max-width: 800px) {
+  .wissen-world {
+    margin: 24px;
+    grid-template-columns: 1fr;
+    padding: 35px 25px;
+  }
+  .wissen-world-copy > p:not(.landing-kicker),
+  .world-location,
+  .wissen-world select {
+    max-width: none;
+  }
+  .wissen-world-visual {
+    max-width: 520px;
+    width: 100%;
+    margin: 15px auto 0;
+  }
+  .wissen-world h2 {
+    font-size: 34px;
+  }
+  .world-caption {
+    bottom: 55px;
+  }
+}
 
-.landing-hero .wissen-world{text-align:left;margin-top:40px;margin-bottom:0}.landing-hero .wissen-world-copy>p{margin-left:0;margin-right:0}
+.landing-hero .wissen-world {
+  text-align: left;
+  margin-top: 40px;
+  margin-bottom: 0;
+}
+.landing-hero .wissen-world-copy > p {
+  margin-left: 0;
+  margin-right: 0;
+}
 
-.wissen-world-copy>.world-office-address{font-size:12px!important;line-height:1.7!important;margin:0 0 22px;max-width:360px;color:#a7b7cf}.world-location strong{overflow-wrap:anywhere}
+.wissen-world-copy > .world-office-address {
+  font-size: 12px !important;
+  line-height: 1.7 !important;
+  margin: 0 0 22px;
+  max-width: 360px;
+  color: #a7b7cf;
+}
+.world-location strong {
+  overflow-wrap: anywhere;
+}
 
-.wissen-world-visual{perspective:1000px}
-.world-hologram{position:relative;transform-style:preserve-3d;transform:rotateX(var(--globe-tilt-x,0deg)) rotateY(var(--globe-tilt-y,0deg));transition:transform .35s ease-out;will-change:transform}
-.world-hologram::after{content:"";position:absolute;left:18%;right:18%;bottom:5%;height:8%;border-radius:50%;background:#2563eb35;filter:blur(22px);transform:translateZ(-40px);pointer-events:none}
-.world-scan{position:absolute;inset:11.5%;border-radius:50%;overflow:hidden;pointer-events:none;z-index:2;transform:translateZ(8px)}
-.world-scan::before{content:"";position:absolute;left:0;right:0;height:16%;top:-18%;background:linear-gradient(transparent,#93c5fd12,#b9dcff30,transparent);animation:world-scan 9s linear infinite}
-.world-hologram .orbit-one{transform:translateZ(25px) rotate(-30deg) scaleY(.45);border-color:#80bdff66}
-.world-hologram .orbit-two{transform:translateZ(-25px) rotate(40deg) scaleY(.65);border-color:#80bdff44}
-.wissen-world-visual[data-paused=true] .world-scan::before{animation-play-state:paused}
-@keyframes world-scan{0%{top:-18%}65%,100%{top:115%}}
-@media(prefers-reduced-motion:reduce){.world-hologram{transform:none;transition:none;will-change:auto}.world-scan{display:none}}
+.wissen-world-visual {
+  perspective: 1000px;
+}
+.world-hologram {
+  position: relative;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--globe-tilt-x, 0deg)) rotateY(var(--globe-tilt-y, 0deg));
+  transition: transform 0.35s ease-out;
+  will-change: transform;
+}
+.world-hologram::after {
+  content: '';
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 5%;
+  height: 8%;
+  border-radius: 50%;
+  background: #2563eb35;
+  filter: blur(22px);
+  transform: translateZ(-40px);
+  pointer-events: none;
+}
+.world-scan {
+  position: absolute;
+  inset: 11.5%;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 2;
+  transform: translateZ(8px);
+}
+.world-scan::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16%;
+  top: -18%;
+  background: linear-gradient(transparent, #93c5fd12, #b9dcff30, transparent);
+  animation: world-scan 9s linear infinite;
+}
+.world-hologram .orbit-one {
+  transform: translateZ(25px) rotate(-30deg) scaleY(0.45);
+  border-color: #80bdff66;
+}
+.world-hologram .orbit-two {
+  transform: translateZ(-25px) rotate(40deg) scaleY(0.65);
+  border-color: #80bdff44;
+}
+.wissen-world-visual[data-paused='true'] .world-scan::before {
+  animation-play-state: paused;
+}
+@keyframes world-scan {
+  0% {
+    top: -18%;
+  }
+  65%,
+  100% {
+    top: 115%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-hologram {
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+  .world-scan {
+    display: none;
+  }
+}

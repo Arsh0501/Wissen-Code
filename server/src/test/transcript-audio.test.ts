@@ -7,11 +7,22 @@ import { runInNewContext } from 'node:vm';
 test('audio worklet downmixes, resamples PCM and flushes final short audio', () => {
   let Processor: any;
   const messages: any[] = [];
-  class Base { port = { onmessage: (_value: any) => {}, postMessage: (value: any) => messages.push(value) }; }
-  runInNewContext(readFileSync(resolve(__dirname, '../../../client/public/audio/transcript-processor.js'), 'utf8'), {
-    AudioWorkletProcessor: Base, sampleRate: 48000,
-    registerProcessor: (_name: string, ctor: any) => { Processor = ctor; },
-  });
+  class Base {
+    port = { onmessage: (_value: any) => {}, postMessage: (value: any) => messages.push(value) };
+  }
+  runInNewContext(
+    readFileSync(
+      resolve(__dirname, '../../../client/public/audio/transcript-processor.js'),
+      'utf8',
+    ),
+    {
+      AudioWorkletProcessor: Base,
+      sampleRate: 48000,
+      registerProcessor: (_name: string, ctor: any) => {
+        Processor = ctor;
+      },
+    },
+  );
   const processor = new Processor();
   processor.process([[new Float32Array(144000).fill(0.5), new Float32Array(144000).fill(0.25)]]);
   assert.equal(messages.length, 1);

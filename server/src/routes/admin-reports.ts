@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import puppeteer from 'puppeteer';
 import { adminOnly } from '../middleware/adminOnly';
 import { generateReportHTML } from '../templates/report-html';
-import { summarizeCandidates, aggregate } from '../services/stats';
-import { computeEvaluation } from '../services/grading';
+import { summarizeCandidates, aggregate } from '../services/assessments/stats';
+import { computeEvaluation } from '../services/assessments/grading';
 import { MAX_TAB_SWITCHES } from './attempts';
 
 const router = Router();
@@ -17,91 +17,86 @@ router.use(adminOnly);
 
 // GET /api/admin/reports/submissions/:assessmentId
 // Lists all candidates who submitted for a given assessment
-router.get(
-  '/submissions/:assessmentId',
-  async (req: Request, res: Response) => {
-    try {
-      const assessmentId = parseInt(req.params.assessmentId);
-      if (isNaN(assessmentId)) {
-        return res.status(400).json({ error: 'Invalid assessmentId' });
-      }
+router.get('/submissions/:assessmentId', async (req: Request, res: Response) => {
+  try {
+    const assessmentId = parseInt(req.params.assessmentId);
+    if (isNaN(assessmentId)) {
+      return res.status(400).json({ error: 'Invalid assessmentId' });
+    }
 
-      const assessment = await prisma.assessment.findUnique({
-        where: { id: assessmentId },
+    const assessment = await prisma.assessment.findUnique({
+      where: { id: assessmentId },
+      select: {
+        id: true,
+        name: true,
+        timeLimitMinutes: true,
+        passingScore: true,
+        questions: { select: { questionId: true, marks: true } },
+      },
+    });
+
+    if (!assessment) {
+      return res.status(404).json({ error: 'Assessment not found' });
+    }
+
+    const [submissions, sessions] = await Promise.all([
+      prisma.submission.findMany({
+        where: { assessmentId },
+        select: {
+          candidateName: true,
+          score: true,
+          createdAt: true,
+          questionId: true,
+          sessionId: true,
+          status: true,
+        },
+      }),
+      prisma.assessmentSession.findMany({
+        where: { assessmentId },
         select: {
           id: true,
-          name: true,
-          timeLimitMinutes: true,
-          passingScore: true,
-          questions: { select: { questionId: true, marks: true } },
+          candidateUserId: true,
+          gradingStatus: true,
+          candidateName: true,
+          finishedAt: true,
+          startedAt: true,
         },
-      });
+      }),
+    ]);
 
-      if (!assessment) {
-        return res.status(404).json({ error: 'Assessment not found' });
-      }
-
-      const [submissions, sessions] = await Promise.all([
-        prisma.submission.findMany({
-          where: { assessmentId },
-          select: {
-            candidateName: true,
-            score: true,
-            createdAt: true,
-            questionId: true,
-            sessionId: true,
-            status: true,
-          },
-        }),
-        prisma.assessmentSession.findMany({
-          where: { assessmentId },
-          select: {
-            id: true,
-            candidateUserId: true,
-            gradingStatus: true,
-            candidateName: true,
-            finishedAt: true,
-            startedAt: true,
-          },
-        }),
-      ]);
-
-      const candidates = summarizeCandidates(
-        assessment.questions,
-        assessment.passingScore,
-        submissions,
-        sessions,
-      )
-        .map((c) => {
-          const s = sessions.find((x) =>
-            c.sessionId ? x.id === c.sessionId : x.candidateName === c.name,
-          );
-          return {
-            ...c,
-            session: s
-              ? {
-                  startedAt: s.startedAt.toISOString(),
-                  finishedAt: s.finishedAt?.toISOString() || null,
-                }
-              : null,
-          };
-        })
-        .sort((a, b) =>
-          (b.submittedAt || '').localeCompare(a.submittedAt || ''),
+    const candidates = summarizeCandidates(
+      assessment.questions,
+      assessment.passingScore,
+      submissions,
+      sessions,
+    )
+      .map((c) => {
+        const s = sessions.find((x) =>
+          c.sessionId ? x.id === c.sessionId : x.candidateName === c.name,
         );
+        return {
+          ...c,
+          session: s
+            ? {
+                startedAt: s.startedAt.toISOString(),
+                finishedAt: s.finishedAt?.toISOString() || null,
+              }
+            : null,
+        };
+      })
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
 
-      const { questions: _q, ...assessmentInfo } = assessment;
-      res.json({
-        assessment: assessmentInfo,
-        candidates,
-        stats: aggregate(candidates),
-      });
-    } catch (error) {
-      console.error('Error fetching assessment submissions:', error);
-      res.status(500).json({ error: 'Failed to fetch submissions' });
-    }
-  },
-);
+    const { questions: _q, ...assessmentInfo } = assessment;
+    res.json({
+      assessment: assessmentInfo,
+      candidates,
+      stats: aggregate(candidates),
+    });
+  } catch (error) {
+    console.error('Error fetching assessment submissions:', error);
+    res.status(500).json({ error: 'Failed to fetch submissions' });
+  }
+});
 
 // GET /api/admin/reports/export/:assessmentId
 // Downloads every candidate's result for an assessment as CSV (opens in Excel)
@@ -205,21 +200,14 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
       'Tab Switches',
       'Pastes',
       'Large Pastes',
-      ...assessment.questions.map(
-        (q, i) => `Q${i + 1} ${q.question.title} (/${q.marks})`,
-      ),
+      ...assessment.questions.map((q, i) => `Q${i + 1} ${q.question.title} (/${q.marks})`),
     ];
 
     const rows = [...completed, ...inProgress].map((c) => {
-      const session = c.sessionId
-        ? sessionById.get(c.sessionId)
-        : sessionByName.get(c.name);
+      const session = c.sessionId ? sessionById.get(c.sessionId) : sessionByName.get(c.name);
       const pastes = session?.pasteEvents ?? [];
       const minutes = session?.finishedAt
-        ? (
-            (session.finishedAt.getTime() - session.startedAt.getTime()) /
-            60000
-          ).toFixed(1)
+        ? ((session.finishedAt.getTime() - session.startedAt.getTime()) / 60000).toFixed(1)
         : '';
       const rank =
         c.status === 'completed' && !c.isProvisional
@@ -228,9 +216,7 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
       return [
         rank,
         c.name,
-        (c.candidateUserId
-          ? emailById.get(c.candidateUserId)
-          : emailByName.get(c.name)) ?? '',
+        (c.candidateUserId ? emailById.get(c.candidateUserId) : emailByName.get(c.name)) ?? '',
         c.status === 'completed' ? 'Completed' : 'In progress',
         c.isProvisional
           ? 'Provisional'
@@ -250,20 +236,15 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
         pastes.length,
         pastes.filter((p) => p.charCount >= LARGE_PASTE_CHARS).length,
         ...assessment.questions.map((q) => {
-          const sub = latest.get(
-            `${c.sessionId ?? `legacy:${c.name}`}|${q.questionId}`,
-          );
+          const sub = latest.get(`${c.sessionId ?? `legacy:${c.name}`}|${q.questionId}`);
           return sub ? Math.round((sub.score / 100) * q.marks * 100) / 100 : 0;
         }),
       ];
     });
 
     // BOM so Excel detects UTF-8 (names/titles with non-ASCII characters)
-    const csv =
-      '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
-    const safeName = assessment.name
-      .replace(/[^a-zA-Z0-9_-]+/g, '_')
-      .replace(/^_+|_+$/g, '');
+    const csv = '﻿' + [header, ...rows].map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const safeName = assessment.name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
@@ -292,128 +273,104 @@ function csvDate(iso: string): string {
 
 // GET /api/admin/reports/:candidateName/:assessmentId/data
 // Returns detailed report data for a specific candidate's assessment
-router.get(
-  '/:candidateName/:assessmentId/data',
-  async (req: Request, res: Response) => {
-    try {
-      const { candidateName } = req.params;
-      const assessmentId = parseInt(req.params.assessmentId);
+router.get('/:candidateName/:assessmentId/data', async (req: Request, res: Response) => {
+  try {
+    const { candidateName } = req.params;
+    const assessmentId = parseInt(req.params.assessmentId);
 
-      if (isNaN(assessmentId) || !candidateName) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid candidateName or assessmentId' });
-      }
-
-      const reportData = await buildReportData(candidateName, assessmentId);
-      if (!reportData) {
-        return res
-          .status(404)
-          .json({
-            error: 'No submissions found for this candidate and assessment',
-          });
-      }
-
-      res.json(reportData);
-    } catch (error) {
-      console.error('Error building report data:', error);
-      res.status(500).json({ error: 'Failed to build report data' });
+    if (isNaN(assessmentId) || !candidateName) {
+      return res.status(400).json({ error: 'Invalid candidateName or assessmentId' });
     }
-  },
-);
+
+    const reportData = await buildReportData(candidateName, assessmentId);
+    if (!reportData) {
+      return res.status(404).json({
+        error: 'No submissions found for this candidate and assessment',
+      });
+    }
+
+    res.json(reportData);
+  } catch (error) {
+    console.error('Error building report data:', error);
+    res.status(500).json({ error: 'Failed to build report data' });
+  }
+});
 
 // GET /api/admin/reports/:candidateName/:assessmentId/download
 // Generates and streams a PDF report
-router.get(
-  '/:candidateName/:assessmentId/download',
-  async (req: Request, res: Response) => {
-    try {
-      const { candidateName } = req.params;
-      const assessmentId = parseInt(req.params.assessmentId);
+router.get('/:candidateName/:assessmentId/download', async (req: Request, res: Response) => {
+  try {
+    const { candidateName } = req.params;
+    const assessmentId = parseInt(req.params.assessmentId);
 
-      if (isNaN(assessmentId) || !candidateName) {
-        return res
-          .status(400)
-          .json({ error: 'Invalid candidateName or assessmentId' });
-      }
+    if (isNaN(assessmentId) || !candidateName) {
+      return res.status(400).json({ error: 'Invalid candidateName or assessmentId' });
+    }
 
-      console.log(
-        `[Admin Reports] Generating PDF for candidate "${candidateName}", assessment ${assessmentId}`,
-      );
-      const reportData = await buildReportData(candidateName, assessmentId);
-      if (!reportData) {
-        return res
-          .status(404)
-          .json({
-            error: 'No submissions found for this candidate and assessment',
-          });
-      }
-
-      const html = generateReportHTML(reportData);
-      console.log(
-        `[Admin Reports] HTML generated (${html.length} chars). Launching Puppeteer...`,
-      );
-
-      const browser = await puppeteer.launch({
-        headless: true,
-        ...(process.env.PUPPETEER_EXECUTABLE_PATH
-          ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
-          : process.platform === 'darwin'
-            ? {
-                executablePath:
-                  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-              }
-            : {}),
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+    console.log(
+      `[Admin Reports] Generating PDF for candidate "${candidateName}", assessment ${assessmentId}`,
+    );
+    const reportData = await buildReportData(candidateName, assessmentId);
+    if (!reportData) {
+      return res.status(404).json({
+        error: 'No submissions found for this candidate and assessment',
       });
+    }
 
-      try {
-        const page = await browser.newPage();
-        await page.setJavaScriptEnabled(false);
-        await page.setRequestInterception(true);
-        page.on('request', (request) => {
-          void (request.url().startsWith('data:')
-            ? request.continue()
-            : request.abort());
-        });
-        await page.setContent(html, { waitUntil: 'domcontentloaded' });
+    const html = generateReportHTML(reportData);
+    console.log(`[Admin Reports] HTML generated (${html.length} chars). Launching Puppeteer...`);
 
-        console.log('[Admin Reports] Generating page.pdf...');
-        const pdfBuffer = await page.pdf({
-          format: 'A4',
-          printBackground: true,
-          margin: { top: '28px', right: '28px', bottom: '40px', left: '28px' },
-          displayHeaderFooter: true,
-          headerTemplate: '<span></span>',
-          footerTemplate: `<div style="width:100%;font-size:8px;color:#94a3b8;padding:0 28px;display:flex;justify-content:space-between;font-family:-apple-system,sans-serif;">
+    const browser = await puppeteer.launch({
+      headless: true,
+      ...(process.env.PUPPETEER_EXECUTABLE_PATH
+        ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
+        : process.platform === 'darwin'
+          ? {
+              executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            }
+          : {}),
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setJavaScriptEnabled(false);
+      await page.setRequestInterception(true);
+      page.on('request', (request) => {
+        void (request.url().startsWith('data:') ? request.continue() : request.abort());
+      });
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+
+      console.log('[Admin Reports] Generating page.pdf...');
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '28px', right: '28px', bottom: '40px', left: '28px' },
+        displayHeaderFooter: true,
+        headerTemplate: '<span></span>',
+        footerTemplate: `<div style="width:100%;font-size:8px;color:#94a3b8;padding:0 28px;display:flex;justify-content:space-between;font-family:-apple-system,sans-serif;">
           <span>Wissen Code · Confidential assessment report</span>
           <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
         </div>`,
-        });
+      });
 
-        console.log(
-          `[Admin Reports] PDF generated (${pdfBuffer.length} bytes). Sending response...`,
-        );
-        const safeName = candidateName.replace(/[^a-zA-Z0-9_-]/g, '_');
-        const filename = `report-${safeName}-assessment-${assessmentId}.pdf`;
+      console.log(`[Admin Reports] PDF generated (${pdfBuffer.length} bytes). Sending response...`);
+      const safeName = candidateName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `report-${safeName}-assessment-${assessmentId}.pdf`;
 
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${filename}"`,
-        );
-        res.setHeader('Content-Length', pdfBuffer.length);
-        res.end(Buffer.from(pdfBuffer));
-      } finally {
-        await browser.close();
-        console.log('[Admin Reports] Browser closed successfully.');
-      }
-    } catch (error) {
-      console.error('Error generating PDF report:', error);
-      res.status(500).json({ error: 'Failed to generate PDF report' });
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+      res.end(Buffer.from(pdfBuffer));
+    } finally {
+      await browser.close();
+      console.log('[Admin Reports] Browser closed successfully.');
     }
-  },
-);
+  } catch (error) {
+    console.error('Error generating PDF report:', error);
+    res.status(500).json({ error: 'Failed to generate PDF report' });
+  }
+});
 
 // Helper: Build report data from real DB + static placeholders
 export async function buildReportData(
@@ -536,8 +493,7 @@ export async function buildReportData(
         testcase_id: r.testCaseId,
         expected_output: r.testCase?.expectedOutput || '',
         actual_output: r.actualOutput || '',
-        status:
-          r.statusDesc?.toLowerCase().replace(/\s+/g, '_') || 'wrong_answer',
+        status: r.statusDesc?.toLowerCase().replace(/\s+/g, '_') || 'wrong_answer',
       }));
 
     return {
@@ -552,13 +508,8 @@ export async function buildReportData(
     };
   });
 
-  const overallPercentage =
-    totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
-  const evaluation = await computeEvaluation(
-    assessmentId,
-    candidateName,
-    candidateUserId,
-  );
+  const overallPercentage = totalTests > 0 ? (totalPassed / totalTests) * 100 : 0;
+  const evaluation = await computeEvaluation(assessmentId, candidateName, candidateUserId);
   // Titles for every question in the assessment, including ones the candidate didn't submit
   const questionTitles = new Map<number, string>(
     evaluation?.questions.map((q) => [q.questionId, q.title]) ?? [],
@@ -567,8 +518,7 @@ export async function buildReportData(
   return {
     provisional:
       !!evaluation?.pendingReview ||
-      (!!target?.gradingStatus &&
-        !['completed', 'pending'].includes(target.gradingStatus)),
+      (!!target?.gradingStatus && !['completed', 'pending'].includes(target.gradingStatus)),
     candidate: {
       id: candidateName,
       name: candidateName,
@@ -594,8 +544,7 @@ export async function buildReportData(
       passed: evaluation?.passed ?? false,
       time_taken_seconds: evaluation?.timeTakenSeconds ?? null,
       questions_attempted:
-        evaluation?.questions.filter((q) => q.attempted).length ??
-        questions.length,
+        evaluation?.questions.filter((q) => q.attempted).length ?? questions.length,
       questions_total: evaluation?.questions.length ?? questions.length,
     },
     // Every question in the assessment (in assessment order); unanswered ones are flagged, not dropped
@@ -632,13 +581,11 @@ export async function buildReportData(
     paste_events: {
       count: pasteEvents.length,
       total_chars: pasteEvents.reduce((sum, e) => sum + e.charCount, 0),
-      large_count: pasteEvents.filter((e) => e.charCount >= LARGE_PASTE_CHARS)
-        .length,
+      large_count: pasteEvents.filter((e) => e.charCount >= LARGE_PASTE_CHARS).length,
       large_threshold: LARGE_PASTE_CHARS,
       events: pasteEvents.map((e) => ({
         question_id: e.questionId,
-        question_title:
-          questionTitles.get(e.questionId) ?? `Question ${e.questionId}`,
+        question_title: questionTitles.get(e.questionId) ?? `Question ${e.questionId}`,
         char_count: e.charCount,
         line_count: e.lineCount,
         occurred_at: e.occurredAt.toISOString(),
@@ -648,11 +595,7 @@ export async function buildReportData(
 }
 
 // Helper: rank / percentile / averages among completed candidates
-async function buildCohort(
-  assessmentId: number,
-  candidateName: string,
-  candidateUserId?: number,
-) {
+async function buildCohort(assessmentId: number, candidateName: string, candidateUserId?: number) {
   const assessment = await prisma.assessment.findUnique({
     where: { id: assessmentId },
     select: {
@@ -693,27 +636,17 @@ async function buildCohort(
     submissions,
     sessions,
   );
-  const completed = candidates.filter(
-    (c) => c.status === 'completed' && !c.isProvisional,
-  );
+  const completed = candidates.filter((c) => c.status === 'completed' && !c.isProvisional);
   const me = completed.find((c) =>
-    candidateUserId
-      ? c.candidateUserId === candidateUserId
-      : c.name === candidateName,
+    candidateUserId ? c.candidateUserId === candidateUserId : c.name === candidateName,
   );
   const stats = aggregate(candidates);
 
   // Ties share a rank; percentile = share of the *other* candidates scoring strictly lower
-  const rank = me
-    ? completed.filter((c) => c.overallScore > me.overallScore).length + 1
-    : null;
-  const below = me
-    ? completed.filter((c) => c.overallScore < me.overallScore).length
-    : 0;
+  const rank = me ? completed.filter((c) => c.overallScore > me.overallScore).length + 1 : null;
+  const below = me ? completed.filter((c) => c.overallScore < me.overallScore).length : 0;
   const percentile =
-    me && completed.length > 1
-      ? Math.round((below / (completed.length - 1)) * 100)
-      : null;
+    me && completed.length > 1 ? Math.round((below / (completed.length - 1)) * 100) : null;
 
   return {
     rank,

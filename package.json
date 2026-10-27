@@ -7,12 +7,17 @@
     "install:all": "cd server && npm install && cd ../client && npm install",
     "db:setup": "cd server && npx prisma generate && npx prisma migrate deploy",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:all": "node scripts/dev-all.mjs",
+    "dev:check": "node scripts/dev-all.mjs --check",
     "build": "npm --prefix server run build && npm --prefix client run build",
     "test": "npm --prefix server test && npm --prefix client test",
+    "format": "prettier --write . --ignore-unknown",
+    "format:check": "prettier --check . --ignore-unknown",
     "worker:mail": "npm --prefix server run worker:mail",
     "worker:grading": "npm --prefix server run worker:grading"
   },
   "devDependencies": {
-    "concurrently": "^9.0.0"
+    "concurrently": "^9.0.0",
+    "prettier": "3.6.2"
   }
 }

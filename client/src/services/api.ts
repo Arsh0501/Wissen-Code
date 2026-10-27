@@ -39,9 +39,7 @@ export async function socketAccessToken(): Promise<string> {
   const token = localStorage.getItem('wissen-token');
   if (!token) throw new Error('Please sign in again');
   try {
-    const claims = JSON.parse(
-      atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')),
-    );
+    const claims = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     if (claims.exp * 1000 <= Date.now() + 30000) return refreshAccessToken();
   } catch {
     /* The server validates the token. */
@@ -57,12 +55,7 @@ api.interceptors.response.use(
       !request ||
       request._retried ||
       !localStorage.getItem('wissen-refresh-token') ||
-      [
-        '/auth/login',
-        '/auth/register',
-        '/auth/refresh',
-        '/auth/logout',
-      ].includes(request.url)
+      ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout'].includes(request.url)
     )
       return Promise.reject(error);
     request._retried = true;
@@ -119,10 +112,7 @@ export async function createQuestion(
   return data;
 }
 
-export async function updateQuestion(
-  id: number,
-  question: QuestionInput,
-): Promise<Question> {
+export async function updateQuestion(id: number, question: QuestionInput): Promise<Question> {
   const { data } = await api.put(`/questions/${id}`, question);
   return data;
 }
@@ -131,9 +121,7 @@ export async function deleteQuestion(id: number): Promise<void> {
   await api.delete(`/questions/${id}`);
 }
 
-export async function importQuestionFromMd(
-  markdownContent: string,
-): Promise<any> {
+export async function importQuestionFromMd(markdownContent: string): Promise<any> {
   const { data } = await api.post('/admin/questions/import-md', {
     markdownContent,
   });
@@ -185,9 +173,7 @@ export async function getAssessment(id: number): Promise<Assessment> {
   return data;
 }
 
-export async function createAssessment(
-  assessment: AssessmentInput,
-): Promise<Assessment> {
+export async function createAssessment(assessment: AssessmentInput): Promise<Assessment> {
   const { data } = await api.post('/assessments', assessment);
   return data;
 }
@@ -301,10 +287,7 @@ export async function getSessionStatus(
   return data;
 }
 
-export async function startSession(
-  assessmentId: number,
-  retake = false,
-): Promise<SessionResponse> {
+export async function startSession(assessmentId: number, retake = false): Promise<SessionResponse> {
   const { data } = await api.post(`/assessments/${assessmentId}/start`, {
     retake,
   });
@@ -388,14 +371,10 @@ export async function getAssessmentSubmissions(
   return data;
 }
 
-export async function getReportData(
-  candidateName: string,
-  assessmentId: number,
-): Promise<any> {
-  const { data } = await api.get(
-    `/candidates/${encodeURIComponent(candidateName)}/report`,
-    { params: { assessmentId } },
-  );
+export async function getReportData(candidateName: string, assessmentId: number): Promise<any> {
+  const { data } = await api.get(`/candidates/${encodeURIComponent(candidateName)}/report`, {
+    params: { assessmentId },
+  });
   return data;
 }
 
@@ -420,9 +399,7 @@ export async function downloadAssessmentCsv(
   const res = await api.get(`/admin/reports/export/${assessmentId}`, {
     responseType: 'blob',
   });
-  const match = /filename="([^"]+)"/.exec(
-    res.headers['content-disposition'] || '',
-  );
+  const match = /filename="([^"]+)"/.exec(res.headers['content-disposition'] || '');
   return {
     blob: res.data,
     filename: match?.[1] || `results-assessment-${assessmentId}.csv`,
@@ -575,10 +552,7 @@ export async function joinInvite(
   };
   assessmentId: number;
 }> {
-  const { data } = await api.post(
-    `/public/invite/${encodeURIComponent(token)}/join`,
-    input,
-  );
+  const { data } = await api.post(`/public/invite/${encodeURIComponent(token)}/join`, input);
   return data;
 }
 

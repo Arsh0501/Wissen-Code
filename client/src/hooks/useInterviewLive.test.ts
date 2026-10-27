@@ -43,13 +43,10 @@ it('syncs the room, receives candidate edits and records execution failures with
   act(() => fake.handlers.get('connect')!());
   expect(result.current.connection).toBe('connected');
   expect(result.current.snapshot.code).toBe('print(1)');
-  act(() =>
-    fake.handlers.get('CODE_CHANGED')!({ code: 'print(2)', languageId: 71 }),
-  );
+  act(() => fake.handlers.get('CODE_CHANGED')!({ code: 'print(2)', languageId: 71 }));
   expect(result.current.snapshot.code).toBe('print(2)');
   fake.emit.mockImplementation((event: string, _body: any, callback: any) => {
-    if (event === 'EXECUTE_CODE')
-      callback(null, { success: false, error: 'Compiler unavailable' });
+    if (event === 'EXECUTE_CODE') callback(null, { success: false, error: 'Compiler unavailable' });
   });
   act(() =>
     result.current.execute('run', {

@@ -1,12 +1,5 @@
-import { useEffect, useRef, useState, type PointerEvent } from "react";
-import {
-  ArrowUpRight,
-  CalendarDays,
-  Check,
-  Code2,
-  Sparkles,
-  Video,
-} from "lucide-react";
+import { useEffect, useRef, useState, type PointerEvent } from 'react';
+import { ArrowUpRight, CalendarDays, Check, Code2, Sparkles, Video } from 'lucide-react';
 
 export default function TalentCharacters() {
   const scene = useRef<HTMLDivElement>(null);
@@ -17,21 +10,21 @@ export default function TalentCharacters() {
   function move(event: PointerEvent<HTMLDivElement>) {
     if (
       !scene.current ||
-      event.pointerType !== "mouse" ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      event.pointerType !== 'mouse' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
     )
       return;
     const bounds = scene.current.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width - 0.5;
     const y = (event.clientY - bounds.top) / bounds.height - 0.5;
-    scene.current.style.setProperty("--character-x", `${x * 13}px`);
-    scene.current.style.setProperty("--character-y", `${y * 9}px`);
-    scene.current.style.setProperty("--eye-x", `${x * 6}px`);
-    scene.current.style.setProperty("--eye-y", `${y * 5}px`);
+    scene.current.style.setProperty('--character-x', `${x * 13}px`);
+    scene.current.style.setProperty('--character-y', `${y * 9}px`);
+    scene.current.style.setProperty('--eye-x', `${x * 6}px`);
+    scene.current.style.setProperty('--eye-y', `${y * 5}px`);
   }
   function reset() {
-    ["--character-x", "--character-y", "--eye-x", "--eye-y"].forEach((key) =>
-      scene.current?.style.setProperty(key, "0px"),
+    ['--character-x', '--character-y', '--eye-x', '--eye-y'].forEach((key) =>
+      scene.current?.style.setProperty(key, '0px'),
     );
   }
   function greet() {
@@ -41,12 +34,7 @@ export default function TalentCharacters() {
     timer.current = setTimeout(() => setGreeting(false), 3000);
   }
   return (
-    <div
-      className="talent-characters"
-      ref={scene}
-      onPointerMove={move}
-      onPointerLeave={reset}
-    >
+    <div className="talent-characters" ref={scene} onPointerMove={move} onPointerLeave={reset}>
       <div className="tc-backdrop" aria-hidden="true" />
       <svg className="tc-orbit" viewBox="0 0 560 580" aria-hidden="true">
         <ellipse
@@ -101,7 +89,7 @@ export default function TalentCharacters() {
         >
           <img
             key={wave}
-            className={wave ? "tc-wave" : ""}
+            className={wave ? 'tc-wave' : ''}
             src="/images/wissen-mascot.png"
             width="1153"
             height="1364"
@@ -113,10 +101,7 @@ export default function TalentCharacters() {
           </span>
         </button>
       </div>
-      <div
-        className={`tc-speech${greeting ? " is-visible" : ""}`}
-        role="status"
-      >
+      <div className={`tc-speech${greeting ? ' is-visible' : ''}`} role="status">
         Hey, future teammate. <span>Let’s make a great introduction.</span>
       </div>
       <div className="tc-code-character" aria-hidden="true">

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { adminOnly } from '../middleware/adminOnly';
 import { buildReportData } from './admin-reports';
 
@@ -7,10 +7,7 @@ const router = Router();
 
 router.get('/', adminOnly, async (req, res, next) => {
   try {
-    const search =
-      typeof req.query.search === 'string'
-        ? req.query.search.slice(0, 200)
-        : '';
+    const search = typeof req.query.search === 'string' ? req.query.search.slice(0, 200) : '';
     const candidates = await prisma.user.findMany({
       where: {
         role: 'candidate',
@@ -48,16 +45,10 @@ router.get('/:id/report', adminOnly, async (req: Request, res: Response) => {
     const assessmentId = parseInt(req.query.assessmentId as string);
 
     if (isNaN(assessmentId) || !candidateName) {
-      return res
-        .status(400)
-        .json({ error: 'Invalid candidate id or assessmentId' });
+      return res.status(400).json({ error: 'Invalid candidate id or assessmentId' });
     }
 
-    const reportData = await buildReportData(
-      candidateName,
-      assessmentId,
-      user?.id,
-    );
+    const reportData = await buildReportData(candidateName, assessmentId, user?.id);
     if (!reportData) {
       return res.status(404).json({
         error: 'No submissions found for this candidate and assessment',

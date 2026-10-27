@@ -1,11 +1,11 @@
 import AnswerInput from '../../components/questions/AnswerInput';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import Editor from '../../components/CodeEditor';
+import Editor from '../../components/editor/CodeEditor';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
-import ThemeToggle from '../../components/ThemeToggle';
+import ThemeToggle from '../../components/layout/ThemeToggle';
 import {
   getAssessment,
   runCode,
@@ -19,16 +19,8 @@ import {
   apiError,
 } from '../../services/api';
 import { useTabSwitchDetection } from '../../hooks/useTabSwitchDetection';
-import {
-  TabSwitchWarning,
-  TabSwitchStatus,
-} from '../../components/exam/TabSwitchWarning';
-import type {
-  Assessment,
-  QuestionState,
-  AssessmentQuestion,
-  TestCaseVerdict,
-} from '../../types';
+import { TabSwitchWarning, TabSwitchStatus } from '../../components/exam/TabSwitchWarning';
+import type { Assessment, QuestionState, AssessmentQuestion, TestCaseVerdict } from '../../types';
 import {
   Code2,
   Clock,
@@ -99,24 +91,15 @@ function getVerdictLabel(verdict: TestCaseVerdict) {
 }
 
 function VerdictIcon({ verdict }: { verdict: TestCaseVerdict }) {
-  if (verdict.passed)
-    return <CheckCircle className="w-4 h-4 text-emerald-600" />;
-  if (verdict.statusId === 5)
-    return <Timer className="w-4 h-4 text-amber-600" />;
-  if (verdict.statusId === 6)
-    return <AlertOctagon className="w-4 h-4 text-red-600" />;
+  if (verdict.passed) return <CheckCircle className="w-4 h-4 text-emerald-600" />;
+  if (verdict.statusId === 5) return <Timer className="w-4 h-4 text-amber-600" />;
+  if (verdict.statusId === 6) return <AlertOctagon className="w-4 h-4 text-red-600" />;
   if (verdict.statusId >= 7 && verdict.statusId <= 12)
     return <AlertOctagon className="w-4 h-4 text-red-600" />;
   return <XCircle className="w-4 h-4 text-red-600" />;
 }
 
-function VerdictCard({
-  verdict,
-  index,
-}: {
-  verdict: TestCaseVerdict;
-  index: number;
-}) {
+function VerdictCard({ verdict, index }: { verdict: TestCaseVerdict; index: number }) {
   const color = getVerdictColor(verdict);
   const label = getVerdictLabel(verdict);
   const [expanded, setExpanded] = useState(!verdict.passed);
@@ -141,18 +124,14 @@ function VerdictCard({
         : 'text-red-600';
 
   return (
-    <div
-      className={`border rounded-lg ${borderClass} ${bgClass} overflow-hidden`}
-    >
+    <div className={`border rounded-lg ${borderClass} ${bgClass} overflow-hidden`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-white/[0.02] transition-colors"
       >
         <div className="flex items-center gap-2">
           <VerdictIcon verdict={verdict} />
-          <span className="text-sm font-medium text-surface-200">
-            Test Case {index + 1}
-          </span>
+          <span className="text-sm font-medium text-surface-200">Test Case {index + 1}</span>
           <span
             className={`text-xs font-semibold px-2 py-0.5 rounded-full ${labelClass} bg-white/5`}
           >
@@ -161,9 +140,7 @@ function VerdictCard({
         </div>
         <div className="flex items-center gap-2">
           {verdict.executionTime && (
-            <span className="text-xs text-surface-500">
-              {verdict.executionTime}s
-            </span>
+            <span className="text-xs text-surface-500">{verdict.executionTime}s</span>
           )}
           <ChevronRight
             className={`w-3.5 h-3.5 text-surface-500 transition-transform ${expanded ? 'rotate-90' : ''}`}
@@ -172,56 +149,51 @@ function VerdictCard({
       </button>
       {expanded && (
         <div className="px-3 pb-3 space-y-2 text-xs font-mono">
-          {verdict.statusId === 6 &&
-            (verdict.compileOutput || verdict.stderr) && (
-              <div>
-                <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">
-                  Compiler Output
-                </span>
-                <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
-                  {verdict.compileOutput || verdict.stderr}
-                </pre>
-              </div>
-            )}
-          {verdict.statusId >= 7 &&
-            verdict.statusId <= 12 &&
-            verdict.stderr && (
-              <div>
-                <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">
-                  Error Output
-                </span>
-                <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
-                  {verdict.stderr}
-                </pre>
-              </div>
-            )}
-          {verdict.statusId === 5 && (
-            <div className="p-2 rounded bg-amber-500/10 text-amber-700 font-sans border border-amber-500/20">
-              Your code exceeded the time limit. Optimize your solution and try
-              again.
+          {verdict.statusId === 6 && (verdict.compileOutput || verdict.stderr) && (
+            <div>
+              <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">
+                Compiler Output
+              </span>
+              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
+                {verdict.compileOutput || verdict.stderr}
+              </pre>
             </div>
           )}
-          {(verdict.statusId === 3 || verdict.statusId === 4) &&
-            !verdict.passed && (
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-surface-400 font-sans text-xs font-semibold uppercase tracking-wider">
-                    Expected
-                  </span>
-                  <pre className="mt-1 p-2 rounded bg-surface-800 text-emerald-700 whitespace-pre-wrap overflow-x-auto border border-surface-700">
-                    {verdict.expectedOutput}
-                  </pre>
-                </div>
-                <div>
-                  <span className="text-surface-400 font-sans text-xs font-semibold uppercase tracking-wider">
-                    Actual
-                  </span>
-                  <pre className="mt-1 p-2 rounded bg-surface-800 text-red-700 whitespace-pre-wrap overflow-x-auto border border-surface-700">
-                    {verdict.actualOutput || '(no output)'}
-                  </pre>
-                </div>
+          {verdict.statusId >= 7 && verdict.statusId <= 12 && verdict.stderr && (
+            <div>
+              <span className="text-red-600 font-sans text-xs font-semibold uppercase tracking-wider">
+                Error Output
+              </span>
+              <pre className="mt-1 p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
+                {verdict.stderr}
+              </pre>
+            </div>
+          )}
+          {verdict.statusId === 5 && (
+            <div className="p-2 rounded bg-amber-500/10 text-amber-700 font-sans border border-amber-500/20">
+              Your code exceeded the time limit. Optimize your solution and try again.
+            </div>
+          )}
+          {(verdict.statusId === 3 || verdict.statusId === 4) && !verdict.passed && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-surface-400 font-sans text-xs font-semibold uppercase tracking-wider">
+                  Expected
+                </span>
+                <pre className="mt-1 p-2 rounded bg-surface-800 text-emerald-700 whitespace-pre-wrap overflow-x-auto border border-surface-700">
+                  {verdict.expectedOutput}
+                </pre>
               </div>
-            )}
+              <div>
+                <span className="text-surface-400 font-sans text-xs font-semibold uppercase tracking-wider">
+                  Actual
+                </span>
+                <pre className="mt-1 p-2 rounded bg-surface-800 text-red-700 whitespace-pre-wrap overflow-x-auto border border-surface-700">
+                  {verdict.actualOutput || '(no output)'}
+                </pre>
+              </div>
+            </div>
+          )}
           {verdict.passed && (
             <div className="flex items-center gap-2 text-emerald-600 font-sans">
               <CheckCircle className="w-3.5 h-3.5" />
@@ -252,49 +224,32 @@ export default function AssessmentView() {
 
   // Phase: 'pre-test' | 'in-progress' | 'review' | 'submitted'
   const [phase, setPhase] = useState<
-    | 'loading'
-    | 'pre-test'
-    | 'in-progress'
-    | 'review'
-    | 'submitted'
-    | 'submission-error'
+    'loading' | 'pre-test' | 'in-progress' | 'review' | 'submitted' | 'submission-error'
   >('loading');
 
   const [assessment, setAssessment] = useState<Assessment | null>(null);
-  const [assessmentQuestions, setAssessmentQuestions] = useState<
-    AssessmentQuestion[]
-  >([]);
-  const [questionStates, setQuestionStates] = useState<
-    Map<number, QuestionState>
-  >(new Map());
+  const [assessmentQuestions, setAssessmentQuestions] = useState<AssessmentQuestion[]>([]);
+  const [questionStates, setQuestionStates] = useState<Map<number, QuestionState>>(new Map());
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
   const [running, setRunning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [activeOutputTab, setActiveOutputTab] = useState<'output' | 'input'>(
-    'output',
-  );
+  const [activeOutputTab, setActiveOutputTab] = useState<'output' | 'input'>('output');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOverview, setShowOverview] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [startError, setStartError] = useState('');
   const [starting, setStarting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [unavailableKind, setUnavailableKind] = useState<
-    'unavailable' | 'expired'
-  >('unavailable');
-  const [saveState, setSaveState] = useState<
-    'idle' | 'saving' | 'saved' | 'failed'
-  >('idle');
+  const [unavailableKind, setUnavailableKind] = useState<'unavailable' | 'expired'>('unavailable');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
   const [saveError, setSaveError] = useState('');
   const [submissionNotice, setSubmissionNotice] = useState('');
   const [alreadyCompleted, setAlreadyCompleted] = useState(false);
   const [timeWarning, setTimeWarning] = useState('');
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
   const [tabSwitchLimit, setTabSwitchLimit] = useState(3);
-  const [autoSubmitReason, setAutoSubmitReason] = useState<'tab-switch' | null>(
-    null,
-  );
+  const [autoSubmitReason, setAutoSubmitReason] = useState<'tab-switch' | null>(null);
   const [tabWarning, setTabWarning] = useState<{
     count: number;
     awayMs: number;
@@ -327,10 +282,7 @@ export default function AssessmentView() {
       } catch {}
       return;
     }
-    if (
-      !sessionIdRef.current ||
-      !['in-progress', 'review', 'submission-error'].includes(phase)
-    )
+    if (!sessionIdRef.current || !['in-progress', 'review', 'submission-error'].includes(phase))
       return;
     const timer = setTimeout(() => {
       try {
@@ -425,11 +377,7 @@ export default function AssessmentView() {
 
   // Auto-save interval (every 12 seconds)
   useEffect(() => {
-    if (
-      (phase !== 'in-progress' && phase !== 'review') ||
-      !sessionIdRef.current
-    )
-      return;
+    if ((phase !== 'in-progress' && phase !== 'review') || !sessionIdRef.current) return;
 
     autoSaveRef.current = setInterval(() => {
       doAutoSave();
@@ -443,8 +391,7 @@ export default function AssessmentView() {
   // Serialize saves and submit only after outstanding saves finish.
   useEffect(() => {
     if (phase !== 'in-progress' || !sessionIdRef.current) return;
-    if (prevQuestionIndexRef.current !== currentQuestionIndex)
-      void doAutoSave();
+    if (prevQuestionIndexRef.current !== currentQuestionIndex) void doAutoSave();
     prevQuestionIndexRef.current = currentQuestionIndex;
   }, [currentQuestionIndex]);
 
@@ -454,11 +401,7 @@ export default function AssessmentView() {
     const save = saveQueueRef.current
       .catch(() => {})
       .then(async () => {
-        if (
-          sid !== sessionIdRef.current ||
-          hasSubmittedRef.current ||
-          isSubmittingRef.current
-        )
+        if (sid !== sessionIdRef.current || hasSubmittedRef.current || isSubmittingRef.current)
           return;
         setSaveState('saving');
         setSaveError('');
@@ -509,9 +452,7 @@ export default function AssessmentView() {
           q.questionType === 'sql'
             ? q.starterCodes?.find((sc) => sc.languageId === 82)
             : (allowed
-                .map((l) =>
-                  q.starterCodes?.find((sc) => sc.languageId === l.id),
-                )
+                .map((l) => q.starterCodes?.find((sc) => sc.languageId === l.id))
                 .find(Boolean) ?? q.starterCodes?.[0]);
         const defaultLang =
           q.questionType === 'sql'
@@ -531,15 +472,11 @@ export default function AssessmentView() {
                     (q.questionType === 'sql'
                       ? '-- Write your query here\n'
                       : '# Write your solution here\n'),
-          languageId:
-            q.questionType === 'sql'
-              ? 82
-              : starterCode?.languageId || defaultLang.id,
+          languageId: q.questionType === 'sql' ? 82 : starterCode?.languageId || defaultLang.id,
           languageName: starterCode?.languageName || defaultLang.name,
           monacoLang:
-            LANGUAGES.find(
-              (l) => l.id === (starterCode?.languageId || defaultLang.id),
-            )?.monacoLang || 'python',
+            LANGUAGES.find((l) => l.id === (starterCode?.languageId || defaultLang.id))
+              ?.monacoLang || 'python',
           isAnswered: false,
           isFlagged: false,
           output: '',
@@ -585,8 +522,7 @@ export default function AssessmentView() {
             languageId: draft.languageId,
             languageName: draft.languageName,
             monacoLang:
-              LANGUAGES.find((l) => l.id === draft.languageId)?.monacoLang ||
-              existing.monacoLang,
+              LANGUAGES.find((l) => l.id === draft.languageId)?.monacoLang || existing.monacoLang,
             isFlagged: draft.isFlagged,
             isAnswered: draft.isAnswered,
           });
@@ -594,25 +530,18 @@ export default function AssessmentView() {
       }
       try {
         const backup = JSON.parse(
-          localStorage.getItem(`wissen-exam-draft:${id}:${candidateName}`) ||
-            'null',
+          localStorage.getItem(`wissen-exam-draft:${id}:${candidateName}`) || 'null',
         );
-        if (
-          backup?.sessionId === status.sessionId &&
-          Array.isArray(backup.states)
-        ) {
+        if (backup?.sessionId === status.sessionId && Array.isArray(backup.states)) {
           for (const saved of backup.states) {
-            const server = status.drafts.find(
-              (d) => d.questionId === saved.questionId,
-            ) as
+            const server = status.drafts.find((d) => d.questionId === saved.questionId) as
               | ((typeof status.drafts)[number] & { updatedAt?: string })
               | undefined;
             const state = updatedStates.get(saved.questionId);
             if (
               state &&
               typeof saved.code === 'string' &&
-              (!server?.updatedAt ||
-                backup.updatedAt > Date.parse(server.updatedAt)) &&
+              (!server?.updatedAt || backup.updatedAt > Date.parse(server.updatedAt)) &&
               saved.languageId === state.languageId
             )
               updatedStates.set(saved.questionId, {
@@ -644,13 +573,7 @@ export default function AssessmentView() {
 
   // Start assessment (called from pre-test screen)
   async function handleStartAssessment() {
-    if (
-      !assessment ||
-      !assessmentId ||
-      starting ||
-      !assessment.questions.length
-    )
-      return;
+    if (!assessment || !assessmentId || starting || !assessment.questions.length) return;
     setStarting(true);
     setStartError('');
     try {
@@ -662,8 +585,7 @@ export default function AssessmentView() {
       setSessionId(sessionData.sessionId);
       sessionIdRef.current = sessionData.sessionId;
       setTabSwitchCount(sessionData.tabSwitchCount ?? 0);
-      if (sessionData.tabSwitchLimit)
-        setTabSwitchLimit(sessionData.tabSwitchLimit);
+      if (sessionData.tabSwitchLimit) setTabSwitchLimit(sessionData.tabSwitchLimit);
       if (sessionData.isFinished) {
         setAlreadyCompleted(true);
         setPhase('submitted');
@@ -674,9 +596,7 @@ export default function AssessmentView() {
       setPhase('in-progress');
     } catch (err) {
       console.error('Failed to start session:', err);
-      setStartError(
-        apiError(err, 'Failed to start assessment. Please try again.'),
-      );
+      setStartError(apiError(err, 'Failed to start assessment. Please try again.'));
     } finally {
       setStarting(false);
     }
@@ -688,24 +608,14 @@ export default function AssessmentView() {
   // Read by the editor's paste listener, which is registered once on mount
   const currentQuestionIdRef = useRef<number | null>(null);
   currentQuestionIdRef.current = currentQuestion?.id ?? null;
-  const currentState = currentQuestion
-    ? questionStates.get(currentQuestion.id)
-    : undefined;
-  const sampleTestCases =
-    currentQuestion?.testCases?.filter((tc) => tc.isSample) || [];
+  const currentState = currentQuestion ? questionStates.get(currentQuestion.id) : undefined;
+  const sampleTestCases = currentQuestion?.testCases?.filter((tc) => tc.isSample) || [];
 
   // Stats
-  const answered = Array.from(questionStates.values()).filter(
-    (s) => s.isAnswered,
-  ).length;
-  const flagged = Array.from(questionStates.values()).filter(
-    (s) => s.isFlagged,
-  ).length;
+  const answered = Array.from(questionStates.values()).filter((s) => s.isAnswered).length;
+  const flagged = Array.from(questionStates.values()).filter((s) => s.isFlagged).length;
   const unanswered = questionStates.size - answered;
-  const totalMarks = assessmentQuestions.reduce(
-    (acc, aq) => acc + (aq.marks ?? 0),
-    0,
-  );
+  const totalMarks = assessmentQuestions.reduce((acc, aq) => acc + (aq.marks ?? 0), 0);
 
   const formatTime = (seconds: number) => {
     const min = Math.floor(seconds / 60);
@@ -713,32 +623,25 @@ export default function AssessmentView() {
     return `${min} min ${sec.toString().padStart(2, '0')} sec`;
   };
 
-  const updateState = useCallback(
-    (qId: number, updates: Partial<QuestionState>) => {
-      setQuestionStates((prev) => {
-        const next = new Map(prev);
-        const current = next.get(qId);
-        if (current) {
-          next.set(qId, { ...current, ...updates });
-        }
-        return next;
-      });
-    },
-    [],
-  );
+  const updateState = useCallback((qId: number, updates: Partial<QuestionState>) => {
+    setQuestionStates((prev) => {
+      const next = new Map(prev);
+      const current = next.get(qId);
+      if (current) {
+        next.set(qId, { ...current, ...updates });
+      }
+      return next;
+    });
+  }, []);
 
   function handleLanguageChange(langId: number) {
     if (!currentQuestion) return;
     const lang = LANGUAGES.find((l) => l.id === langId);
     if (!lang) return;
 
-    const starterCode = currentQuestion.starterCodes?.find(
-      (sc) => sc.languageId === langId,
-    );
+    const starterCode = currentQuestion.starterCodes?.find((sc) => sc.languageId === langId);
     const currentCode = currentState?.code || '';
-    const isDefault = currentQuestion.starterCodes?.some(
-      (sc) => sc.code === currentCode,
-    );
+    const isDefault = currentQuestion.starterCodes?.some((sc) => sc.code === currentCode);
 
     updateState(currentQuestion.id, {
       languageId: langId,
@@ -750,12 +653,7 @@ export default function AssessmentView() {
 
   // Run Code
   async function handleRunCode() {
-    if (
-      ['mcq', 'written', 'project'].includes(
-        currentQuestion?.questionType ?? '',
-      )
-    )
-      return;
+    if (['mcq', 'written', 'project'].includes(currentQuestion?.questionType ?? '')) return;
     if (!currentQuestion || !currentState) return;
     setRunning(true);
     setActiveOutputTab('output');
@@ -775,8 +673,7 @@ export default function AssessmentView() {
         if (result.isError) {
           if (result.compileOutput) output = result.compileOutput;
           else if (result.stderr) output = result.stderr;
-          else
-            output = `${result.statusDescription}${result.message ? ': ' + result.message : ''}`;
+          else output = `${result.statusDescription}${result.message ? ': ' + result.message : ''}`;
         } else {
           output = result.stdout || '(No output)';
           if (result.executionTime) {
@@ -830,9 +727,7 @@ export default function AssessmentView() {
     updateState(currentQuestion.id, { isAnswered: true });
 
     const nextUnanswered = assessmentQuestions.findIndex(
-      (aq, idx) =>
-        idx > currentQuestionIndex &&
-        !questionStates.get(aq.question.id)?.isAnswered,
+      (aq, idx) => idx > currentQuestionIndex && !questionStates.get(aq.question.id)?.isAnswered,
     );
     if (nextUnanswered !== -1) {
       setCurrentQuestionIndex(nextUnanswered);
@@ -859,9 +754,7 @@ export default function AssessmentView() {
     try {
       const sid = sessionIdRef.current;
       if (!sid)
-        throw new Error(
-          'The assessment session is unavailable. Reload to resume your saved work.',
-        );
+        throw new Error('The assessment session is unavailable. Reload to resume your saved work.');
       await saveQueueRef.current.catch(() => {});
       const drafts = assessmentQuestions.map((aq) => {
         const state = questionStatesRef.current.get(aq.question.id);
@@ -934,9 +827,7 @@ export default function AssessmentView() {
     if (currentState.runMode === 'none') {
       return (
         <div className="p-3">
-          <span className="text-surface-600 italic">
-            Click "Run code" to see output here
-          </span>
+          <span className="text-surface-600 italic">Click "Run code" to see output here</span>
         </div>
       );
     }
@@ -966,9 +857,7 @@ export default function AssessmentView() {
       if (currentState.testVerdicts.length === 0 && currentState.output) {
         return (
           <div className="p-3">
-            <pre className="text-red-600 text-sm font-mono">
-              {currentState.output}
-            </pre>
+            <pre className="text-red-600 text-sm font-mono">{currentState.output}</pre>
           </div>
         );
       }
@@ -988,9 +877,7 @@ export default function AssessmentView() {
             <div className="border border-red-500/30 bg-red-500/5 rounded-lg p-3">
               <div className="flex items-center gap-2 mb-2">
                 <AlertOctagon className="w-4 h-4 text-red-600" />
-                <span className="text-sm font-semibold text-red-600">
-                  Compilation Failed
-                </span>
+                <span className="text-sm font-semibold text-red-600">Compilation Failed</span>
               </div>
               <pre className="text-xs font-mono p-2 rounded bg-red-500/10 text-red-700 whitespace-pre-wrap overflow-x-auto border border-red-500/20">
                 {firstVerdict.compileOutput || firstVerdict.stderr}
@@ -1000,9 +887,7 @@ export default function AssessmentView() {
         );
       }
 
-      const passedCount = currentState.testVerdicts.filter(
-        (v) => v.passed,
-      ).length;
+      const passedCount = currentState.testVerdicts.filter((v) => v.passed).length;
       const total = currentState.testVerdicts.length;
       const allPassed = passedCount === total;
 
@@ -1058,9 +943,7 @@ export default function AssessmentView() {
               ? 'Assessment expired'
               : 'This assessment is unavailable'}
           </h2>
-          <p className="text-sm text-surface-400 mb-6">
-            {loadError || 'Assessment not found.'}
-          </p>
+          <p className="text-sm text-surface-400 mb-6">{loadError || 'Assessment not found.'}</p>
           {unavailableKind !== 'expired' && (
             <button
               className="btn-primary mb-3"
@@ -1086,14 +969,10 @@ export default function AssessmentView() {
             {submitError}
           </p>
           <p className="text-sm text-surface-400">
-            Keep this page open so your answers remain available. Retry the
-            submission when your connection returns.
+            Keep this page open so your answers remain available. Retry the submission when your
+            connection returns.
           </p>
-          <button
-            className="btn-primary"
-            disabled={submitting}
-            onClick={() => submitAnswers()}
-          >
+          <button className="btn-primary" disabled={submitting} onClick={() => submitAnswers()}>
             {submitting ? 'Submitting…' : 'Retry submission'}
           </button>
         </section>
@@ -1105,8 +984,7 @@ export default function AssessmentView() {
         <section className="card max-w-xl space-y-4">
           <h1 className="text-xl font-semibold">No questions available</h1>
           <p className="text-surface-400">
-            This assessment has no questions yet. Contact the organizer or check
-            back later.
+            This assessment has no questions yet. Contact the organizer or check back later.
           </p>
           <button className="btn-outline" onClick={() => navigate('/')}>
             Back to my assessments
@@ -1132,16 +1010,12 @@ export default function AssessmentView() {
                 <Code2 className="w-6 h-6 text-on-accent" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-white">
-                  {assessment.name}
-                </h1>
+                <h1 className="text-xl font-bold text-white">{assessment.name}</h1>
                 <p className="text-sm text-surface-400">Coding Assessment</p>
               </div>
             </div>
             {assessment.description && (
-              <p className="text-sm text-surface-300 -mt-2 mb-6">
-                {assessment.description}
-              </p>
+              <p className="text-sm text-surface-300 -mt-2 mb-6">{assessment.description}</p>
             )}
 
             {/* Assessment details */}
@@ -1149,20 +1023,14 @@ export default function AssessmentView() {
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
                 <Award className="w-5 h-5 text-primary-600" />
                 <div>
-                  <p className="text-xs text-surface-500 uppercase tracking-wider">
-                    Total marks
-                  </p>
-                  <p className="text-sm font-semibold text-white">
-                    {totalMarks} marks
-                  </p>
+                  <p className="text-xs text-surface-500 uppercase tracking-wider">Total marks</p>
+                  <p className="text-sm font-semibold text-white">{totalMarks} marks</p>
                 </div>
               </div>
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
                 <Target className="w-5 h-5 text-primary-600" />
                 <div>
-                  <p className="text-xs text-surface-500 uppercase tracking-wider">
-                    To pass
-                  </p>
+                  <p className="text-xs text-surface-500 uppercase tracking-wider">To pass</p>
                   <p className="text-sm font-semibold text-white">
                     {assessment.passingScore}% of marks
                   </p>
@@ -1171,9 +1039,7 @@ export default function AssessmentView() {
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
                 <Clock className="w-5 h-5 text-primary-600" />
                 <div>
-                  <p className="text-xs text-surface-500 uppercase tracking-wider">
-                    Duration
-                  </p>
+                  <p className="text-xs text-surface-500 uppercase tracking-wider">Duration</p>
                   <p className="text-sm font-semibold text-white">
                     {assessment.timeLimitMinutes} minutes
                   </p>
@@ -1182,9 +1048,7 @@ export default function AssessmentView() {
               <div className="bg-surface-800 rounded-lg p-4 flex items-center gap-3">
                 <FileText className="w-5 h-5 text-primary-600" />
                 <div>
-                  <p className="text-xs text-surface-500 uppercase tracking-wider">
-                    Questions
-                  </p>
+                  <p className="text-xs text-surface-500 uppercase tracking-wider">Questions</p>
                   <p className="text-sm font-semibold text-white">
                     {assessmentQuestions.length} questions
                   </p>
@@ -1213,9 +1077,7 @@ export default function AssessmentView() {
             <div className="bg-surface-800/50 rounded-lg p-4 mb-6 border border-surface-700">
               <div className="flex items-center gap-2 mb-3">
                 <BookOpen className="w-4 h-4 text-primary-600" />
-                <h3 className="text-sm font-semibold text-white">
-                  Instructions
-                </h3>
+                <h3 className="text-sm font-semibold text-white">Instructions</h3>
               </div>
               {assessment.instructions && (
                 <div className="text-sm text-surface-300 space-y-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1.5 [&_strong]:text-white mb-3">
@@ -1223,22 +1085,16 @@ export default function AssessmentView() {
                 </div>
               )}
               <ul className="space-y-1.5 text-sm text-surface-300 pl-5 list-disc">
-                <li>
-                  The timer starts once you click "Start Assessment" and cannot
-                  be paused.
+                <li>The timer starts once you click "Start Assessment" and cannot be paused.</li>
+                <li className="text-amber-700">
+                  Stay on this tab. Leaving it (switching tabs, minimising, or opening another app)
+                  is recorded. You get{' '}
+                  <span className="font-semibold">{tabSwitchLimit - 1} warnings</span>. Leaving{' '}
+                  {tabSwitchLimit} times submits your test automatically. Pasting code into the
+                  editor is also recorded.
                 </li>
                 <li className="text-amber-700">
-                  Stay on this tab. Leaving it (switching tabs, minimising, or
-                  opening another app) is recorded. You get{' '}
-                  <span className="font-semibold">
-                    {tabSwitchLimit - 1} warnings
-                  </span>
-                  . Leaving {tabSwitchLimit} times submits your test
-                  automatically. Pasting code into the editor is also recorded.
-                </li>
-                <li className="text-amber-700">
-                  Final grading runs against hidden test cases, not just the
-                  samples shown.
+                  Final grading runs against hidden test cases, not just the samples shown.
                 </li>
               </ul>
             </div>
@@ -1286,9 +1142,7 @@ export default function AssessmentView() {
                 <Shield className="w-5 h-5 text-amber-600" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white">
-                  Review & Submit
-                </h2>
+                <h2 className="text-lg font-bold text-white">Review & Submit</h2>
                 <p className="text-sm text-surface-400">{assessment.name}</p>
               </div>
             </div>
@@ -1306,9 +1160,7 @@ export default function AssessmentView() {
             {/* Summary */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-emerald-600">
-                  {answered}
-                </p>
+                <p className="text-2xl font-bold text-emerald-600">{answered}</p>
                 <p className="text-xs text-emerald-700/70 mt-1">Answered</p>
               </div>
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-center">
@@ -1316,9 +1168,7 @@ export default function AssessmentView() {
                 <p className="text-xs text-amber-700/70 mt-1">Flagged</p>
               </div>
               <div className="bg-surface-800 border border-surface-700 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-surface-300">
-                  {unanswered}
-                </p>
+                <p className="text-2xl font-bold text-surface-300">{unanswered}</p>
                 <p className="text-xs text-surface-500 mt-1">Unanswered</p>
               </div>
             </div>
@@ -1335,25 +1185,19 @@ export default function AssessmentView() {
                     className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-800/50"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-surface-300">
-                        Q{idx + 1}
-                      </span>
+                      <span className="text-sm font-medium text-surface-300">Q{idx + 1}</span>
                       <span className="text-sm text-surface-400 truncate max-w-[200px]">
                         {aq.question.title}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      {isFlagged && (
-                        <Flag className="w-3.5 h-3.5 text-amber-600" />
-                      )}
+                      {isFlagged && <Flag className="w-3.5 h-3.5 text-amber-600" />}
                       {isAnswered ? (
                         <span className="badge bg-emerald-500/15 text-emerald-600 ring-1 ring-emerald-500/25">
                           Answered
                         </span>
                       ) : (
-                        <span className="badge bg-surface-700 text-surface-400">
-                          Unanswered
-                        </span>
+                        <span className="badge bg-surface-700 text-surface-400">Unanswered</span>
                       )}
                     </div>
                   </div>
@@ -1365,8 +1209,7 @@ export default function AssessmentView() {
             <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-6">
               <p className="text-sm text-amber-700 flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                Are you sure you want to submit? You cannot make changes after
-                submission.
+                Are you sure you want to submit? You cannot make changes after submission.
               </p>
             </div>
 
@@ -1426,13 +1269,10 @@ export default function AssessmentView() {
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/10 flex items-center justify-center">
                   <AlertOctagon className="w-11 h-11 text-red-600" />
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-3">
-                  Test Auto-Submitted
-                </h2>
+                <h2 className="text-2xl font-bold text-white mb-3">Test Auto-Submitted</h2>
                 <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-700 text-left">
-                  You left the test window {tabSwitchLimit} times. Your saved
-                  answers were submitted automatically, and the reviewer can see
-                  every tab switch.
+                  You left the test window {tabSwitchLimit} times. Your saved answers were submitted
+                  automatically, and the reviewer can see every tab switch.
                 </div>
               </>
             ) : (
@@ -1441,9 +1281,7 @@ export default function AssessmentView() {
                   <CheckCircle className="w-12 h-12 text-emerald-600" />
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-3">
-                  {alreadyCompleted
-                    ? 'Assessment completed'
-                    : 'Assessment Submitted'}
+                  {alreadyCompleted ? 'Assessment completed' : 'Assessment Submitted'}
                 </h2>
                 <p className="text-surface-400 mb-1">
                   Your assessment submission has been confirmed.
@@ -1451,16 +1289,11 @@ export default function AssessmentView() {
               </>
             )}
             <p className="text-surface-500 text-sm mb-8">
-              Thank you,{' '}
-              <span className="text-surface-300 font-medium">
-                {candidateName}
-              </span>
-              . Your responses are being evaluated.
+              Thank you, <span className="text-surface-300 font-medium">{candidateName}</span>. Your
+              responses are being evaluated.
             </p>
 
-            {submissionNotice && (
-              <p className="text-sm text-amber-700 mb-4">{submissionNotice}</p>
-            )}
+            {submissionNotice && <p className="text-sm text-amber-700 mb-4">{submissionNotice}</p>}
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => navigate(`/exam/${assessmentId}/result`)}
@@ -1468,10 +1301,7 @@ export default function AssessmentView() {
               >
                 View Results
               </button>
-              <button
-                onClick={() => navigate('/')}
-                className="btn-outline w-full"
-              >
+              <button onClick={() => navigate('/')} className="btn-outline w-full">
                 Back to Dashboard
               </button>
             </div>
@@ -1492,9 +1322,7 @@ export default function AssessmentView() {
 
   const isTimeLow = timeLeft < 300;
   const timeFraction =
-    assessment.timeLimitMinutes > 0
-      ? timeLeft / (assessment.timeLimitMinutes * 60)
-      : 0;
+    assessment.timeLimitMinutes > 0 ? timeLeft / (assessment.timeLimitMinutes * 60) : 0;
 
   return (
     <div className="exam-shell h-screen flex flex-col bg-surface-950 overflow-hidden">
@@ -1504,15 +1332,11 @@ export default function AssessmentView() {
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center">
             <Code2 className="w-4 h-4 text-on-accent" />
           </div>
-          <span className="text-sm font-bold text-white tracking-tight">
-            Wissen Code
-          </span>
+          <span className="text-sm font-bold text-white tracking-tight">Wissen Code</span>
         </div>
 
         <div className="exam-title flex-1 text-center">
-          <span className="text-sm font-semibold text-surface-200">
-            {assessment.name}
-          </span>
+          <span className="text-sm font-semibold text-surface-200">{assessment.name}</span>
         </div>
 
         <div className="exam-actions flex items-center gap-3 min-w-[280px] justify-end">
@@ -1602,9 +1426,7 @@ export default function AssessmentView() {
 
         <div className="flex-1 flex items-center justify-center gap-1">
           <button
-            onClick={() =>
-              setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))
-            }
+            onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
             disabled={currentQuestionIndex === 0}
             className="btn-ghost p-1.5 disabled:opacity-30"
           >
@@ -1647,10 +1469,7 @@ export default function AssessmentView() {
           <button
             onClick={() =>
               setCurrentQuestionIndex(
-                Math.min(
-                  assessmentQuestions.length - 1,
-                  currentQuestionIndex + 1,
-                ),
+                Math.min(assessmentQuestions.length - 1, currentQuestionIndex + 1),
               )
             }
             disabled={currentQuestionIndex === assessmentQuestions.length - 1}
@@ -1675,20 +1494,11 @@ export default function AssessmentView() {
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-surface-500" />
               <span className="text-surface-400">Unanswered</span>
-              <span className="font-semibold text-surface-200">
-                {unanswered}
-              </span>
+              <span className="font-semibold text-surface-200">{unanswered}</span>
             </span>
           </div>
-          <button
-            onClick={() => setShowOverview(!showOverview)}
-            className="btn-ghost p-1.5"
-          >
-            {showOverview ? (
-              <X className="w-4 h-4" />
-            ) : (
-              <Menu className="w-4 h-4" />
-            )}
+          <button onClick={() => setShowOverview(!showOverview)} className="btn-ghost p-1.5">
+            {showOverview ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </nav>
@@ -1705,19 +1515,14 @@ export default function AssessmentView() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-xs text-surface-500 uppercase tracking-wider">
-                  Question {currentQuestionIndex + 1} of{' '}
-                  {assessmentQuestions.length}
+                  Question {currentQuestionIndex + 1} of {assessmentQuestions.length}
                 </p>
-                <h2 className="text-lg font-bold text-white">
-                  {currentQuestion.title}
-                </h2>
+                <h2 className="text-lg font-bold text-white">{currentQuestion.title}</h2>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`badge-${currentQuestion.difficulty}`}>
                     {currentQuestion.difficulty}
                   </span>
-                  <span className="text-xs text-surface-400">
-                    {currentAQ.marks} marks
-                  </span>
+                  <span className="text-xs text-surface-400">{currentAQ.marks} marks</span>
                 </div>
               </div>
               <button className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 transition-colors">
@@ -1735,17 +1540,13 @@ export default function AssessmentView() {
             {currentQuestion.settings?.sqlSchema && (
               <section className="sample-box mb-4">
                 <h3 className="font-semibold">Database schema</h3>
-                <pre className="whitespace-pre-wrap mt-2">
-                  {currentQuestion.settings.sqlSchema}
-                </pre>
+                <pre className="whitespace-pre-wrap mt-2">{currentQuestion.settings.sqlSchema}</pre>
               </section>
             )}
             {currentQuestion.settings?.rubric && (
               <section className="sample-box mb-4">
                 <h3 className="font-semibold">Scoring rubric</h3>
-                <p className="whitespace-pre-wrap mt-2">
-                  {currentQuestion.settings.rubric}
-                </p>
+                <p className="whitespace-pre-wrap mt-2">{currentQuestion.settings.rubric}</p>
               </section>
             )}
             {sampleTestCases.map((tc, idx) => (
@@ -1766,9 +1567,7 @@ export default function AssessmentView() {
             <button
               onClick={handleToggleFlag}
               className={`btn-outline text-sm ${
-                currentState.isFlagged
-                  ? 'border-amber-500/50 text-amber-600 bg-amber-500/10'
-                  : ''
+                currentState.isFlagged ? 'border-amber-500/50 text-amber-600 bg-amber-500/10' : ''
               }`}
             >
               <Flag className="w-4 h-4" />
@@ -1776,9 +1575,7 @@ export default function AssessmentView() {
             </button>
             <div className="flex gap-2">
               <button
-                onClick={() =>
-                  setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))
-                }
+                onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
                 disabled={currentQuestionIndex === 0}
                 className="btn-outline text-sm disabled:opacity-30"
               >
@@ -1787,15 +1584,10 @@ export default function AssessmentView() {
               <button
                 onClick={() =>
                   setCurrentQuestionIndex(
-                    Math.min(
-                      assessmentQuestions.length - 1,
-                      currentQuestionIndex + 1,
-                    ),
+                    Math.min(assessmentQuestions.length - 1, currentQuestionIndex + 1),
                   )
                 }
-                disabled={
-                  currentQuestionIndex === assessmentQuestions.length - 1
-                }
+                disabled={currentQuestionIndex === assessmentQuestions.length - 1}
                 className="btn-outline text-sm disabled:opacity-30"
               >
                 Next
@@ -1807,9 +1599,7 @@ export default function AssessmentView() {
         {/* RIGHT PANEL: Code Editor */}
         {currentQuestion &&
         currentState &&
-        ['mcq', 'written', 'project'].includes(
-          currentQuestion.questionType ?? '',
-        ) ? (
+        ['mcq', 'written', 'project'].includes(currentQuestion.questionType ?? '') ? (
           <section className="exam-editor flex-1 min-w-0 overflow-auto">
             <AnswerInput
               key={currentQuestion.id}
@@ -1819,9 +1609,7 @@ export default function AssessmentView() {
                 updateState(currentQuestion.id, {
                   code,
                   isAnswered:
-                    currentQuestion.questionType === 'mcq'
-                      ? code !== '[]'
-                      : !!code.trim(),
+                    currentQuestion.questionType === 'mcq' ? code !== '[]' : !!code.trim(),
                 })
               }
             />
@@ -1830,15 +1618,11 @@ export default function AssessmentView() {
           <>
             <div className="exam-editor flex-1 min-w-0 flex flex-col overflow-hidden">
               <div className="flex-none h-11 border-b border-surface-800 flex items-center justify-between px-4 bg-surface-900/50">
-                <span className="text-sm font-medium text-surface-300">
-                  Code editor
-                </span>
+                <span className="text-sm font-medium text-surface-300">Code editor</span>
                 <div className="flex items-center gap-3">
                   <select
                     value={currentState.languageId}
-                    onChange={(e) =>
-                      handleLanguageChange(parseInt(e.target.value))
-                    }
+                    onChange={(e) => handleLanguageChange(parseInt(e.target.value))}
                     className="bg-surface-800 border border-surface-700 rounded-md px-2.5 py-1 text-sm text-surface-200 focus:outline-none focus:ring-1 focus:ring-primary-500"
                   >
                     {availableLangs.map((lang) => (
@@ -1880,24 +1664,15 @@ export default function AssessmentView() {
                   onMount={(editor) => {
                     // Record every paste (size only, never the content) for the proctoring report
                     editor.onDidPaste(({ range }) => {
-                      const text =
-                        editor.getModel()?.getValueInRange(range) ?? '';
+                      const text = editor.getModel()?.getValueInRange(range) ?? '';
                       const sid = sessionIdRef.current;
                       const questionId = currentQuestionIdRef.current;
-                      if (
-                        !text ||
-                        !sid ||
-                        !questionId ||
-                        hasSubmittedRef.current
-                      )
-                        return;
+                      if (!text || !sid || !questionId || hasSubmittedRef.current) return;
                       recordPaste(sid, {
                         questionId,
                         charCount: text.length,
                         lineCount: text.split('\n').length,
-                      }).catch((err) =>
-                        console.error('Failed to record paste:', err),
-                      );
+                      }).catch((err) => console.error('Failed to record paste:', err));
                     });
                   }}
                   options={{
@@ -1921,9 +1696,7 @@ export default function AssessmentView() {
                   <button
                     onClick={() => setActiveOutputTab('input')}
                     className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                      activeOutputTab === 'input'
-                        ? 'tab-active'
-                        : 'tab-inactive'
+                      activeOutputTab === 'input' ? 'tab-active' : 'tab-inactive'
                     }`}
                   >
                     Enter Custom input
@@ -1931,9 +1704,7 @@ export default function AssessmentView() {
                   <button
                     onClick={() => setActiveOutputTab('output')}
                     className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                      activeOutputTab === 'output'
-                        ? 'tab-active'
-                        : 'tab-inactive'
+                      activeOutputTab === 'output' ? 'tab-active' : 'tab-inactive'
                     }`}
                   >
                     Output
@@ -1962,16 +1733,11 @@ export default function AssessmentView() {
                 </div>
 
                 <div className="flex items-center justify-between px-4 py-3 border-t border-surface-800 bg-surface-900/50">
-                  <button
-                    onClick={handleRunCode}
-                    disabled={running}
-                    className="btn-outline"
-                  >
+                  <button onClick={handleRunCode} disabled={running} className="btn-outline">
                     <Play className="w-4 h-4" />
                     {running
                       ? 'Running...'
-                      : activeOutputTab === 'input' &&
-                          currentState.customInput.trim()
+                      : activeOutputTab === 'input' && currentState.customInput.trim()
                         ? 'Run with Custom Input'
                         : 'Run code'}
                   </button>
@@ -1988,9 +1754,7 @@ export default function AssessmentView() {
         {showOverview && (
           <div className="absolute right-0 top-0 bottom-0 w-72 bg-surface-900 border-l border-surface-800 z-10 overflow-y-auto animate-slide-in">
             <div className="p-4">
-              <h3 className="text-sm font-semibold text-white mb-4">
-                Question Overview
-              </h3>
+              <h3 className="text-sm font-semibold text-white mb-4">Question Overview</h3>
               <div className="grid grid-cols-5 gap-2">
                 {assessmentQuestions.map((aq, idx) => {
                   const state = questionStates.get(aq.question.id);
@@ -2001,11 +1765,9 @@ export default function AssessmentView() {
                   let bg = 'bg-surface-800 text-surface-400';
                   if (isActive) bg = 'bg-primary-600 text-on-accent';
                   else if (isAnswered)
-                    bg =
-                      'bg-emerald-600/30 text-emerald-600 ring-1 ring-emerald-500/40';
+                    bg = 'bg-emerald-600/30 text-emerald-600 ring-1 ring-emerald-500/40';
                   else if (isFlagged)
-                    bg =
-                      'bg-amber-600/30 text-amber-600 ring-1 ring-amber-500/40';
+                    bg = 'bg-amber-600/30 text-amber-600 ring-1 ring-amber-500/40';
 
                   return (
                     <button
@@ -2025,9 +1787,7 @@ export default function AssessmentView() {
               <div className="mt-6 space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded bg-emerald-600/30 ring-1 ring-emerald-500/40" />
-                  <span className="text-surface-400">
-                    Answered ({answered})
-                  </span>
+                  <span className="text-surface-400">Answered ({answered})</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded bg-amber-600/30 ring-1 ring-amber-500/40" />
@@ -2035,9 +1795,7 @@ export default function AssessmentView() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded bg-surface-800" />
-                  <span className="text-surface-400">
-                    Unanswered ({unanswered})
-                  </span>
+                  <span className="text-surface-400">Unanswered ({unanswered})</span>
                 </div>
               </div>
             </div>
@@ -2059,12 +1817,9 @@ export default function AssessmentView() {
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="card text-center max-w-sm">
             <div className="w-16 h-16 border-4 border-primary-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-white mb-2">
-              Submitting Test
-            </h3>
+            <h3 className="text-lg font-bold text-white mb-2">Submitting Test</h3>
             <p className="text-surface-400 text-sm">
-              Running your code against all test cases. This may take a
-              moment...
+              Running your code against all test cases. This may take a moment...
             </p>
           </div>
         </div>

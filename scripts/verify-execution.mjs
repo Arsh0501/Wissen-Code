@@ -1,9 +1,7 @@
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-const require = createRequire(
-  new URL('../server/package.json', import.meta.url),
-);
+const require = createRequire(new URL('../server/package.json', import.meta.url));
 require('dotenv').config({
   path: new URL('../server/.env', import.meta.url).pathname,
 });
@@ -16,11 +14,7 @@ let assessmentId;
 const questionIds = [];
 try {
   const health = await (await fetch(`${origin}/health`)).json();
-  assert.equal(
-    health.judgeMode,
-    'live',
-    'Enable live execution before running this check',
-  );
+  assert.equal(health.judgeMode, 'live', 'Enable live execution before running this check');
   const user = await db.user.create({
     data: {
       name: `Execution ${crypto.randomUUID()}`,
@@ -59,22 +53,15 @@ try {
       signal: AbortSignal.timeout(180000),
     });
     const data = await response.json();
-    if (!response.ok)
-      throw new Error(`${path}: ${response.status} ${data.error ?? ''}`);
+    if (!response.ok) throw new Error(`${path}: ${response.status} ${data.error ?? ''}`);
     return data;
   };
   for (const [languageId, sourceCode] of [
     [71, 'print(4)'],
     [63, 'console.log(4)'],
-    [
-      62,
-      'public class Main { public static void main(String[] args) { System.out.println(4); } }',
-    ],
+    [62, 'public class Main { public static void main(String[] args) { System.out.println(4); } }'],
     [54, '#include <iostream>\nint main(){std::cout << 4 << "\\n";}'],
-    [
-      82,
-      'CREATE TABLE nums(n INTEGER); INSERT INTO nums VALUES(4); SELECT n FROM nums;',
-    ],
+    [82, 'CREATE TABLE nums(n INTEGER); INSERT INTO nums VALUES(4); SELECT n FROM nums;'],
   ]) {
     const result = await call('/judge/run', 'POST', { languageId, sourceCode });
     assert.equal(result.statusId, 3);
@@ -104,14 +91,12 @@ try {
       testCases: {
         create: [
           {
-            input:
-              'CREATE TABLE nums(n INTEGER); INSERT INTO nums VALUES(1),(3);',
+            input: 'CREATE TABLE nums(n INTEGER); INSERT INTO nums VALUES(1),(3);',
             expectedOutput: '4',
             isSample: true,
           },
           {
-            input:
-              'CREATE TABLE nums(n INTEGER); INSERT INTO nums VALUES(2),(5);',
+            input: 'CREATE TABLE nums(n INTEGER); INSERT INTO nums VALUES(2),(5);',
             expectedOutput: '7',
             isSample: false,
           },
@@ -141,11 +126,7 @@ try {
     languageId: 71,
     questionId: coding.id,
   });
-  assert.equal(
-    wrong.passedCount,
-    0,
-    'A wrong solution must fail real execution',
-  );
+  assert.equal(wrong.passedCount, 0, 'A wrong solution must fail real execution');
   for (const [questionId, languageId, code] of [
     [coding.id, 71, 'print(int(input()) * 2)'],
     [sql.id, 82, 'SELECT SUM(n) FROM nums;'],
@@ -160,9 +141,7 @@ try {
   await call(`/attempts/${attempt.sessionId}/submit`, 'POST', {});
   let result;
   for (let round = 0; round < 40; round++) {
-    result = await call(
-      `/submissions/${assessment.id}/${encodeURIComponent(user.name)}`,
-    );
+    result = await call(`/submissions/${assessment.id}/${encodeURIComponent(user.name)}`);
     if (!result.resultsPending) break;
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
@@ -172,8 +151,7 @@ try {
     'PASS: live correct and incorrect answers, isolated SQL fixtures, hidden test cases, and weighted assessment grading.',
   );
 } finally {
-  if (assessmentId)
-    await db.assessment.deleteMany({ where: { id: assessmentId } });
+  if (assessmentId) await db.assessment.deleteMany({ where: { id: assessmentId } });
   await db.question.deleteMany({ where: { id: { in: questionIds } } });
   if (userId) await db.user.deleteMany({ where: { id: userId } });
   await db.$disconnect();

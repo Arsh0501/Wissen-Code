@@ -29,16 +29,13 @@ it('queues backend assistance and polls job status instead of claiming immediate
     };
   });
   const onResults = vi.fn();
-  renderWithProviders(
-    <InterviewAIControls id={20} status="in_progress" onResults={onResults} />,
-    { loggedInAs: adminUser },
-  );
+  renderWithProviders(<InterviewAIControls id={20} status="in_progress" onResults={onResults} />, {
+    loggedInAs: adminUser,
+  });
   const button = screen.getByRole('button', { name: 'Suggest follow-ups' });
   await waitFor(() => expect(button).toBeEnabled());
   await userEvent.setup().click(button);
-  await screen.findByText(
-    'AI work is queued or running. Results will appear here.',
-  );
+  await screen.findByText('AI work is queued or running. Results will appear here.');
   expect(api.request).toHaveBeenCalledWith(
     expect.objectContaining({
       url: '/ai/jobs',
@@ -47,7 +44,5 @@ it('queues backend assistance and polls job status instead of claiming immediate
     }),
   );
   expect(button).toBeDisabled();
-  expect(
-    screen.getByRole('button', { name: 'Generate interview report' }),
-  ).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Generate interview report' })).toBeDisabled();
 });

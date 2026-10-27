@@ -1,14 +1,10 @@
-import { ownerOnly } from '../platform/permissions';
-import {
-  accountLink,
-  enqueueMail,
-  mailConfigured,
-} from '../platform/communication';
+import { ownerOnly } from '../platform/auth/permissions';
+import { accountLink, enqueueMail, mailConfigured } from '../platform/mail/communication';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { adminOrInterviewer } from '../middleware/adminOnly';
 const router = Router();
 router.use(adminOrInterviewer);
@@ -36,8 +32,9 @@ router.get('/interviewers', async (_req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const role = typeof req.query.role === 'string' ? req.query.role : undefined;
-    const excludeRole = typeof req.query.excludeRole === 'string' ? req.query.excludeRole : undefined;
-    
+    const excludeRole =
+      typeof req.query.excludeRole === 'string' ? req.query.excludeRole : undefined;
+
     let where: any = {};
     if (role) {
       where.role = role;
@@ -75,9 +72,7 @@ router.put('/:id/role', ownerOnly, async (req, res, next) => {
       })
       .parse(req.body);
     if (id === req.user!.id)
-      return res
-        .status(409)
-        .json({ error: 'Use another administrator to change your own role' });
+      return res.status(409).json({ error: 'Use another administrator to change your own role' });
     const user = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
       const user = await tx.user.update({
@@ -89,10 +84,7 @@ router.put('/:id/role', ownerOnly, async (req, res, next) => {
       return user;
     });
     try {
-      (await import('../socket'))
-        .getIO()
-        .in(`auth:user:${id}`)
-        .disconnectSockets(true);
+      (await import('../socket')).getIO().in(`auth:user:${id}`).disconnectSockets(true);
     } catch {}
     res.json(user);
   } catch (error) {
@@ -109,11 +101,9 @@ router.post('/invite', ownerOnly, async (req, res, next) => {
       })
       .parse(req.body);
     if (!mailConfigured())
-      return res
-        .status(503)
-        .json({
-          error: 'Configure email delivery before inviting team members',
-        });
+      return res.status(503).json({
+        error: 'Configure email delivery before inviting team members',
+      });
     const user = await prisma.user.create({
       data: {
         ...input,
@@ -127,21 +117,17 @@ router.post('/invite', ownerOnly, async (req, res, next) => {
       `Hello ${user.name},\nSet your password to join as ${user.role}:\n${await accountLink(user.id, 'reset')}`,
       req.user!.id,
     );
-    res
-      .status(201)
-      .json({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      });
+    res.status(201).json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    });
   } catch (error: any) {
     if (error.code === 'P2002')
-      return res
-        .status(409)
-        .json({
-          error: 'This email already has an account. Change its role instead.',
-        });
+      return res.status(409).json({
+        error: 'This email already has an account. Change its role instead.',
+      });
     next(error);
   }
 });

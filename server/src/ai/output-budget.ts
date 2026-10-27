@@ -8,5 +8,10 @@ export function questionOutputBudget(input: unknown) {
 
 export function isOutputTruncationError(error: unknown) {
   const value = error as { code?: string; message?: string };
-  return value?.code === 'AI_OUTPUT_TRUNCATED' || /max[_ ](?:completion|output)[_ ]tokens.*(?:reached|exceeded)|output was truncated|truncated to fit max[_ ]completion[_ ]tokens/i.test(value?.message ?? '');
+  return (
+    value?.code === 'AI_OUTPUT_TRUNCATED' ||
+    /max[_ ](?:completion|output)[_ ]tokens.*(?:reached|exceeded)|output was truncated|truncated to fit max[_ ]completion[_ ]tokens/i.test(
+      value?.message ?? '',
+    )
+  );
 }

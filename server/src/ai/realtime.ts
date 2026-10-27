@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import { redisConnection } from './queue';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { latestUIResults } from './results';
 const channel = 'wissen:ai-results';
 export function subscribeAIResults(io: Server) {
@@ -13,13 +13,10 @@ export function subscribeAIResults(io: Server) {
     try {
       const job = await prisma.aIJob.findUnique({ where: { id } });
       if (job?.status === 'completed' && job.interviewId && job.output)
-        io.to(`private:interview:${job.interviewId}:user:${job.authorId}`).emit(
-          'AI_RESULTS',
-          {
-            interviewId: job.interviewId,
-            ...(await latestUIResults(job.interviewId, job.authorId)),
-          },
-        );
+        io.to(`private:interview:${job.interviewId}:user:${job.authorId}`).emit('AI_RESULTS', {
+          interviewId: job.interviewId,
+          ...(await latestUIResults(job.interviewId, job.authorId)),
+        });
     } catch (error: any) {
       console.error('AI delivery:', error.message);
     }

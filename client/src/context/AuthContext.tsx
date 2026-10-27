@@ -77,13 +77,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const signInWithToken = useCallback((nextUser: AuthUser, token: string, refreshToken?: string) => {
-    setAuthError(null);
-    if (refreshToken) localStorage.setItem('wissen-refresh-token', refreshToken);
-    else localStorage.removeItem('wissen-refresh-token');
-    setUser(nextUser);
-    persistUser(nextUser, token);
-  }, []);
+  const signInWithToken = useCallback(
+    (nextUser: AuthUser, token: string, refreshToken?: string) => {
+      setAuthError(null);
+      if (refreshToken) localStorage.setItem('wissen-refresh-token', refreshToken);
+      else localStorage.removeItem('wissen-refresh-token');
+      setUser(nextUser);
+      persistUser(nextUser, token);
+    },
+    [],
+  );
 
   const logout = useCallback(async () => {
     try {

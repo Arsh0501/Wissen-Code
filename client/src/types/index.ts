@@ -5,7 +5,15 @@ export interface Question {
   title: string;
   statement: string;
   questionType?: 'coding' | 'debugging' | 'mcq' | 'sql' | 'written' | 'project';
-  settings?: { options?: { id: string; text: string }[]; correctOptionIds?: string[]; multiple?: boolean; explanation?: string; rubric?: string; sqlSchema?: string; files?: { path: string; content: string }[] };
+  settings?: {
+    options?: { id: string; text: string }[];
+    correctOptionIds?: string[];
+    multiple?: boolean;
+    explanation?: string;
+    rubric?: string;
+    sqlSchema?: string;
+    files?: { path: string; content: string }[];
+  };
   difficulty: 'easy' | 'medium' | 'hard';
   tags: string; // JSON string
   timeLimit: number;

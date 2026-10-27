@@ -1,23 +1,23 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { verifyAccessToken } from '../middleware/auth';
 import { createAdapter } from '@socket.io/redis-adapter';
 import { redisConnection } from '../ai/queue';
 import { subscribeAIResults } from '../ai/realtime';
 import { registerInterviewHandlers } from './interview-handler';
 import { SocketUser } from './types';
-import { enforceInterviewDeadlines, setInterviewDeadlineNotifier } from '../services/interview-expiry';
+import {
+  enforceInterviewDeadlines,
+  setInterviewDeadlineNotifier,
+} from '../services/interviews/interview-expiry';
 
 let io: Server | null = null;
 
 export function initSocketServer(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     cors: {
-      origin: (
-        process.env.CORS_ORIGINS ||
-        'http://localhost:5173,http://localhost:3000'
-      )
+      origin: (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:3000')
         .split(',')
         .map((v) => v.trim()),
       methods: ['GET', 'POST'],
@@ -41,7 +41,9 @@ export function initSocketServer(httpServer: HttpServer): Server {
     io?.to(`room:interview:${id}`).emit('INTERVIEW_ENDED', { endedAt, reason: 'duration_elapsed' });
   });
   const deadlineTimer = setInterval(() => {
-    void enforceInterviewDeadlines().catch((error) => console.error('Interview deadline check:', error.message));
+    void enforceInterviewDeadlines().catch((error) =>
+      console.error('Interview deadline check:', error.message),
+    );
   }, 15000);
   deadlineTimer.unref();
   httpServer.once('close', () => clearInterval(deadlineTimer));
@@ -72,8 +74,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
         null;
 
       // 3. Extract Interview ID & Candidate Name
-      const rawInterviewId =
-        auth.interviewId || query.interviewId || headers['x-interview-id'];
+      const rawInterviewId = auth.interviewId || query.interviewId || headers['x-interview-id'];
       const interviewId = rawInterviewId ? Number(rawInterviewId) : undefined;
       const rawCandidateName =
         (auth.candidateName as string) ||
@@ -99,7 +100,10 @@ export function initSocketServer(httpServer: HttpServer): Server {
           )
             throw new Error('Session expired');
           const user: SocketUser = {
-            role: decoded.role === 'admin' || decoded.role === 'interviewer' ? 'interviewer' : 'candidate',
+            role:
+              decoded.role === 'admin' || decoded.role === 'interviewer'
+                ? 'interviewer'
+                : 'candidate',
             name: decoded.name,
             userId: decoded.id,
             email: decoded.email,
@@ -134,9 +138,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
         }
       }
 
-      return next(
-        new Error('A valid access token or interview room token is required'),
-      );
+      return next(new Error('A valid access token or interview room token is required'));
     } catch (err: any) {
       console.error('[Socket] Auth middleware error:', err);
       next(new Error('Socket authentication error'));
@@ -156,12 +158,9 @@ export function initSocketServer(httpServer: HttpServer): Server {
         socket.disconnect(true);
       }
     });
-    if (socket.data.user?.userId)
-      socket.join(`auth:user:${socket.data.user.userId}`);
-    if (socket.data.authSessionId)
-      socket.join(`auth:session:${socket.data.authSessionId}`);
-    if (user?.role === 'interviewer')
-      socket.join(`private:user:${user.userId}`);
+    if (socket.data.user?.userId) socket.join(`auth:user:${socket.data.user.userId}`);
+    if (socket.data.authSessionId) socket.join(`auth:session:${socket.data.authSessionId}`);
+    if (user?.role === 'interviewer') socket.join(`private:user:${user.userId}`);
     registerInterviewHandlers(io!, socket);
   });
 
@@ -171,9 +170,7 @@ export function initSocketServer(httpServer: HttpServer): Server {
 
 export function getIO(): Server {
   if (!io) {
-    throw new Error(
-      'Socket.IO has not been initialized. Call initSocketServer first.',
-    );
+    throw new Error('Socket.IO has not been initialized. Call initSocketServer first.');
   }
   return io;
 }

@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import prisma from '../prisma';
+import prisma from '../database/prisma';
 import { AgentTool } from './gateway';
-import { draftContentSchema } from '../services/workflow-schemas';
-import { executeCode, isMockMode } from '../services/judge0';
-import { verifyStarterDrivers } from '../services/coding-question-contract';
+import { draftContentSchema } from '../services/questions/workflow-schemas';
+import { executeCode, isMockMode } from '../services/execution/judge0';
+import { verifyStarterDrivers } from '../services/questions/coding-question-contract';
 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 export function questionTools(
   authorId: number,
@@ -17,8 +17,7 @@ export function questionTools(
   return [
     {
       name: 'searchQuestionBank',
-      description:
-        'Search existing question titles and statements before generating questions.',
+      description: 'Search existing question titles and statements before generating questions.',
       schema: z.object({ query: z.string().max(300) }),
       execute: async ({ query }) =>
         prisma.question.findMany({
@@ -74,12 +73,17 @@ export function questionTools(
       schema: z.object({ question: draftContentSchema }),
       execute: async ({ question }) => {
         const q = draftContentSchema.parse(question);
-        if (q.questionType === 'mcq') return { structurallyValid: true, verified: false, reason: 'Answer correctness requires independent semantic review, not compiler execution.' };
+        if (q.questionType === 'mcq')
+          return {
+            structurallyValid: true,
+            verified: false,
+            reason:
+              'Answer correctness requires independent semantic review, not compiler execution.',
+          };
         if (mockMode())
           return {
             verified: false,
-            reason:
-              'Real compiler required; mock verdicts cannot validate correctness',
+            reason: 'Real compiler required; mock verdicts cannot validate correctness',
           };
         const results = [];
         for (const t of q.testCases)
@@ -95,11 +99,13 @@ export function questionTools(
         return {
           starterVerified: starters.verified,
           starterExecutions: starters.executions,
-          verified: starters.verified && results.every(
-            (r, i) =>
-              r.status.id === 3 &&
-              (r.stdout ?? '').trim() === q.testCases[i].expectedOutput.trim(),
-          ),
+          verified:
+            starters.verified &&
+            results.every(
+              (r, i) =>
+                r.status.id === 3 &&
+                (r.stdout ?? '').trim() === q.testCases[i].expectedOutput.trim(),
+            ),
           results,
         };
       },
@@ -113,8 +119,7 @@ export function questionTools(
         inputs: z.array(z.string().max(10000)).min(1).max(10),
       }),
       execute: async ({ solution, inputs }) => {
-        if (mockMode())
-          return { verified: false, reason: 'Real compiler required' };
+        if (mockMode()) return { verified: false, reason: 'Real compiler required' };
         const results = [];
         for (const input of inputs) {
           const result = await execute({
@@ -138,10 +143,7 @@ export function questionTools(
         const existing = await prisma.aIQuestionDraft.findFirst({
           where: { authorId, content: { equals: content } },
         });
-        return (
-          existing ??
-          prisma.aIQuestionDraft.create({ data: { authorId, content } })
-        );
+        return existing ?? prisma.aIQuestionDraft.create({ data: { authorId, content } });
       },
     },
   ];

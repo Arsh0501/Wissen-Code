@@ -2,12 +2,8 @@ import assert from 'node:assert/strict';
 const target = process.env.LOAD_TEST_URL || 'http://localhost:3000/api/health';
 const concurrency = Number(process.env.LOAD_CONCURRENCY || 10);
 const requests = Number(process.env.LOAD_REQUESTS || 100);
-assert.ok(
-  Number.isInteger(concurrency) && concurrency > 0 && concurrency <= 100,
-);
-assert.ok(
-  Number.isInteger(requests) && requests >= concurrency && requests <= 10000,
-);
+assert.ok(Number.isInteger(concurrency) && concurrency > 0 && concurrency <= 100);
+assert.ok(Number.isInteger(requests) && requests >= concurrency && requests <= 10000);
 let sent = 0;
 let failed = 0;
 const timings = [];

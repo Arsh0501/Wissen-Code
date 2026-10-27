@@ -6,18 +6,8 @@ import * as services from '../../services/api';
 import AssessmentView from './AssessmentView';
 import { renderWithProviders, candidateUser } from '../../test/test-utils';
 vi.mock('@monaco-editor/react', () => ({
-  default: ({
-    value,
-    onChange,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <textarea
-      aria-label="Code editor"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
+  default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+    <textarea aria-label="Code editor" value={value} onChange={(e) => onChange(e.target.value)} />
   ),
 }));
 vi.mock('../../hooks/useTabSwitchDetection', () => ({
@@ -71,9 +61,7 @@ beforeEach(() => {
 it('shows instructions, starts only on click and does not claim success after a submission failure', async () => {
   const user = userEvent.setup();
   renderExam();
-  expect(
-    await screen.findByText('Read carefully before starting.'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Read carefully before starting.')).toBeInTheDocument();
   expect(services.startSession).not.toHaveBeenCalled();
   await user.click(screen.getByRole('button', { name: 'Start Assessment' }));
   await screen.findByLabelText('Code editor');
@@ -86,9 +74,7 @@ it('shows instructions, starts only on click and does not claim success after a 
       name: /confirm.*submit|submit.*assessment|confirm submission/i,
     }),
   );
-  expect(
-    await screen.findByText('Submission not confirmed'),
-  ).toBeInTheDocument();
+  expect(await screen.findByText('Submission not confirmed')).toBeInTheDocument();
   expect(
     screen.queryByText('Your assessment submission has been confirmed.'),
   ).not.toBeInTheDocument();
@@ -104,9 +90,7 @@ it('renders an explicit expired assessment state', async () => {
   });
   renderExam();
   expect(await screen.findByText('Assessment expired')).toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', { name: 'Start Assessment' }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Start Assessment' })).not.toBeInTheDocument();
 });
 it('renders an empty assessment without starting a session', async () => {
   vi.mocked(services.getAssessment).mockResolvedValue({
@@ -142,7 +126,5 @@ it('shows the completed state when resuming a finished attempt', async () => {
   } as any);
   renderExam();
   expect(await screen.findByText('Assessment completed')).toBeInTheDocument();
-  expect(
-    screen.queryByRole('button', { name: 'Start Assessment' }),
-  ).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Start Assessment' })).not.toBeInTheDocument();
 });

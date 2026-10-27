@@ -1,5 +1,12 @@
 // Real accounts have no stored colour, so pick a stable one from the name
-const PALETTE = ['bg-primary-600', 'bg-emerald-600', 'bg-sky-600', 'bg-amber-600', 'bg-rose-600', 'bg-indigo-600'];
+const PALETTE = [
+  'bg-primary-600',
+  'bg-emerald-600',
+  'bg-sky-600',
+  'bg-amber-600',
+  'bg-rose-600',
+  'bg-indigo-600',
+];
 
 function colorFor(name: string): string {
   let h = 0;

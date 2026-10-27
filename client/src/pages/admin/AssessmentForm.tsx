@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
-import StringListInput from '../../components/StringListInput';
-import AdminLayout from '../../components/AdminLayout';
+import StringListInput from '../../components/forms/StringListInput';
+import AdminLayout from '../../components/layout/AdminLayout';
 import {
   Spinner,
   AvailabilityBadge,
@@ -86,24 +86,16 @@ const EMPTY_FORM: AssessmentInput = {
   maxAttempts: 1,
 };
 
-function validate(
-  form: AssessmentInput,
-  publishing: boolean,
-): Partial<Record<StepKey, string[]>> {
+function validate(form: AssessmentInput, publishing: boolean): Partial<Record<StepKey, string[]>> {
   const errors: Partial<Record<StepKey, string[]>> = {};
-  const add = (step: StepKey, msg: string) =>
-    (errors[step] = [...(errors[step] || []), msg]);
+  const add = (step: StepKey, msg: string) => (errors[step] = [...(errors[step] || []), msg]);
 
   if (publishing && form.questionCount !== form.questions.length)
     add('questions', 'Select exactly the configured question count.');
   if (!form.name.trim()) add('details', 'Give the assessment a name.');
   if (publishing && form.questions.length === 0)
     add('questions', 'Add at least one question before publishing.');
-  if (
-    form.questions.some(
-      (q) => !Number.isInteger(q.marks) || q.marks < 1 || q.marks > 1000,
-    )
-  ) {
+  if (form.questions.some((q) => !Number.isInteger(q.marks) || q.marks < 1 || q.marks > 1000)) {
     add('questions', 'Marks must be whole numbers between 1 and 1000.');
   }
   if (
@@ -113,25 +105,14 @@ function validate(
   ) {
     add('config', 'Time limit must be between 1 and 600 minutes.');
   }
-  if (
-    !Number.isFinite(form.passingScore) ||
-    form.passingScore < 0 ||
-    form.passingScore > 100
-  ) {
+  if (!Number.isFinite(form.passingScore) || form.passingScore < 0 || form.passingScore > 100) {
     add('config', 'Passing score must be between 0 and 100%.');
   }
-  if (
-    form.startAt &&
-    form.endAt &&
-    new Date(form.endAt) <= new Date(form.startAt)
-  ) {
+  if (form.startAt && form.endAt && new Date(form.endAt) <= new Date(form.startAt)) {
     add('config', 'The closing time must be after the opening time.');
   }
   if (publishing && form.endAt && new Date(form.endAt) < new Date()) {
-    add(
-      'config',
-      'The closing time is in the past — candidates would not be able to start.',
-    );
+    add('config', 'The closing time is in the past — candidates would not be able to start.');
   }
   return errors;
 }
@@ -187,8 +168,7 @@ export default function AssessmentForm() {
   // Validation errors are shown only after a save attempt, for the status being saved
   const [attempted, setAttempted] = useState<AssessmentStatus | null>(null);
   const [candidateCount, setCandidateCount] = useState(0);
-  const [originalStatus, setOriginalStatus] =
-    useState<AssessmentStatus>('draft');
+  const [originalStatus, setOriginalStatus] = useState<AssessmentStatus>('draft');
 
   // Question picker filters
   const [search, setSearch] = useState('');
@@ -211,10 +191,10 @@ export default function AssessmentForm() {
             ...f,
             questions: unique.map((questionId) => ({
               questionId,
-              marks: questions.find((q) => q.id === questionId)?.questionType === 'mcq' ? 1 :
-                DEFAULT_MARKS[
-                  questions.find((q) => q.id === questionId)!.difficulty
-                ],
+              marks:
+                questions.find((q) => q.id === questionId)?.questionType === 'mcq'
+                  ? 1
+                  : DEFAULT_MARKS[questions.find((q) => q.id === questionId)!.difficulty],
             })),
             questionCount: Math.max(1, unique.length),
           }));
@@ -227,9 +207,9 @@ export default function AssessmentForm() {
           setForm({
             questionCount: a.questionCount ?? a.questions.length,
             difficulty: a.difficulty ?? 'mixed',
-            questionTypes: parseJsonArray<string>(
-              a.questionTypes || '["coding"]',
-            ).filter(type => ['coding', 'mcq'].includes(type)),
+            questionTypes: parseJsonArray<string>(a.questionTypes || '["coding"]').filter((type) =>
+              ['coding', 'mcq'].includes(type),
+            ),
             topics: [],
             requiredSkills: [],
             allowedEmails: parseJsonArray<string>(a.allowedEmails || '[]'),
@@ -260,15 +240,12 @@ export default function AssessmentForm() {
     })();
   }, [editId]);
 
-  const set = <K extends keyof AssessmentInput>(
-    key: K,
-    value: AssessmentInput[K],
-  ) => setForm((f) => ({ ...f, [key]: value }));
+  const set = <K extends keyof AssessmentInput>(key: K, value: AssessmentInput[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
 
   const byId = useMemo(() => new Map(bank.map((q) => [q.id, q])), [bank]);
   const allTags = useMemo(
-    () =>
-      Array.from(new Set(bank.flatMap((q) => parseJsonArray(q.tags)))).sort(),
+    () => Array.from(new Set(bank.flatMap((q) => parseJsonArray(q.tags)))).sort(),
     [bank],
   );
   const selectedIds = new Set(form.questions.map((q) => q.questionId));
@@ -312,7 +289,10 @@ export default function AssessmentForm() {
   function addQuestion(q: Question) {
     set('questions', [
       ...form.questions,
-      { questionId: q.id, marks: q.questionType === 'mcq' ? 1 : DEFAULT_MARKS[q.difficulty] ?? 10 },
+      {
+        questionId: q.id,
+        marks: q.questionType === 'mcq' ? 1 : (DEFAULT_MARKS[q.difficulty] ?? 10),
+      },
     ]);
   }
   function removeQuestion(qid: number) {
@@ -369,10 +349,7 @@ export default function AssessmentForm() {
 
   if (loading) {
     return (
-      <AdminLayout
-        title={editId ? 'Edit Assessment' : 'Create Assessment'}
-        maxWidth="max-w-6xl"
-      >
+      <AdminLayout title={editId ? 'Edit Assessment' : 'Create Assessment'} maxWidth="max-w-6xl">
         <Spinner label="Loading..." />
       </AdminLayout>
     );
@@ -385,9 +362,7 @@ export default function AssessmentForm() {
         editId ? (
           <span className="flex items-center gap-2">
             Currently{' '}
-            <AvailabilityBadge
-              value={originalStatus === 'published' ? 'open' : originalStatus}
-            />
+            <AvailabilityBadge value={originalStatus === 'published' ? 'open' : originalStatus} />
           </span>
         ) : (
           'Set up the test, pick questions, and configure how candidates take it'
@@ -400,14 +375,12 @@ export default function AssessmentForm() {
             Cancel
           </Link>
           <button
-            onClick={() => step === 'review' ? saveReviewDraft() : save('draft')}
+            onClick={() => (step === 'review' ? saveReviewDraft() : save('draft'))}
             disabled={saving}
             className="btn-outline text-sm"
           >
             <Save className="w-4 h-4" />{' '}
-            {originalStatus === 'published' && editId
-              ? 'Save & unpublish'
-              : 'Save draft'}
+            {originalStatus === 'published' && editId ? 'Save & unpublish' : 'Save draft'}
           </button>
           <button
             onClick={() => save('published')}
@@ -428,9 +401,9 @@ export default function AssessmentForm() {
         <div className="mb-6 flex items-start gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/25 text-sm text-amber-800">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" />
           <p>
-            {candidateCount} candidate{candidateCount === 1 ? ' has' : 's have'}{' '}
-            already taken this assessment. Changing questions or marks will
-            change how their existing results are scored.
+            {candidateCount} candidate{candidateCount === 1 ? ' has' : 's have'} already taken this
+            assessment. Changing questions or marks will change how their existing results are
+            scored.
           </p>
         </div>
       )}
@@ -471,9 +444,7 @@ export default function AssessmentForm() {
               </span>
               {s.label}
               {s.key === 'questions' && form.questions.length > 0 && (
-                <span className="text-xs text-surface-500">
-                  ({form.questions.length})
-                </span>
+                <span className="text-xs text-surface-500">({form.questions.length})</span>
               )}
             </button>
           );
@@ -518,8 +489,7 @@ export default function AssessmentForm() {
           </div>
           <div>
             <label className="label" htmlFor="a-instr">
-              Instructions{' '}
-              <span className="text-surface-500 font-normal">(Markdown)</span>
+              Instructions <span className="text-surface-500 font-normal">(Markdown)</span>
             </label>
             <textarea
               id="a-instr"
@@ -541,9 +511,7 @@ export default function AssessmentForm() {
           <div className="card p-0 overflow-hidden flex flex-col">
             <div className="p-4 border-b border-surface-800 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white">
-                  Question bank
-                </h2>
+                <h2 className="text-sm font-semibold text-white">Question bank</h2>
                 <Link
                   to="/admin/questions/new"
                   className="text-xs text-primary-600 hover:text-primary-700"
@@ -583,7 +551,12 @@ export default function AssessmentForm() {
                     </option>
                   ))}
                 </select>
-                <select className="input py-1.5 text-sm sm:col-span-2" aria-label="Question type" value={bankQuestionType} onChange={e => setBankQuestionType(e.target.value)}>
+                <select
+                  className="input py-1.5 text-sm sm:col-span-2"
+                  aria-label="Question type"
+                  value={bankQuestionType}
+                  onChange={(e) => setBankQuestionType(e.target.value)}
+                >
                   <option value="">All types</option>
                   <option value="coding">Coding</option>
                   <option value="mcq">MCQ</option>
@@ -597,20 +570,13 @@ export default function AssessmentForm() {
                   className="flex items-center gap-3 px-4 py-3 hover:bg-surface-800/30"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-surface-100 truncate">
-                      {q.title}
-                    </p>
+                    <p className="text-sm text-surface-100 truncate">{q.title}</p>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className={`badge-${q.difficulty}`}>
-                        {q.difficulty}
-                      </span>
+                      <span className={`badge-${q.difficulty}`}>{q.difficulty}</span>
                       {parseJsonArray(q.tags)
                         .slice(0, 3)
                         .map((t) => (
-                          <span
-                            key={t}
-                            className="text-[11px] text-surface-500"
-                          >
+                          <span key={t} className="text-[11px] text-surface-500">
                             #{t}
                           </span>
                         ))}
@@ -629,9 +595,7 @@ export default function AssessmentForm() {
               ))}
               {available.length === 0 && (
                 <li className="text-sm text-surface-500 text-center py-10">
-                  {bank.length === 0
-                    ? 'The question bank is empty.'
-                    : 'No matching questions.'}
+                  {bank.length === 0 ? 'The question bank is empty.' : 'No matching questions.'}
                 </li>
               )}
             </ul>
@@ -644,25 +608,19 @@ export default function AssessmentForm() {
                 Selected questions ({form.questions.length})
               </h2>
               <span className="text-sm text-surface-400">
-                Total{' '}
-                <span className="text-white font-semibold tabular-nums">
-                  {totalMarks}
-                </span>{' '}
+                Total <span className="text-white font-semibold tabular-nums">{totalMarks}</span>{' '}
                 marks
               </span>
             </div>
             {selectedQuestions.length === 0 ? (
               <p className="text-sm text-surface-500 text-center py-16 px-6">
-                Add questions from the bank. MCQs default to 1 mark each. Coding defaults: easy 10, medium 20,
-                hard 30. You can change them.
+                Add questions from the bank. MCQs default to 1 mark each. Coding defaults: easy 10,
+                medium 20, hard 30. You can change them.
               </p>
             ) : (
               <ol className="divide-y divide-surface-800/60 overflow-y-auto max-h-[540px]">
                 {selectedQuestions.map((sq, idx) => (
-                  <li
-                    key={sq.questionId}
-                    className="flex items-center gap-3 px-4 py-3"
-                  >
+                  <li key={sq.questionId} className="flex items-center gap-3 px-4 py-3">
                     <span className="w-6 h-6 rounded-md bg-surface-800 text-xs text-surface-300 flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
@@ -671,9 +629,7 @@ export default function AssessmentForm() {
                         {sq.question?.title ?? `Question #${sq.questionId}`}
                       </p>
                       {sq.question && (
-                        <span
-                          className={`badge-${sq.question.difficulty} mt-1`}
-                        >
+                        <span className={`badge-${sq.question.difficulty} mt-1`}>
                           {sq.question.difficulty}
                         </span>
                       )}
@@ -685,9 +641,7 @@ export default function AssessmentForm() {
                         max={1000}
                         className="input w-16 py-1 px-2 text-sm text-right"
                         value={Number.isNaN(sq.marks) ? '' : sq.marks}
-                        onChange={(e) =>
-                          setMarks(sq.questionId, parseInt(e.target.value))
-                        }
+                        onChange={(e) => setMarks(sq.questionId, parseInt(e.target.value))}
                         aria-label={`Marks for ${sq.question?.title}`}
                       />
                       marks
@@ -729,15 +683,10 @@ export default function AssessmentForm() {
       {step === 'config' && (
         <div className="grid lg:grid-cols-2 gap-6 animate-fade-in">
           <div className="card space-y-5">
-            <h2 className="text-sm font-semibold text-white">
-              Timing & scoring
-            </h2>
+            <h2 className="text-sm font-semibold text-white">Timing & scoring</h2>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label
-                  className="label flex items-center gap-1.5"
-                  htmlFor="a-time"
-                >
+                <label className="label flex items-center gap-1.5" htmlFor="a-time">
                   <Clock className="w-3.5 h-3.5" /> Duration (minutes)
                 </label>
                 <input
@@ -746,21 +695,12 @@ export default function AssessmentForm() {
                   min={1}
                   max={600}
                   className="input"
-                  value={
-                    Number.isNaN(form.timeLimitMinutes)
-                      ? ''
-                      : form.timeLimitMinutes
-                  }
-                  onChange={(e) =>
-                    set('timeLimitMinutes', parseInt(e.target.value))
-                  }
+                  value={Number.isNaN(form.timeLimitMinutes) ? '' : form.timeLimitMinutes}
+                  onChange={(e) => set('timeLimitMinutes', parseInt(e.target.value))}
                 />
               </div>
               <div>
-                <label
-                  className="label flex items-center gap-1.5"
-                  htmlFor="a-pass"
-                >
+                <label className="label flex items-center gap-1.5" htmlFor="a-pass">
                   <Target className="w-3.5 h-3.5" /> Passing score (%)
                 </label>
                 <input
@@ -769,12 +709,8 @@ export default function AssessmentForm() {
                   min={0}
                   max={100}
                   className="input"
-                  value={
-                    Number.isNaN(form.passingScore) ? '' : form.passingScore
-                  }
-                  onChange={(e) =>
-                    set('passingScore', parseInt(e.target.value))
-                  }
+                  value={Number.isNaN(form.passingScore) ? '' : form.passingScore}
+                  onChange={(e) => set('passingScore', parseInt(e.target.value))}
                 />
               </div>
             </div>
@@ -789,8 +725,8 @@ export default function AssessmentForm() {
                 <Calendar className="w-4 h-4" /> Availability window
               </h3>
               <p className="text-xs text-surface-500 mb-3">
-                Leave empty to allow candidates to start any time. Candidates
-                already mid-test can always finish.
+                Leave empty to allow candidates to start any time. Candidates already mid-test can
+                always finish.
               </p>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -803,12 +739,7 @@ export default function AssessmentForm() {
                     className="input"
                     value={toLocalInputValue(form.startAt)}
                     onChange={(e) =>
-                      set(
-                        'startAt',
-                        e.target.value
-                          ? new Date(e.target.value).toISOString()
-                          : null,
-                      )
+                      set('startAt', e.target.value ? new Date(e.target.value).toISOString() : null)
                     }
                   />
                 </div>
@@ -822,12 +753,7 @@ export default function AssessmentForm() {
                     className="input"
                     value={toLocalInputValue(form.endAt)}
                     onChange={(e) =>
-                      set(
-                        'endAt',
-                        e.target.value
-                          ? new Date(e.target.value).toISOString()
-                          : null,
-                      )
+                      set('endAt', e.target.value ? new Date(e.target.value).toISOString() : null)
                     }
                   />
                 </div>
@@ -836,9 +762,7 @@ export default function AssessmentForm() {
           </div>
 
           <div className="card space-y-4">
-            <h2 className="text-sm font-semibold text-white">
-              Candidate experience
-            </h2>
+            <h2 className="text-sm font-semibold text-white">Candidate experience</h2>
             <Toggle
               icon={Shuffle}
               label="Shuffle question order"
@@ -890,14 +814,10 @@ export default function AssessmentForm() {
           <div className="card lg:col-span-2 space-y-4">
             <div>
               <h2 className="text-xl font-bold text-white">
-                {form.name || (
-                  <span className="text-surface-500">Untitled assessment</span>
-                )}
+                {form.name || <span className="text-surface-500">Untitled assessment</span>}
               </h2>
               {form.description && (
-                <p className="text-sm text-surface-400 mt-1">
-                  {form.description}
-                </p>
+                <p className="text-sm text-surface-400 mt-1">{form.description}</p>
               )}
             </div>
             <table className="w-full text-sm">
@@ -913,9 +833,7 @@ export default function AssessmentForm() {
                 {selectedQuestions.map((sq, i) => (
                   <tr key={sq.questionId}>
                     <td className="py-2 text-surface-500">{i + 1}</td>
-                    <td className="py-2 text-surface-100">
-                      {sq.question?.title}
-                    </td>
+                    <td className="py-2 text-surface-100">{sq.question?.title}</td>
                     <td className="py-2">
                       {sq.question && (
                         <span className={`badge-${sq.question.difficulty}`}>
@@ -923,17 +841,12 @@ export default function AssessmentForm() {
                         </span>
                       )}
                     </td>
-                    <td className="py-2 text-right tabular-nums text-surface-200">
-                      {sq.marks}
-                    </td>
+                    <td className="py-2 text-right tabular-nums text-surface-200">{sq.marks}</td>
                   </tr>
                 ))}
                 {selectedQuestions.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={4}
-                      className="py-6 text-center text-surface-500"
-                    >
+                    <td colSpan={4} className="py-6 text-center text-surface-500">
                       No questions selected
                     </td>
                   </tr>
@@ -961,21 +874,13 @@ export default function AssessmentForm() {
               ['Attempts', String(form.maxAttempts)],
               ['Duration', `${form.timeLimitMinutes} minutes`],
               ['Passing score', `${form.passingScore}%`],
-              [
-                'Opens',
-                form.startAt ? formatDate(form.startAt) : 'Immediately',
-              ],
+              ['Opens', form.startAt ? formatDate(form.startAt) : 'Immediately'],
               ['Closes', form.endAt ? formatDate(form.endAt) : 'No deadline'],
-              [
-                'Question order',
-                form.shuffleQuestions ? 'Shuffled per candidate' : 'Fixed',
-              ],
+              ['Question order', form.shuffleQuestions ? 'Shuffled per candidate' : 'Fixed'],
               [
                 'Languages',
                 form.allowedLanguages.length
-                  ? LANGUAGES.filter((l) =>
-                      form.allowedLanguages.includes(l.id),
-                    )
+                  ? LANGUAGES.filter((l) => form.allowedLanguages.includes(l.id))
                       .map((l) => l.name)
                       .join(', ')
                   : 'All',
@@ -988,10 +893,8 @@ export default function AssessmentForm() {
               </div>
             ))}
             <p className="text-xs text-surface-500 pt-3 border-t border-surface-800">
-              <strong className="text-surface-300">Publish</strong> makes it
-              visible to candidates.{' '}
-              <strong className="text-surface-300">Save draft</strong> keeps it
-              hidden.
+              <strong className="text-surface-300">Publish</strong> makes it visible to candidates.{' '}
+              <strong className="text-surface-300">Save draft</strong> keeps it hidden.
             </p>
           </div>
         </div>
@@ -1015,12 +918,7 @@ export default function AssessmentForm() {
             <select
               className="input mt-2"
               value={form.difficulty}
-              onChange={(e) =>
-                set(
-                  'difficulty',
-                  e.target.value as AssessmentInput['difficulty'],
-                )
-              }
+              onChange={(e) => set('difficulty', e.target.value as AssessmentInput['difficulty'])}
             >
               {['mixed', 'easy', 'medium', 'hard'].map((v) => (
                 <option key={v}>{v}</option>
@@ -1030,12 +928,30 @@ export default function AssessmentForm() {
           <fieldset className="space-y-2">
             <legend className="label">Question types</legend>
             <div className="flex flex-wrap gap-5">
-              {[{ value: 'coding', label: 'Coding' }, { value: 'mcq', label: 'MCQ' }].map(type => <label key={type.value} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={form.questionTypes?.includes(type.value) ?? false} onChange={event => set('questionTypes', event.target.checked ? [...(form.questionTypes ?? []), type.value] : (form.questionTypes ?? []).filter(value => value !== type.value))} />
-                {type.label}
-              </label>)}
+              {[
+                { value: 'coding', label: 'Coding' },
+                { value: 'mcq', label: 'MCQ' },
+              ].map((type) => (
+                <label key={type.value} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.questionTypes?.includes(type.value) ?? false}
+                    onChange={(event) =>
+                      set(
+                        'questionTypes',
+                        event.target.checked
+                          ? [...(form.questionTypes ?? []), type.value]
+                          : (form.questionTypes ?? []).filter((value) => value !== type.value),
+                      )
+                    }
+                  />
+                  {type.label}
+                </label>
+              ))}
             </div>
-            <p className="text-xs text-surface-400">Select either type or both to combine coding and MCQ questions in one assessment.</p>
+            <p className="text-xs text-surface-400">
+              Select either type or both to combine coding and MCQ questions in one assessment.
+            </p>
           </fieldset>
           <label className="label">
             Maximum attempts
@@ -1057,8 +973,9 @@ export default function AssessmentForm() {
             />
           </label>
           <p className="text-xs text-surface-500 md:col-span-2">
-            Allowed candidate emails restrict access to the listed candidates. An empty list allows all eligible candidates.
-            Published questions must match the configured count, difficulty and question types.
+            Allowed candidate emails restrict access to the listed candidates. An empty list allows
+            all eligible candidates. Published questions must match the configured count, difficulty
+            and question types.
           </p>
         </div>
       )}
@@ -1092,7 +1009,9 @@ export default function AssessmentForm() {
         {stepIndex < STEPS.length - 1 && (
           <button
             disabled={saving}
-            onClick={() => step === 'review' ? saveReviewDraft() : setStep(STEPS[stepIndex + 1].key)}
+            onClick={() =>
+              step === 'review' ? saveReviewDraft() : setStep(STEPS[stepIndex + 1].key)
+            }
             className="btn-outline text-sm"
           >
             Next: {STEPS[stepIndex + 1].label} →

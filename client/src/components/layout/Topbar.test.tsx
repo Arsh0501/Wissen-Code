@@ -11,7 +11,7 @@ function renderTopbar() {
       <Route path="/" element={<Topbar />} />
       <Route path="/login" element={<div>Login Screen</div>} />
     </Routes>,
-    { loggedInAs: adminUser }
+    { loggedInAs: adminUser },
   );
 }
 

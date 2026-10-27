@@ -12,6 +12,7 @@ dist/
 */.env
 
 # Logs & temp
+.tmp/
 *.log
 .tempmediaStorage/
 .DS_Store

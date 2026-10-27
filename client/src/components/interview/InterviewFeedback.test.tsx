@@ -7,8 +7,17 @@ import InterviewFeedback from './InterviewFeedback';
 import { REQUIRED_FEEDBACK } from '../../services/interviewFeedback';
 
 it('requires fixed criteria and supports custom criteria while the interview is ongoing', async () => {
-  vi.mocked(api.request).mockImplementation(async request => ({ data: { interview: { feedbackRevision: 1, feedbackCriteria: (request.data as { criteria: unknown }).criteria } } }));
-  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'in_progress' }} />, { loggedInAs: adminUser });
+  vi.mocked(api.request).mockImplementation(async (request) => ({
+    data: {
+      interview: {
+        feedbackRevision: 1,
+        feedbackCriteria: (request.data as { criteria: unknown }).criteria,
+      },
+    },
+  }));
+  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'in_progress' }} />, {
+    loggedInAs: adminUser,
+  });
   const user = userEvent.setup();
   const save = screen.getByRole('button', { name: 'Save feedback criteria' });
   expect(save).toBeDisabled();
@@ -26,11 +35,20 @@ it('requires fixed criteria and supports custom criteria while the interview is 
   await user.selectOptions(screen.getByLabelText('System design rating'), '3');
   expect(save).toBeEnabled();
   await user.click(save);
-  await waitFor(() => expect(api.request).toHaveBeenCalledWith(expect.objectContaining({
-    url: '/interviews/20/feedback/criteria', method: 'put', data: expect.objectContaining({ revision: 0, criteria: expect.arrayContaining([
-      expect.objectContaining({ label: 'System design', rating: 3, feedback: '' }),
-    ]) }),
-  })));
+  await waitFor(() =>
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/interviews/20/feedback/criteria',
+        method: 'put',
+        data: expect.objectContaining({
+          revision: 0,
+          criteria: expect.arrayContaining([
+            expect.objectContaining({ label: 'System design', rating: 3, feedback: '' }),
+          ]),
+        }),
+      }),
+    ),
+  );
   expect(await screen.findByText('Feedback criteria saved.')).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Remove System design' }));
   expect(screen.queryByLabelText('System design feedback')).not.toBeInTheDocument();
@@ -38,11 +56,16 @@ it('requires fixed criteria and supports custom criteria while the interview is 
 });
 
 it('blocks final submission until required criteria are filled after the interview ends', async () => {
-  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'completed' }} openFinal />, { loggedInAs: adminUser });
+  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'completed' }} openFinal />, {
+    loggedInAs: adminUser,
+  });
   const user = userEvent.setup();
   await user.selectOptions(screen.getByLabelText('Overall rating'), '4');
   await user.selectOptions(screen.getByLabelText('Recommendation'), 'Hire');
-  await user.type(screen.getByRole('textbox', { name: 'Final interview feedback' }), 'Overall summary.');
+  await user.type(
+    screen.getByRole('textbox', { name: 'Final interview feedback' }),
+    'Overall summary.',
+  );
   expect(screen.getByRole('button', { name: 'Submit final feedback' })).toBeDisabled();
   await user.click(screen.getByRole('button', { name: 'Complete required criteria' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -52,18 +75,25 @@ it('blocks final submission until required criteria are filled after the intervi
 });
 
 it('keeps the final feedback draft when cancelling and reopening the popup', async () => {
-  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'completed' }} openFinal />, { loggedInAs: adminUser });
+  renderWithProviders(<InterviewFeedback interview={{ id: 20, status: 'completed' }} openFinal />, {
+    loggedInAs: adminUser,
+  });
   const user = userEvent.setup();
   expect(await screen.findByRole('dialog', { name: 'Interview ended' })).toBeVisible();
   await user.selectOptions(screen.getByLabelText('Overall rating'), '3');
   await user.selectOptions(screen.getByLabelText('Recommendation'), 'Leaning Hire');
-  await user.type(screen.getByRole('textbox', { name: 'Final interview feedback' }), 'Can consider after more experience.');
+  await user.type(
+    screen.getByRole('textbox', { name: 'Final interview feedback' }),
+    'Can consider after more experience.',
+  );
   await user.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Submit feedback' }));
   expect(screen.getByLabelText('Overall rating')).toHaveValue('3');
   expect(screen.getByLabelText('Recommendation')).toHaveValue('Leaning Hire');
-  expect(screen.getByRole('textbox', { name: 'Final interview feedback' })).toHaveValue('Can consider after more experience.');
+  expect(screen.getByRole('textbox', { name: 'Final interview feedback' })).toHaveValue(
+    'Can consider after more experience.',
+  );
   await user.keyboard('{Escape}');
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

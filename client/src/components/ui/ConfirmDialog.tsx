@@ -27,14 +27,18 @@ export default function ConfirmDialog({
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
     cancelButton.current?.focus();
-    return () => { if (previousFocus?.isConnected) previousFocus.focus(); };
+    return () => {
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, []);
 
   return createPortal(
     <div
       className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={event => { if (event.target === event.currentTarget) onCancel(); }}
-      onKeyDown={event => {
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+      onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
           onCancel();
@@ -65,11 +69,19 @@ export default function ConfirmDialog({
         <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500">
           <AlertTriangle className="h-6 w-6" aria-hidden="true" />
         </div>
-        <h2 id={titleId} className="text-lg font-semibold">{title}</h2>
-        <p id={descriptionId} className="mt-2 text-sm leading-relaxed text-surface-400">{description}</p>
+        <h2 id={titleId} className="text-lg font-semibold">
+          {title}
+        </h2>
+        <p id={descriptionId} className="mt-2 text-sm leading-relaxed text-surface-400">
+          {description}
+        </p>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <button ref={cancelButton} type="button" className="btn-outline" onClick={onCancel}>{cancelLabel}</button>
-          <button type="button" className="btn-primary" onClick={onConfirm}>{confirmLabel}</button>
+          <button ref={cancelButton} type="button" className="btn-outline" onClick={onCancel}>
+            {cancelLabel}
+          </button>
+          <button type="button" className="btn-primary" onClick={onConfirm}>
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>,

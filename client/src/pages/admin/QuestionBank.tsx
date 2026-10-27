@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { filterQuestions } from '../../components/questions/QuestionPicker';
-import AdminLayout from '../../components/AdminLayout';
+import AdminLayout from '../../components/layout/AdminLayout';
 import { Spinner, EmptyState, parseJsonArray } from '../../components/ui';
 import {
   getQuestions,
@@ -39,9 +39,7 @@ export default function QuestionBank() {
   const questions = bank.data ?? [];
   const loading = bank.isLoading;
   const [actionError, setError] = useState('');
-  const error =
-    actionError ||
-    (bank.error ? apiError(bank.error, 'Failed to load questions') : '');
+  const error = actionError || (bank.error ? apiError(bank.error, 'Failed to load questions') : '');
   const [questionType, setQuestionType] = useState('');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
@@ -95,9 +93,7 @@ export default function QuestionBank() {
     const previous = document.activeElement as HTMLElement | null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const dialog = document.querySelector<HTMLElement>(
-      '[aria-label="Question preview"]',
-    );
+    const dialog = document.querySelector<HTMLElement>('[aria-label="Question preview"]');
     dialog?.querySelector<HTMLElement>('button, a')?.focus();
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -131,10 +127,7 @@ export default function QuestionBank() {
   }, [preview?.id]);
 
   const allTags = useMemo(
-    () =>
-      Array.from(
-        new Set(questions.flatMap((q) => parseJsonArray(q.tags))),
-      ).sort(),
+    () => Array.from(new Set(questions.flatMap((q) => parseJsonArray(q.tags)))).sort(),
     [questions],
   );
   const counts = useMemo(
@@ -200,10 +193,7 @@ export default function QuestionBank() {
           </button>
           {showNewDropdown && (
             <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setShowNewDropdown(false)}
-              />
+              <div className="fixed inset-0 z-40" onClick={() => setShowNewDropdown(false)} />
               <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-surface-800 ring-1 ring-black ring-opacity-5 z-50 overflow-hidden">
                 <div className="py-1">
                   <Link
@@ -321,9 +311,7 @@ export default function QuestionBank() {
           }
         />
       ) : filteredQuestions.length === 0 ? (
-        <p className="text-center text-surface-500 py-16">
-          No questions match these filters.
-        </p>
+        <p className="text-center text-surface-500 py-16">No questions match these filters.</p>
       ) : (
         <div className="card p-0 overflow-hidden">
           <div className="overflow-x-auto">
@@ -341,10 +329,7 @@ export default function QuestionBank() {
               </thead>
               <tbody className="divide-y divide-surface-800/50">
                 {filteredQuestions.map((q) => (
-                  <tr
-                    key={q.id}
-                    className="hover:bg-surface-800/30 transition-colors"
-                  >
+                  <tr key={q.id} className="hover:bg-surface-800/30 transition-colors">
                     <td className="px-6 py-3">
                       <button
                         onClick={() => openPreview(q.id)}
@@ -353,13 +338,9 @@ export default function QuestionBank() {
                         {q.title}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-sm capitalize">
-                      {q.questionType || 'coding'}
-                    </td>
+                    <td className="px-4 py-3 text-sm capitalize">{q.questionType || 'coding'}</td>
                     <td className="px-4 py-3">
-                      <span className={`badge-${q.difficulty}`}>
-                        {q.difficulty}
-                      </span>
+                      <span className={`badge-${q.difficulty}`}>{q.difficulty}</span>
                     </td>
                     <td className="px-4 py-3 text-right text-surface-400 text-sm tabular-nums">
                       {q._count?.testCases ?? 0}
@@ -426,151 +407,168 @@ export default function QuestionBank() {
         </div>
       )}
       {/* Preview drawer */}
-      {preview && createPortal(
-        <div className="fixed inset-0 z-[100] flex justify-end">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => {
-              previewRequest.current++;
-              setPreview(null);
-              setPreviewId(null);
-            }}
-          />
-          <aside
-            role="dialog"
-            aria-modal="true"
-            aria-label="Question preview"
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
+      {preview &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] flex justify-end">
+            <div
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              onClick={() => {
                 previewRequest.current++;
                 setPreview(null);
                 setPreviewId(null);
-              }
-            }}
-            className="relative w-full max-w-2xl h-[100dvh] min-w-0 bg-surface-900 border-l border-surface-800 overflow-y-auto overflow-x-hidden animate-slide-in"
-          >
-            <div className="sticky top-0 z-10 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-4 sm:px-6 py-4 flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold text-white [overflow-wrap:anywhere]">
-                  {preview.title}
-                </h2>
-                <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-surface-400">
-                  <span className={`badge-${preview.difficulty}`}>
-                    {preview.difficulty}
-                  </span>
-                  {parseJsonArray(preview.tags).map((t) => (
-                    <span key={t}>#{t}</span>
-                  ))}
-                  <span>
-                    · {preview.timeLimit}s ·{' '}
-                    {Math.round(preview.memoryLimit / 1024)} MB
-                  </span>
+              }}
+            />
+            <aside
+              role="dialog"
+              aria-modal="true"
+              aria-label="Question preview"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  previewRequest.current++;
+                  setPreview(null);
+                  setPreviewId(null);
+                }
+              }}
+              className="relative w-full max-w-2xl h-[100dvh] min-w-0 bg-surface-900 border-l border-surface-800 overflow-y-auto overflow-x-hidden animate-slide-in"
+            >
+              <div className="sticky top-0 z-10 bg-surface-900/95 backdrop-blur border-b border-surface-800 px-4 sm:px-6 py-4 flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold text-white [overflow-wrap:anywhere]">
+                    {preview.title}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap text-xs text-surface-400">
+                    <span className={`badge-${preview.difficulty}`}>{preview.difficulty}</span>
+                    {parseJsonArray(preview.tags).map((t) => (
+                      <span key={t}>#{t}</span>
+                    ))}
+                    <span>
+                      · {preview.timeLimit}s · {Math.round(preview.memoryLimit / 1024)} MB
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  onClick={() => {
-                    const token = localStorage.getItem('wissen-token');
-                    fetch(getExportMdUrl(preview.id), {
-                      headers: {
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                      },
-                    })
-                      .then((res) => res.blob())
-                      .then((blob) => {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `question-${preview.id}.md`;
-                        a.click();
-                        URL.revokeObjectURL(url);
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => {
+                      const token = localStorage.getItem('wissen-token');
+                      fetch(getExportMdUrl(preview.id), {
+                        headers: {
+                          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        },
                       })
-                      .catch((err) => {
-                        console.error(err);
-                        alert('Failed to export markdown');
-                      });
-                  }}
-                  className="btn-ghost p-2"
-                  title="Export as Markdown"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-                <Link
-                  to={`/admin/questions/${preview.id}/edit`}
-                  className="btn-ghost p-2"
-                  title="Edit"
-                >
-                  <Edit className="w-4 h-4" />
-                </Link>
-                <button
-                  onClick={() => {
-                    previewRequest.current++;
-                    setPreview(null);
-                    setPreviewId(null);
-                  }}
-                  className="btn-ghost p-2"
-                  aria-label="Close"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-            <div className="p-4 sm:p-6 space-y-6 min-w-0 [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-auto [&_pre]:whitespace-pre-wrap">
-              <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
-                <ReactMarkdown>{preview.statement}</ReactMarkdown>
-                {preview.settings?.options && <ul className="space-y-2 mt-4">{preview.settings.options.map(o => <li className="sample-box" key={o.id}>{o.text}{preview.settings?.correctOptionIds?.includes(o.id) && <span className="text-emerald-600 ml-3">Correct answer</span>}</li>)}</ul>}
-                {preview.settings?.rubric && <div className="sample-box mt-4 whitespace-pre-wrap">Scoring rubric: {preview.settings.rubric}</div>}
-                {preview.settings?.sqlSchema && <pre className="sample-box mt-4">{preview.settings.sqlSchema}</pre>}
-                {preview.settings?.files?.map(f => <details key={f.path} className="mt-3"><summary>{f.path}</summary><pre className="sample-box whitespace-pre-wrap">{f.content}</pre></details>)}
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-2">
-                  Test cases ({preview.testCases?.length ?? 0})
-                </h3>
-                <div className="space-y-2">
-                  {preview.testCases?.map((tc, i) => (
-                    <div
-                      key={tc.id}
-                      className="rounded-lg border border-surface-800 overflow-hidden"
-                    >
-                      <div className="flex items-center justify-between px-3 py-1.5 bg-surface-800/50 text-xs">
-                        <span className="text-surface-300">Test {i + 1}</span>
-                        {tc.isSample ? (
-                          <span className="text-emerald-600 flex items-center gap-1">
-                            <Eye className="w-3 h-3" /> Sample
-                          </span>
-                        ) : (
-                          <span className="text-surface-500 flex items-center gap-1">
-                            <EyeOff className="w-3 h-3" /> Hidden
-                          </span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 divide-x divide-surface-800 text-xs font-mono">
-                        <pre className="p-2 text-surface-300 whitespace-pre-wrap">
-                          {tc.input}
-                        </pre>
-                        <pre className="p-2 text-emerald-700 whitespace-pre-wrap">
-                          {tc.expectedOutput}
-                        </pre>
-                      </div>
-                    </div>
-                  ))}
+                        .then((res) => res.blob())
+                        .then((blob) => {
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `question-${preview.id}.md`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        })
+                        .catch((err) => {
+                          console.error(err);
+                          alert('Failed to export markdown');
+                        });
+                    }}
+                    className="btn-ghost p-2"
+                    title="Export as Markdown"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
+                  <Link
+                    to={`/admin/questions/${preview.id}/edit`}
+                    className="btn-ghost p-2"
+                    title="Edit"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Link>
+                  <button
+                    onClick={() => {
+                      previewRequest.current++;
+                      setPreview(null);
+                      setPreviewId(null);
+                    }}
+                    className="btn-ghost p-2"
+                    aria-label="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
-              <div>
-                <h3 className="text-sm font-semibold text-white mb-2">
-                  Starter code
-                </h3>
-                <p className="text-sm text-surface-400">
-                  {preview.starterCodes?.length
-                    ? preview.starterCodes.map((s) => s.languageName).join(', ')
-                    : 'None'}
-                </p>
+              <div className="p-4 sm:p-6 space-y-6 min-w-0 [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-auto [&_pre]:whitespace-pre-wrap">
+                <div className="prose prose-invert prose-sm max-w-none text-surface-200 [&_code]:text-primary-700 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-3">
+                  <ReactMarkdown>{preview.statement}</ReactMarkdown>
+                  {preview.settings?.options && (
+                    <ul className="space-y-2 mt-4">
+                      {preview.settings.options.map((o) => (
+                        <li className="sample-box" key={o.id}>
+                          {o.text}
+                          {preview.settings?.correctOptionIds?.includes(o.id) && (
+                            <span className="text-emerald-600 ml-3">Correct answer</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {preview.settings?.rubric && (
+                    <div className="sample-box mt-4 whitespace-pre-wrap">
+                      Scoring rubric: {preview.settings.rubric}
+                    </div>
+                  )}
+                  {preview.settings?.sqlSchema && (
+                    <pre className="sample-box mt-4">{preview.settings.sqlSchema}</pre>
+                  )}
+                  {preview.settings?.files?.map((f) => (
+                    <details key={f.path} className="mt-3">
+                      <summary>{f.path}</summary>
+                      <pre className="sample-box whitespace-pre-wrap">{f.content}</pre>
+                    </details>
+                  ))}
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white mb-2">
+                    Test cases ({preview.testCases?.length ?? 0})
+                  </h3>
+                  <div className="space-y-2">
+                    {preview.testCases?.map((tc, i) => (
+                      <div
+                        key={tc.id}
+                        className="rounded-lg border border-surface-800 overflow-hidden"
+                      >
+                        <div className="flex items-center justify-between px-3 py-1.5 bg-surface-800/50 text-xs">
+                          <span className="text-surface-300">Test {i + 1}</span>
+                          {tc.isSample ? (
+                            <span className="text-emerald-600 flex items-center gap-1">
+                              <Eye className="w-3 h-3" /> Sample
+                            </span>
+                          ) : (
+                            <span className="text-surface-500 flex items-center gap-1">
+                              <EyeOff className="w-3 h-3" /> Hidden
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 divide-x divide-surface-800 text-xs font-mono">
+                          <pre className="p-2 text-surface-300 whitespace-pre-wrap">{tc.input}</pre>
+                          <pre className="p-2 text-emerald-700 whitespace-pre-wrap">
+                            {tc.expectedOutput}
+                          </pre>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-white mb-2">Starter code</h3>
+                  <p className="text-sm text-surface-400">
+                    {preview.starterCodes?.length
+                      ? preview.starterCodes.map((s) => s.languageName).join(', ')
+                      : 'None'}
+                  </p>
+                </div>
               </div>
-            </div>
-          </aside>
-        </div>, document.body
-      )}
+            </aside>
+          </div>,
+          document.body,
+        )}
     </AdminLayout>
   );
 }

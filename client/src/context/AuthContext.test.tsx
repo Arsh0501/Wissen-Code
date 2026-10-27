@@ -11,13 +11,18 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('AuthContext', () => {
   it('retains the signup refresh token and clears it for sessions without one', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    act(() => result.current.signInWithToken({ ...candidateUser, id: 1 }, 'signup-token', 'signup-refresh'));
+    act(() =>
+      result.current.signInWithToken({ ...candidateUser, id: 1 }, 'signup-token', 'signup-refresh'),
+    );
     expect(localStorage.getItem('wissen-refresh-token')).toBe('signup-refresh');
     act(() => result.current.signInWithToken({ ...candidateUser, id: 1 }, 'invite-token'));
     expect(localStorage.getItem('wissen-refresh-token')).toBeNull();
   });
   it('uses interviewer access for sessions whose older primary role was admin', () => {
-    localStorage.setItem('wissen-user', JSON.stringify({ ...adminUser, accessRole: 'interviewer' }));
+    localStorage.setItem(
+      'wissen-user',
+      JSON.stringify({ ...adminUser, accessRole: 'interviewer' }),
+    );
     localStorage.setItem('wissen-token', 'test-token');
     const { result } = renderHook(() => useAuth(), { wrapper });
     expect(result.current.role).toBe('interviewer');

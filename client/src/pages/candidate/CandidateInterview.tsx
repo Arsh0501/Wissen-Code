@@ -12,7 +12,10 @@ import { apiError } from '../../services/api';
 import { Question } from '../../types';
 import { Spinner } from '../../components/ui';
 import { RotateCcw } from 'lucide-react';
-import { getStarterCodeForLanguage, getAvailableQuestionLanguages } from '../../services/starterCodes';
+import {
+  getStarterCodeForLanguage,
+  getAvailableQuestionLanguages,
+} from '../../services/starterCodes';
 interface Room {
   currentCandidateAnswer: string;
   id: number;
@@ -50,20 +53,29 @@ export default function CandidateInterview() {
     timestamp: number;
   } | null>(null);
   useEffect(() => {
-    const connection = io(
-      import.meta.env.VITE_SOCKET_URL || window.location.origin,
-      { auth: { roomToken: token } },
-    );
+    const connection = io(import.meta.env.VITE_SOCKET_URL || window.location.origin, {
+      auth: { roomToken: token },
+    });
     setSocket(connection);
     connection.on('connect', () => {
       connection.emit('JOIN_INTERVIEW', { roomToken: token }, (response: any) => {
         if (response?.error || response?.success === false) {
-          setConnectionStatus('disconnected'); setError(response.error || 'Could not join interview');
-        } else { setConnectionStatus('connected'); setError(''); }
+          setConnectionStatus('disconnected');
+          setError(response.error || 'Could not join interview');
+        } else {
+          setConnectionStatus('connected');
+          setError('');
+        }
       });
     });
-    connection.on('connect_error', (e) => { setConnectionStatus('disconnected'); setError(e.message); });
-    connection.on('disconnect', () => { setConnectionStatus('disconnected'); setBusy(false); });
+    connection.on('connect_error', (e) => {
+      setConnectionStatus('disconnected');
+      setError(e.message);
+    });
+    connection.on('disconnect', () => {
+      setConnectionStatus('disconnected');
+      setBusy(false);
+    });
     const sync = (payload: any) => {
       setConnectionStatus('connected');
       setError('');
@@ -73,11 +85,7 @@ export default function CandidateInterview() {
       setQuestion(payload.currentQuestion ?? null);
       setQuestionId(payload.currentQuestionId ?? null);
       setStatus(payload.status ?? 'scheduled');
-      setAnswer(
-        payload.currentCandidateAnswer ??
-          room.data?.currentCandidateAnswer ??
-          '',
-      );
+      setAnswer(payload.currentCandidateAnswer ?? room.data?.currentCandidateAnswer ?? '');
     };
     connection.on('SYNC_STATE', sync);
     connection.on('QUESTION_CHANGED', (payload) => {
@@ -90,13 +98,17 @@ export default function CandidateInterview() {
       setOutput(null);
     });
     connection.on('QUESTIONS_UPDATED', (payload) => {
-      if (hydratedQuestion.current === `${token}:${payload.questionId ?? 'none'}`) setQuestion(payload.question ?? null);
+      if (hydratedQuestion.current === `${token}:${payload.questionId ?? 'none'}`)
+        setQuestion(payload.question ?? null);
       void room.refetch();
     });
     connection.on('CODE_CHANGED', (payload) => {
       if (Number.isInteger(payload.languageId)) setLanguage(payload.languageId);
     });
-    connection.on('INTERVIEW_STARTED', () => { setStatus('in_progress'); void room.refetch(); });
+    connection.on('INTERVIEW_STARTED', () => {
+      setStatus('in_progress');
+      void room.refetch();
+    });
     connection.on('INTERVIEW_ENDED', () => setStatus('completed'));
     connection.on('ERROR', (payload) => {
       setError(payload.message);
@@ -156,20 +168,31 @@ export default function CandidateInterview() {
       </main>
     );
   const r = room.data!;
-  if (status !== 'in_progress') return (
-    <main className="min-h-screen flex items-center justify-center p-5 bg-surface-950 text-surface-100">
-      <section className="card w-full max-w-lg text-center space-y-3" role="status">
-        <h1 className="text-xl font-semibold">{status === 'scheduled' ? 'Waiting for interviewer to start the interview' : 'This interview has ended'}</h1>
-        {status === 'scheduled' && <p className="text-sm text-surface-400">Please keep this page open. Your interview will appear automatically when the interviewer starts it.</p>}
-      </section>
-    </main>
-  );
-  const activeQuestion = questionId === null ? null : question ?? r.currentQuestion;
+  if (status !== 'in_progress')
+    return (
+      <main className="min-h-screen flex items-center justify-center p-5 bg-surface-950 text-surface-100">
+        <section className="card w-full max-w-lg text-center space-y-3" role="status">
+          <h1 className="text-xl font-semibold">
+            {status === 'scheduled'
+              ? 'Waiting for interviewer to start the interview'
+              : 'This interview has ended'}
+          </h1>
+          {status === 'scheduled' && (
+            <p className="text-sm text-surface-400">
+              Please keep this page open. Your interview will appear automatically when the
+              interviewer starts it.
+            </p>
+          )}
+        </section>
+      </main>
+    );
+  const activeQuestion = questionId === null ? null : (question ?? r.currentQuestion);
   const writtenQuestion = activeQuestion?.questionType === 'written';
   const manualAnswer =
+    !!activeQuestion && ['mcq', 'project'].includes(activeQuestion.questionType ?? '');
+  const codeAnswer =
     !!activeQuestion &&
-    ['mcq', 'project'].includes(activeQuestion.questionType ?? '');
-  const codeAnswer = !!activeQuestion && ['coding', 'debugging', 'sql'].includes(activeQuestion.questionType || 'coding');
+    ['coding', 'debugging', 'sql'].includes(activeQuestion.questionType || 'coding');
 
   const handleApplyStarterCode = (targetLangId: number) => {
     const starter = getStarterCodeForLanguage(activeQuestion, targetLangId);
@@ -191,110 +214,120 @@ export default function CandidateInterview() {
         </div>
         <span className="badge">{status.replace(/_/g, ' ')}</span>
       </header>
-      {connectionStatus !== 'connected' && <div className="card mb-5 space-y-2">
-        <p>{connectionStatus === 'connecting' ? 'Connecting to the live interview…' : 'Live connection unavailable. Saved interview data remains visible.'}</p>
-        <button className="btn-outline" onClick={() => { socket?.disconnect(); setConnectionStatus('connecting'); setError(''); socket?.connect(); }}>Reconnect</button>
-      </div>}
-      {!writtenQuestion && <div className="grid lg:grid-cols-2 gap-5 min-w-0">
-        <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
-          <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">
-            {activeQuestion?.title || 'Waiting for a question'}
-          </h2>
-          {activeQuestion && <QuestionDescription question={activeQuestion} />}
-          {manualAnswer && activeQuestion && <>
-          {(
-            status === 'in_progress' ? (
-              <AnswerInput
-                question={activeQuestion}
-                value={answer}
-                onChange={setAnswer}
-              />
-            ) : (
-              <pre className="sample-box">{answer}</pre>
-            )
-          )}
+      {connectionStatus !== 'connected' && (
+        <div className="card mb-5 space-y-2">
+          <p>
+            {connectionStatus === 'connecting'
+              ? 'Connecting to the live interview…'
+              : 'Live connection unavailable. Saved interview data remains visible.'}
+          </p>
           <button
             className="btn-outline"
-            disabled={
-              status !== 'in_progress' || saveAnswer.isPending || !questionId
-            }
-            onClick={() => saveAnswer.mutate()}
+            onClick={() => {
+              socket?.disconnect();
+              setConnectionStatus('connecting');
+              setError('');
+              socket?.connect();
+            }}
           >
-            Save answer for interviewer
+            Reconnect
           </button>
-          {saveAnswer.isSuccess && <p role="status">Answer saved.</p>}
-          {saveAnswer.error && <p role="alert">{apiError(saveAnswer.error)}</p>}
-          </>}
-        </section>
-        {codeAnswer && (
+        </div>
+      )}
+      {!writtenQuestion && (
+        <div className="grid lg:grid-cols-2 gap-5 min-w-0">
           <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-              <label className="label flex-1">
-                Code language
-                <select
-                  className="input mt-2"
-                  value={languageId}
-                  disabled={status !== 'in_progress'}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    handleApplyStarterCode(next);
-                  }}
+            <h2 className="text-lg font-semibold [overflow-wrap:anywhere]">
+              {activeQuestion?.title || 'Waiting for a question'}
+            </h2>
+            {activeQuestion && <QuestionDescription question={activeQuestion} />}
+            {manualAnswer && activeQuestion && (
+              <>
+                {status === 'in_progress' ? (
+                  <AnswerInput question={activeQuestion} value={answer} onChange={setAnswer} />
+                ) : (
+                  <pre className="sample-box">{answer}</pre>
+                )}
+                <button
+                  className="btn-outline"
+                  disabled={status !== 'in_progress' || saveAnswer.isPending || !questionId}
+                  onClick={() => saveAnswer.mutate()}
                 >
-                  {getAvailableQuestionLanguages(activeQuestion).map((language) => <option key={language.id} value={language.id}>{language.name}</option>)}
-                </select>
-              </label>
-              <button
-                type="button"
-                className="btn-outline flex items-center justify-center gap-1.5 py-2.5 px-3.5 text-xs sm:mb-0.5 whitespace-nowrap"
-                disabled={status !== 'in_progress'}
-                onClick={() => handleApplyStarterCode(languageId)}
-                title="Reset editor to question starter code for the selected language"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Set to starter code
-              </button>
-            </div>
-            <CollaborativeEditor
-              key={questionId}
-              socket={socket}
-              initialCode={code}
-              languageId={languageId}
-              readOnly={status !== 'in_progress'}
-              onCode={setCode}
-              resetStarterCode={resetStarterCode}
-            />
-            <div className="flex flex-wrap gap-3">
-              <button
-                className="btn-outline"
-                disabled={
-                  status !== 'in_progress' || busy || !socket?.connected
-                }
-                onClick={() => run('EXECUTE_CODE')}
-              >
-                Run code
-              </button>
-              <button
-                className="btn-primary"
-                disabled={
-                  status !== 'in_progress' || busy || !socket?.connected
-                }
-                onClick={() => run('SUBMIT_CODE')}
-              >
-                {busy ? 'Running…' : 'Submit code'}
-              </button>
-            </div>
-            {output !== null && <ExecutionResults value={output} />}
+                  Save answer for interviewer
+                </button>
+                {saveAnswer.isSuccess && <p role="status">Answer saved.</p>}
+                {saveAnswer.error && <p role="alert">{apiError(saveAnswer.error)}</p>}
+              </>
+            )}
           </section>
-        )}
-      </div>}
+          {codeAnswer && (
+            <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+                <label className="label flex-1">
+                  Code language
+                  <select
+                    className="input mt-2"
+                    value={languageId}
+                    disabled={status !== 'in_progress'}
+                    onChange={(e) => {
+                      const next = Number(e.target.value);
+                      handleApplyStarterCode(next);
+                    }}
+                  >
+                    {getAvailableQuestionLanguages(activeQuestion).map((language) => (
+                      <option key={language.id} value={language.id}>
+                        {language.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="btn-outline flex items-center justify-center gap-1.5 py-2.5 px-3.5 text-xs sm:mb-0.5 whitespace-nowrap"
+                  disabled={status !== 'in_progress'}
+                  onClick={() => handleApplyStarterCode(languageId)}
+                  title="Reset editor to question starter code for the selected language"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Set to starter code
+                </button>
+              </div>
+              <CollaborativeEditor
+                key={questionId}
+                socket={socket}
+                initialCode={code}
+                languageId={languageId}
+                readOnly={status !== 'in_progress'}
+                onCode={setCode}
+                resetStarterCode={resetStarterCode}
+              />
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="btn-outline"
+                  disabled={status !== 'in_progress' || busy || !socket?.connected}
+                  onClick={() => run('EXECUTE_CODE')}
+                >
+                  Run code
+                </button>
+                <button
+                  className="btn-primary"
+                  disabled={status !== 'in_progress' || busy || !socket?.connected}
+                  onClick={() => run('SUBMIT_CODE')}
+                >
+                  {busy ? 'Running…' : 'Submit code'}
+                </button>
+              </div>
+              {output !== null && <ExecutionResults value={output} />}
+            </section>
+          )}
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-red-600 mt-5">
           {error}
         </p>
       )}
-      {!['completed', 'cancelled'].includes(status) && (
-        <RoomTools socket={socket} />
-      )}
+      {!['completed', 'cancelled'].includes(status) && <RoomTools socket={socket} />}
     </main>
   );
 }

@@ -84,8 +84,7 @@ function ordinal(n: number): string {
   const suffix =
     v >= 11 && v <= 13
       ? 'th'
-      : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ||
-        'th';
+      : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] || 'th';
   return `${n}${suffix}`;
 }
 
@@ -192,8 +191,7 @@ function cohortBar(
 ): string {
   const clamp = (n: number) => Math.max(0, Math.min(100, n));
   // Near either end, anchor the label to that side so it stays inside the page
-  const edge = (n: number) =>
-    n < 12 ? 'edge-left' : n > 88 ? 'edge-right' : '';
+  const edge = (n: number) => (n < 12 ? 'edge-left' : n > 88 ? 'edge-right' : '');
   return `
     <div class="bar">
       <div class="bar-fill" style="width:${clamp(score)}%;background:${resultColor};"></div>
@@ -223,25 +221,14 @@ export function generateReportHTML(data: ReportData): string {
       `Tab-switch limit reached (${tab_switches.count}/${tab_switches.limit}) — test auto-submitted`,
     );
   else if (tab_switches.count > 0)
-    concerns.push(
-      `${tab_switches.count} tab switch${tab_switches.count === 1 ? '' : 'es'}`,
-    );
+    concerns.push(`${tab_switches.count} tab switch${tab_switches.count === 1 ? '' : 'es'}`);
   if (paste_events.large_count > 0)
     concerns.push(
       `${paste_events.large_count} large paste${paste_events.large_count === 1 ? '' : 's'} (${paste_events.large_threshold}+ characters)`,
     );
-  const needsReview =
-    tab_switches.limit_exceeded || paste_events.large_count > 0;
-  const integrityColor = needsReview
-    ? C.red
-    : concerns.length
-      ? C.amber
-      : C.green;
-  const integrityBg = needsReview
-    ? C.redSoft
-    : concerns.length
-      ? C.amberSoft
-      : C.greenSoft;
+  const needsReview = tab_switches.limit_exceeded || paste_events.large_count > 0;
+  const integrityColor = needsReview ? C.red : concerns.length ? C.amber : C.green;
+  const integrityBg = needsReview ? C.redSoft : concerns.length ? C.amberSoft : C.greenSoft;
   const integrityLabel = needsReview
     ? 'Review recommended'
     : concerns.length

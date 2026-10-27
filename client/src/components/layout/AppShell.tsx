@@ -7,10 +7,15 @@ import Topbar from './Topbar';
 export default function AppShell() {
   const { pathname } = useLocation();
   const content = useRef<HTMLElement>(null);
-  useEffect(() => { if (content.current) content.current.scrollTop = 0; }, [pathname]);
+  useEffect(() => {
+    if (content.current) content.current.scrollTop = 0;
+  }, [pathname]);
   const section = pathname.split('/')[2] || (pathname === '/profile' ? 'profile' : 'dashboard');
   return (
-    <div className="workspace-shell h-dvh w-full bg-surface-950 flex overflow-hidden" data-section={section}>
+    <div
+      className="workspace-shell h-dvh w-full bg-surface-950 flex overflow-hidden"
+      data-section={section}
+    >
       <a href="#workspace-content" className="skip-link">
         Skip to content
       </a>
@@ -23,7 +28,9 @@ export default function AppShell() {
           tabIndex={-1}
           className="workspace-main flex-1 min-w-0 min-h-0 overflow-y-auto"
         >
-          <div className="workspace-route"><Outlet /></div>
+          <div className="workspace-route">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

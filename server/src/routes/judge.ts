@@ -1,22 +1,19 @@
 import { Router, Request, Response } from 'express';
-import { executeCode, LANGUAGE_MAP } from '../services/judge0';
-import prisma from '../prisma';
+import { executeCode, LANGUAGE_MAP } from '../services/execution/judge0';
+import prisma from '../database/prisma';
 
 const router = Router();
 router.use(async (req, res, next) => {
   if (req.method !== 'POST' || req.user?.role !== 'candidate') return next();
   try {
-    const questionId =
-      req.path === '/run-tests' ? Number(req.body.questionId) : undefined;
+    const questionId = req.path === '/run-tests' ? Number(req.body.questionId) : undefined;
     if (questionId !== undefined && !Number.isInteger(questionId))
       return res.status(400).json({ error: 'A valid question ID is required' });
     const sessions = await prisma.assessmentSession.findMany({
       where: {
         candidateUserId: req.user.id,
         finishedAt: null,
-        ...(questionId
-          ? { assessment: { questions: { some: { questionId } } } }
-          : {}),
+        ...(questionId ? { assessment: { questions: { some: { questionId } } } } : {}),
       },
       select: {
         startedAt: true,
@@ -31,16 +28,12 @@ router.use(async (req, res, next) => {
         (session) =>
           Date.now() <
           session.startedAt.getTime() +
-            (session.durationMinutes ?? session.assessment.timeLimitMinutes) *
-              60000,
+            (session.durationMinutes ?? session.assessment.timeLimitMinutes) * 60000,
       )
     )
-      return res
-        .status(403)
-        .json({
-          error:
-            'Start an active assessment before running code or viewing sample results',
-        });
+      return res.status(403).json({
+        error: 'Start an active assessment before running code or viewing sample results',
+      });
     next();
   } catch (error) {
     next(error);
@@ -53,9 +46,7 @@ router.post('/run', async (req: Request, res: Response) => {
     const { sourceCode, languageId, stdin } = req.body;
 
     if (!sourceCode || !languageId) {
-      return res
-        .status(400)
-        .json({ error: 'sourceCode and languageId are required' });
+      return res.status(400).json({ error: 'sourceCode and languageId are required' });
     }
 
     const result = await executeCode({
@@ -99,9 +90,7 @@ router.post('/run-tests', async (req: Request, res: Response) => {
     const { sourceCode, languageId, questionId } = req.body;
 
     if (!sourceCode || !languageId || !questionId) {
-      return res
-        .status(400)
-        .json({ error: 'sourceCode, languageId, and questionId are required' });
+      return res.status(400).json({ error: 'sourceCode, languageId, and questionId are required' });
     }
 
     // Fetch only sample test cases
@@ -110,7 +99,8 @@ router.post('/run-tests', async (req: Request, res: Response) => {
       where: { id: questionId },
       select: { timeLimit: true, memoryLimit: true, questionType: true, ownerInterviewId: true },
     });
-    if (question?.ownerInterviewId != null) return res.status(404).json({ error: 'Question not found in the shared bank' });
+    if (question?.ownerInterviewId != null)
+      return res.status(404).json({ error: 'Question not found in the shared bank' });
 
     const sampleTestCases = await prisma.testCase.findMany({
       where: { questionId, isSample: true },
@@ -134,10 +124,7 @@ router.post('/run-tests', async (req: Request, res: Response) => {
 
       try {
         const result = await executeCode({
-          sourceCode:
-            question?.questionType === 'sql'
-              ? `${tc.input}\n${sourceCode}`
-              : sourceCode,
+          sourceCode: question?.questionType === 'sql' ? `${tc.input}\n${sourceCode}` : sourceCode,
           languageId,
           stdin: question?.questionType === 'sql' ? '' : tc.input,
           expectedOutput: tc.expectedOutput,
