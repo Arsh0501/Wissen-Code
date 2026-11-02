@@ -172,7 +172,8 @@ export default function InvitePage() {
                     maxLength={200}
                   />
                   <p className="text-xs text-surface-500 mt-1">
-                    Use the same email if you need to come back and continue.
+                    Use your invited email. Returning to this assessment requires its existing
+                    browser session.
                   </p>
                 </div>
 

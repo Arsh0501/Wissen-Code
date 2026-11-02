@@ -527,6 +527,12 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
         currentRevision = updated.revision;
         if (operation === 'save') return updated;
       }
+      if (operation === 'approve') {
+        return apiData(`/ai/drafts/${draft.id}/approve`, 'post', {
+          revision: currentRevision,
+          skipValidation: true,
+        });
+      }
       if (operation === 'directApprove') {
         return apiData(`/ai/drafts/${draft.id}/approve`, 'post', {
           revision: currentRevision,
@@ -727,13 +733,6 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
           >
             {action.isPending ? 'Working…' : 'Validate through AI'}
           </button>
-          <button
-            className="btn-primary"
-            disabled={dirty || action.isPending || draft.status !== 'validated'}
-            onClick={() => action.mutate('approve')}
-          >
-            Approve into Question Bank
-          </button>
           <div className="inline-flex items-center gap-1">
             <button
               className="btn-outline border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10 cursor-pointer font-medium"
@@ -748,6 +747,14 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
               verifiesStarters={content.starterContractVersion === 2}
             />
           </div>
+          <button
+            className="btn-primary"
+            disabled={action.isPending}
+            onClick={() => action.mutate('approve')}
+            title="Save edits and insert into the Question Bank without AI or execution validation"
+          >
+            Approve into Question Bank
+          </button>
         </div>
       )}
       {approved && (

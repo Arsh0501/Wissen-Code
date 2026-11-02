@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Routes, Route } from 'react-router-dom';
 import api from '../../services/api';
@@ -67,6 +67,16 @@ it('keeps the final feedback popup closed when ending the interview fails', asyn
   );
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'End interview' }));
+  const confirmation = screen.getByRole('alertdialog', { name: 'End this interview?' });
+  expect(api.request).not.toHaveBeenCalledWith(
+    expect.objectContaining({ url: '/interviews/20/end' }),
+  );
+  await user.click(within(confirmation).getByRole('button', { name: 'Keep interviewing' }));
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'End interview' }));
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', { name: 'End interview' }),
+  );
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not end interview');
   expect(screen.queryByRole('dialog', { name: 'Interview ended' })).not.toBeInTheDocument();
 });
@@ -155,6 +165,9 @@ it('shows the submit-feedback option only after ending succeeds and submits fina
   }
   await user.click(screen.getByRole('button', { name: 'Live room' }));
   await user.click(end);
+  await user.click(
+    within(screen.getByRole('alertdialog')).getByRole('button', { name: 'End interview' }),
+  );
   expect(await screen.findByRole('dialog', { name: 'Interview ended' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Submit final feedback' })).toBeDisabled();
   await user.selectOptions(screen.getByLabelText('Overall rating'), '4');

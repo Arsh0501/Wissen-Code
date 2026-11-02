@@ -41,6 +41,44 @@ function mockDraft(status: string, configured = true) {
   }));
 }
 describe('AI question approval workflow', () => {
+  it('inserts without validation and places direct approval first', async () => {
+    let draft = {
+      id: 1,
+      content,
+      revision: 1,
+      status: 'draft',
+      validatedRevision: null as number | null,
+    };
+    const calls: string[] = [];
+    vi.mocked(api.request).mockImplementation(async (config: any) => {
+      if (config.url === '/ai/status') return { data: { configured: true, canVerify: true } };
+      if (config.url.endsWith('/validate')) {
+        calls.push('validate');
+        draft = { ...draft, status: 'validated', validatedRevision: 1 };
+        return { data: draft };
+      }
+      if (config.url.endsWith('/approve')) {
+        calls.push('approve');
+        draft = { ...draft, status: 'approved' };
+        return { data: draft };
+      }
+      return { data: [draft] };
+    });
+    renderWithProviders(<AIQuestions />, { loggedInAs: adminUser });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /^sum integers/i }));
+    const approve = screen.getByRole('button', { name: /approve into question bank/i });
+    const direct = screen.getByRole('button', { name: /direct approve.*skip ai/i });
+    expect(direct.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(approve);
+    await waitFor(() => expect(calls).toEqual(['approve']));
+    expect(api.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/ai/drafts/1/approve',
+        data: { revision: 1, skipValidation: true },
+      }),
+    );
+  });
   it('batch approves selected MCQs and removes completed decisions from the queue', async () => {
     const mcq = {
       title: 'MCQ one',
@@ -206,12 +244,12 @@ describe('AI question approval workflow', () => {
     expect(await screen.findByText(/requires a Groq or OpenAI API key/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^generate$/i })).toBeDisabled();
   });
-  it('blocks approval before validation and blocks validation while edits are unsaved', async () => {
+  it('allows approval before validation and while edits are unsaved', async () => {
     const user = userEvent.setup();
     mockDraft('draft');
     renderWithProviders(<AIQuestions />, { loggedInAs: adminUser });
     await user.click(await screen.findByRole('button', { name: /^sum integers/i }));
-    expect(screen.getByRole('button', { name: /approve into question bank/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /approve into question bank/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /^validate$/i })).toBeEnabled();
     await user.type(screen.getByLabelText(/^title$/i), ' edited');
     expect(screen.getByRole('button', { name: /^validate$/i })).toBeDisabled();

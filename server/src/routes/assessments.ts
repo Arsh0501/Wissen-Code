@@ -378,7 +378,11 @@ router.get('/', async (req: Request, res: Response) => {
 
     // Candidates also see closed/archived tests they already took, so they can view results.
     // Invite-link guests only see the tests they were invited to.
-    const guestIds = req.user?.guest ? await guestAssessmentIds(req.user.id) : null;
+    const guestIds = req.user?.guest
+      ? req.user.guestAssessmentId !== undefined
+        ? [req.user.guestAssessmentId]
+        : await guestAssessmentIds(req.user.id)
+      : null;
     const assessments = await prisma.assessment.findMany({
       where: guestIds
         ? {

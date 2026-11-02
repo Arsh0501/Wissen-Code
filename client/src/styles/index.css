@@ -483,8 +483,11 @@ main [role='alert'] {
     flex-direction: column;
     overflow: visible;
   }
+  .exam-question-divider {
+    display: none;
+  }
   .exam-question {
-    width: 100%;
+    width: 100% !important;
     min-width: 0;
     flex: none;
     border-right: 0;

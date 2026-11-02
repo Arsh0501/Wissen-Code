@@ -17,6 +17,7 @@ export interface AuthUser {
   role: 'admin' | 'candidate' | 'interviewer';
   accessRole?: AccessRole;
   guest?: boolean; // joined through an invite link — limited to invited assessments
+  guestAssessmentId?: number;
   sessionId?: number; // Added for one-device enforcement
 }
 
@@ -64,6 +65,7 @@ export async function verifyAccessToken(token: string): Promise<AuthUser> {
     role: userRole as 'admin' | 'candidate' | 'interviewer',
     accessRole: session.user.role as AccessRole,
     guest: session.user.isGuest,
+    guestAssessmentId: session.guestAssessmentId ?? undefined,
     sessionId: session.id,
   };
 }

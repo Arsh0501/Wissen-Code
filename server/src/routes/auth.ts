@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import type { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import prisma from '../database/prisma';
 import { sendOtpMail } from '../platform/mail/verification-mail';
@@ -21,8 +22,10 @@ export async function createSessionForUser(
   name: string,
   role: string,
   guest = false,
+  guestAssessmentId?: number,
+  transaction?: Prisma.TransactionClient,
 ) {
-  return prisma.$transaction(async (tx) => {
+  const create = async (tx: Prisma.TransactionClient) => {
     if (!accessRoles.includes(role as AccessRole)) {
       return { error: 'This account role is no longer supported. Contact an administrator.' };
     }
@@ -31,7 +34,11 @@ export async function createSessionForUser(
     await tx.userSession.deleteMany({
       where: { userId, expiresAt: { lte: new Date() } },
     });
-    if (role === 'candidate' && (await tx.userSession.findFirst({ where: { userId } }))) {
+    if (
+      !(guest && guestAssessmentId !== undefined) &&
+      role === 'candidate' &&
+      (await tx.userSession.findFirst({ where: { userId } }))
+    ) {
       return {
         error: 'Active session detected on another device. Please log out from that device first.',
       };
@@ -40,6 +47,7 @@ export async function createSessionForUser(
     const session = await tx.userSession.create({
       data: {
         userId,
+        guestAssessmentId,
         refreshToken: hashRefreshToken(refreshToken),
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 86400000),
       },
@@ -54,10 +62,12 @@ export async function createSessionForUser(
       accessRole: role as import('../platform/auth/permissions').AccessRole,
       sessionId: session.id,
       guest,
+      guestAssessmentId,
     };
     const accessToken = signToken(authUser);
     return { token: accessToken, accessToken, refreshToken, user: authUser };
-  });
+  };
+  return transaction ? create(transaction) : prisma.$transaction(create);
 }
 export function hashRefreshToken(token: string) {
   return crypto.createHash('sha256').update(token).digest('hex');
@@ -185,6 +195,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
       role: session.user.role as 'admin' | 'candidate' | 'interviewer',
       accessRole: session.user.role as import('../platform/auth/permissions').AccessRole,
       sessionId: session.id,
+      guest: session.user.isGuest,
+      guestAssessmentId: session.guestAssessmentId ?? undefined,
     };
 
     const newAccessToken = signToken(authUser);

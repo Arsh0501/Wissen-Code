@@ -6,6 +6,7 @@ import { adminOnly } from '../middleware/adminOnly';
 import { verifyAccessToken } from '../middleware/auth';
 import { createSessionForUser } from './auth';
 import { availabilityError } from './attempts';
+import { WorkflowError } from '../services/ai/structured-ai';
 import bulkAssessmentInvites from './bulk-assessment-invites';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -268,14 +269,23 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
       inviteProblem(alreadyJoined ? { ...invite, maxUses: null } : invite) ??
       availabilityError(invite.assessment);
     if (problem) return res.status(403).json({ error: problem });
-    if (user) {
-      if (!identity || identity.id !== user.id)
-        return res.status(409).json({
-          error:
-            'Returning guests must use their existing session or claim their account with a password.',
-        });
+    const ownsSession =
+      user &&
+      identity?.id === user.id &&
+      (identity.guestAssessmentId === undefined ||
+        identity.guestAssessmentId === invite.assessmentId);
+    if (user && ownsSession) {
       if (!alreadyJoined)
         await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user!.id} FOR UPDATE`;
+          if (user!.isGuest)
+            await tx.guestAssessmentParticipation.upsert({
+              where: {
+                userId_assessmentId: { userId: user!.id, assessmentId: invite.assessmentId },
+              },
+              create: { userId: user!.id, assessmentId: invite.assessmentId },
+              update: {},
+            });
           await tx.$queryRaw`SELECT id FROM "InviteLink" WHERE id = ${invite.id} FOR UPDATE`;
           const fresh = await tx.inviteLink.findUniqueOrThrow({
             where: { id: invite.id },
@@ -297,8 +307,10 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
         where: { name },
         select: { id: true },
       });
-      user = await prisma.user.create({
-        data: {
+      user = await prisma.user.upsert({
+        where: { email },
+        update: {},
+        create: {
           name: clash ? `${name} (${email})` : name,
           email,
           // Guests never sign in with a password; this random hash just satisfies the column
@@ -309,24 +321,55 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
       });
     }
 
-    if (!alreadyJoined) {
-      await prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT id FROM "InviteLink" WHERE id = ${invite.id} FOR UPDATE`;
-        const fresh = await tx.inviteLink.findUniqueOrThrow({
-          where: { id: invite.id },
-          include: { _count: { select: { redemptions: true } } },
-        });
-        if (inviteProblem(fresh)) throw new Error('Invite is no longer available');
-        await tx.inviteRedemption.create({
-          data: { inviteId: invite.id, userId: user!.id },
-        });
+    if (!user.isGuest)
+      return res.status(409).json({
+        error: 'This email already has an account. Please sign in with your password instead.',
+        code: 'HAS_ACCOUNT',
       });
-    }
 
-    const session = await createSessionForUser(user.id, user.email, user.name, user.role, true);
+    const session = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user!.id} FOR UPDATE`;
+      const participation = await tx.guestAssessmentParticipation.findUnique({
+        where: { userId_assessmentId: { userId: user!.id, assessmentId: invite.assessmentId } },
+      });
+      const attempt = await tx.assessmentSession.findFirst({
+        where: { candidateUserId: user!.id, assessmentId: invite.assessmentId },
+      });
+      if (participation || attempt)
+        throw new WorkflowError(
+          'You have already joined this assessment. Use your existing assessment session.',
+          409,
+        );
+      await tx.$queryRaw`SELECT id FROM "InviteLink" WHERE id = ${invite.id} FOR UPDATE`;
+      const fresh = await tx.inviteLink.findUniqueOrThrow({
+        where: { id: invite.id },
+        include: { _count: { select: { redemptions: true } } },
+      });
+      if (inviteProblem(fresh)) throw new Error('Invite is no longer available');
+      await tx.guestAssessmentParticipation.create({
+        data: { userId: user!.id, assessmentId: invite.assessmentId },
+      });
+      await tx.inviteRedemption.create({
+        data: { inviteId: invite.id, userId: user!.id },
+      });
+      const created = await createSessionForUser(
+        user!.id,
+        user!.email,
+        user!.name,
+        user!.role,
+        true,
+        invite.assessmentId,
+        tx,
+      );
+      if ('error' in created)
+        throw new WorkflowError(created.error ?? 'Could not create session', 403);
+      return created;
+    });
     if ('error' in session) return res.status(403).json(session);
     res.json({ ...session, assessmentId: invite.assessment.id });
   } catch (error) {
+    if (error instanceof WorkflowError)
+      return res.status(error.status).json({ error: error.message });
     console.error('Error joining via invite:', error);
     res.status(500).json({ error: 'Failed to join the assessment' });
   }

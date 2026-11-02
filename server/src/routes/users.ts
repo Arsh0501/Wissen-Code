@@ -44,6 +44,13 @@ router.get('/', async (req, res, next) => {
       where.role = 'candidate';
     }
 
+    const search =
+      typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 200) : '';
+    if (search)
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
     res.json(
       await prisma.user.findMany({
         where,
@@ -54,11 +61,44 @@ router.get('/', async (req, res, next) => {
           role: true,
           isGuest: true,
           createdAt: true,
+          _count: { select: { sessions: { where: { expiresAt: { gt: new Date() } } } } },
         },
         orderBy: { name: 'asc' },
         take: 200,
       }),
     );
+  } catch (error) {
+    next(error);
+  }
+});
+// Revoke server-side sessions rather than changing the JWT secret for every user.
+router.post('/:id/revoke-sessions', ownerOnly, async (req, res, next) => {
+  try {
+    const id = z.coerce.number().int().positive().parse(req.params.id);
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${id} FOR UPDATE`;
+      const target = await tx.user.findUnique({ where: { id }, select: { id: true } });
+      if (!target) return null;
+      const deleted = await tx.userSession.deleteMany({ where: { userId: id } });
+      await tx.sessionRevocationAudit.create({
+        data: {
+          actorUserId: req.user!.id,
+          targetUserId: id,
+          revokedSessions: deleted.count,
+        },
+      });
+      return { revokedSessions: deleted.count };
+    });
+    if (!result) return res.status(404).json({ error: 'User not found' });
+    try {
+      (await import('../socket')).getIO().in(`auth:user:${id}`).disconnectSockets(true);
+    } catch (error) {
+      console.error(
+        'Session revocation socket disconnect failed:',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+    }
+    res.json({ ...result, message: 'Login sessions revoked. The user must sign in again.' });
   } catch (error) {
     next(error);
   }

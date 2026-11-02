@@ -39,9 +39,12 @@ const checks = [
   'expectedSolution',
   'edgeCases',
 ].map((key) => ({ key, passed: true, evidence: `Verified ${key}` }));
+let aiCalls = 0;
+let executionCalls = 0;
 let unsupportedEvidence = false;
 let rationaleEvidence = false;
 const ai = (async (name: string, _schema: unknown, _instructions: unknown, input: any) => {
+  aiCalls++;
   if (name === 'question_validation')
     return {
       checks: checks.map((c) => ({ ...c })),
@@ -117,16 +120,19 @@ void test('AI drafts, approval gates and evidence-backed interview evaluation', 
     };
     next();
   });
-  const execute = (async (input: any) => ({
-    stdout: input.sourceCode.includes('WRONG_OUTPUT') ? 'wrong' : input.stdin,
-    stderr: null,
-    compile_output: null,
-    message: null,
-    status: { id: 3, description: 'Accepted' },
-    time: '0.01',
-    memory: 1000,
-    token: 'test',
-  })) as any;
+  const execute = (async (input: any) => {
+    executionCalls++;
+    return {
+      stdout: input.sourceCode.includes('WRONG_OUTPUT') ? 'wrong' : input.stdin,
+      stderr: null,
+      compile_output: null,
+      message: null,
+      status: { id: 3, description: 'Accepted' },
+      time: '0.01',
+      memory: 1000,
+      token: 'test',
+    };
+  }) as any;
   app.use('/ai', createAIWorkflowRouter({ ai, execute, mockMode: () => false }));
   app.use('/interviews', createInterviewWorkflowRouter(ai));
   app.use(
@@ -257,6 +263,46 @@ void test('AI drafts, approval gates and evidence-backed interview evaluation', 
       assert.equal(failedDraft.status, 'needs_changes');
       assert.equal((failedDraft.validation as any).reviewMode, 'direct');
     });
+    await t.test(
+      'unchecked approval inserts unvalidated starters without AI or execution calls',
+      async () => {
+        const created = await request('/ai/drafts', 'POST', {
+          ...content,
+          title: `${prefix} unchecked insertion`,
+          statement: content.statement + ' Unchecked insertion fixture.',
+          starterContractVersion: 2,
+          starterCodes,
+        });
+        assert.equal(created.status, 201);
+        const beforeAI = aiCalls;
+        const beforeExecution = executionCalls;
+        let bankId: number | undefined;
+        try {
+          const response = await request(`/ai/drafts/${created.body.id}/approve`, 'POST', {
+            revision: 1,
+            skipValidation: true,
+          });
+          assert.equal(response.status, 200);
+          bankId = response.body.questionId;
+          assert.ok(bankId);
+          assert.equal(aiCalls, beforeAI);
+          assert.equal(executionCalls, beforeExecution);
+          assert.equal(response.body.status, 'approved');
+          assert.equal(
+            (
+              await request(`/ai/drafts/${created.body.id}/approve`, 'POST', {
+                revision: 1,
+                skipValidation: true,
+              })
+            ).body.questionId,
+            bankId,
+          );
+        } finally {
+          await prisma.aIQuestionDraft.delete({ where: { id: created.body.id } });
+          if (bankId) await prisma.question.delete({ where: { id: bankId } });
+        }
+      },
+    );
     await t.test('approval inserts one bank question and duplicates cannot pass', async () => {
       assert.equal(
         (await request(`/ai/drafts/${draftId}/validate`, 'POST')).body.status,

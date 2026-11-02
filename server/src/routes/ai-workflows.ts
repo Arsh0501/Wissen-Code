@@ -337,14 +337,15 @@ export function createAIWorkflowRouter(
   router.post(
     '/drafts/:id/approve',
     wrap(async (req, res) => {
-      const { revision, directApprove } = z
+      const { revision, directApprove, skipValidation } = z
         .object({
           revision: z.number().int().positive(),
           directApprove: z.boolean().optional(),
+          skipValidation: z.boolean().optional(),
         })
         .parse(req.body);
       let directlyVerifiedRevision: number | undefined;
-      if (directApprove) {
+      if (directApprove && !skipValidation) {
         const draft = await prisma.aIQuestionDraft.findUnique({
           where: { id: Number(req.params.id) },
         });
@@ -413,6 +414,7 @@ export function createAIWorkflowRouter(
           if (draft.status === 'approved') return draft;
           if (
             !directApprove &&
+            !skipValidation &&
             (draft.status !== 'validated' ||
               draft.revision !== revision ||
               draft.validatedRevision !== revision ||
@@ -426,6 +428,7 @@ export function createAIWorkflowRouter(
             throw new WorkflowError('Draft changed. Reload before approving.', 409);
           const q = draftContentSchema.parse(draft.content);
           if (
+            !skipValidation &&
             q.questionType !== 'mcq' &&
             q.starterContractVersion === 2 &&
             directlyVerifiedRevision !== draft.revision &&

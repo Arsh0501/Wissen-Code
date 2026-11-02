@@ -1,3 +1,4 @@
+import ResizeHandle from '../../components/ui/ResizeHandle';
 import AnswerInput from '../../components/questions/AnswerInput';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -236,6 +237,10 @@ export default function AssessmentView() {
   const [submitting, setSubmitting] = useState(false);
   const [activeOutputTab, setActiveOutputTab] = useState<'output' | 'input'>('output');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const codingPanelsRef = useRef<HTMLDivElement>(null);
+  const [questionWidth, setQuestionWidth] = useState(42);
+  const [editorHeight, setEditorHeight] = useState(60);
   const [showOverview, setShowOverview] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [startError, setStartError] = useState('');
@@ -1504,12 +1509,14 @@ export default function AssessmentView() {
       </nav>
 
       {/* MAIN CONTENT (SPLIT PANEL) */}
-      <div className="exam-workspace flex-1 flex overflow-hidden relative">
+      <div
+        ref={workspaceRef}
+        className="exam-workspace flex-1 min-h-0 flex overflow-hidden relative"
+      >
         {/* LEFT PANEL: Question */}
         <div
-          className={`exam-question flex flex-col border-r border-surface-800 overflow-hidden transition-all duration-300 ${
-            isFullscreen ? 'w-0 min-w-0' : 'w-[42%] min-w-[350px]'
-          }`}
+          className={`exam-question flex-none min-w-0 flex flex-col overflow-hidden ${isFullscreen ? 'w-0' : ''}`}
+          style={{ width: isFullscreen ? 0 : `${questionWidth}%` }}
         >
           <div className="flex-1 overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1596,6 +1603,19 @@ export default function AssessmentView() {
           </div>
         </div>
 
+        {!isFullscreen && (
+          <ResizeHandle
+            containerRef={workspaceRef}
+            orientation="vertical"
+            label="Resize question and answer panels"
+            value={questionWidth}
+            onChange={setQuestionWidth}
+            min={25}
+            max={70}
+            className="exam-question-divider"
+          />
+        )}
+
         {/* RIGHT PANEL: Code Editor */}
         {currentQuestion &&
         currentState &&
@@ -1645,106 +1665,117 @@ export default function AssessmentView() {
                 </div>
               </div>
 
-              <div className="flex-1 min-h-0">
-                <Editor
-                  loading={
-                    <p role="status" className="p-5">
-                      Loading code editor…
-                    </p>
-                  }
-                  height="100%"
-                  language={currentState.monacoLang}
-                  value={currentState.code}
-                  onChange={(value) => {
-                    if (currentQuestion) {
-                      updateState(currentQuestion.id, { code: value || '' });
+              <div ref={codingPanelsRef} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div className="min-h-0 overflow-hidden" style={{ flex: `0 1 ${editorHeight}%` }}>
+                  <Editor
+                    loading={
+                      <p role="status" className="p-5">
+                        Loading code editor…
+                      </p>
                     }
-                  }}
-                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
-                  onMount={(editor) => {
-                    // Record every paste (size only, never the content) for the proctoring report
-                    editor.onDidPaste(({ range }) => {
-                      const text = editor.getModel()?.getValueInRange(range) ?? '';
-                      const sid = sessionIdRef.current;
-                      const questionId = currentQuestionIdRef.current;
-                      if (!text || !sid || !questionId || hasSubmittedRef.current) return;
-                      recordPaste(sid, {
-                        questionId,
-                        charCount: text.length,
-                        lineCount: text.split('\n').length,
-                      }).catch((err) => console.error('Failed to record paste:', err));
-                    });
-                  }}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    lineNumbers: 'on',
-                    scrollBeyondLastLine: false,
-                    wordWrap: 'on',
-                    automaticLayout: true,
-                    padding: { top: 12, bottom: 12 },
-                    renderLineHighlight: 'gutter',
-                    folding: true,
-                    tabSize: 4,
-                  }}
+                    height="100%"
+                    language={currentState.monacoLang}
+                    value={currentState.code}
+                    onChange={(value) => {
+                      if (currentQuestion) {
+                        updateState(currentQuestion.id, { code: value || '' });
+                      }
+                    }}
+                    theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                    onMount={(editor) => {
+                      // Record every paste (size only, never the content) for the proctoring report
+                      editor.onDidPaste(({ range }) => {
+                        const text = editor.getModel()?.getValueInRange(range) ?? '';
+                        const sid = sessionIdRef.current;
+                        const questionId = currentQuestionIdRef.current;
+                        if (!text || !sid || !questionId || hasSubmittedRef.current) return;
+                        recordPaste(sid, {
+                          questionId,
+                          charCount: text.length,
+                          lineCount: text.split('\n').length,
+                        }).catch((err) => console.error('Failed to record paste:', err));
+                      });
+                    }}
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 14,
+                      lineNumbers: 'on',
+                      scrollBeyondLastLine: false,
+                      wordWrap: 'on',
+                      automaticLayout: true,
+                      padding: { top: 12, bottom: 12 },
+                      renderLineHighlight: 'gutter',
+                      folding: true,
+                      tabSize: 4,
+                    }}
+                  />
+                </div>
+
+                <ResizeHandle
+                  containerRef={codingPanelsRef}
+                  orientation="horizontal"
+                  label="Resize code editor and test output"
+                  value={editorHeight}
+                  onChange={setEditorHeight}
+                  min={20}
+                  max={75}
                 />
-              </div>
+                {/* Output tabs */}
+                <div className="flex-1 min-h-[132px] flex flex-col overflow-hidden">
+                  <div className="flex-none flex items-center gap-0 px-4 bg-surface-900/50">
+                    <button
+                      onClick={() => setActiveOutputTab('input')}
+                      className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                        activeOutputTab === 'input' ? 'tab-active' : 'tab-inactive'
+                      }`}
+                    >
+                      Enter Custom input
+                    </button>
+                    <button
+                      onClick={() => setActiveOutputTab('output')}
+                      className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                        activeOutputTab === 'output' ? 'tab-active' : 'tab-inactive'
+                      }`}
+                    >
+                      Output
+                    </button>
+                  </div>
 
-              {/* Output tabs */}
-              <div className="flex-none border-t border-surface-800">
-                <div className="flex items-center gap-0 px-4 bg-surface-900/50">
-                  <button
-                    onClick={() => setActiveOutputTab('input')}
-                    className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                      activeOutputTab === 'input' ? 'tab-active' : 'tab-inactive'
-                    }`}
-                  >
-                    Enter Custom input
-                  </button>
-                  <button
-                    onClick={() => setActiveOutputTab('output')}
-                    className={`px-4 py-2.5 text-sm font-medium transition-colors ${
-                      activeOutputTab === 'output' ? 'tab-active' : 'tab-inactive'
-                    }`}
-                  >
-                    Output
-                  </button>
-                </div>
+                  <div className="flex-1 min-h-0 overflow-auto">
+                    {activeOutputTab === 'input' ? (
+                      <textarea
+                        className="w-full h-full bg-surface-950 p-3 font-mono text-sm text-surface-200 resize-none focus:outline-none border-none"
+                        placeholder={
+                          "Enter custom input here (stdin)...\n\nWhen you click 'Run code' with this tab active and input provided, your code will run against this custom input instead of the sample test cases."
+                        }
+                        value={currentState.customInput}
+                        onChange={(e) =>
+                          updateState(currentQuestion.id, {
+                            customInput: e.target.value,
+                          })
+                        }
+                      />
+                    ) : (
+                      <div className="output-panel h-full rounded-none border-0">
+                        {renderOutputContent()}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="h-[200px] overflow-auto">
-                  {activeOutputTab === 'input' ? (
-                    <textarea
-                      className="w-full h-full bg-surface-950 p-3 font-mono text-sm text-surface-200 resize-none focus:outline-none border-none"
-                      placeholder={
-                        "Enter custom input here (stdin)...\n\nWhen you click 'Run code' with this tab active and input provided, your code will run against this custom input instead of the sample test cases."
-                      }
-                      value={currentState.customInput}
-                      onChange={(e) =>
-                        updateState(currentQuestion.id, {
-                          customInput: e.target.value,
-                        })
-                      }
-                    />
-                  ) : (
-                    <div className="output-panel h-full rounded-none border-0">
-                      {renderOutputContent()}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between px-4 py-3 border-t border-surface-800 bg-surface-900/50">
-                  <button onClick={handleRunCode} disabled={running} className="btn-outline">
-                    <Play className="w-4 h-4" />
-                    {running
-                      ? 'Running...'
-                      : activeOutputTab === 'input' && currentState.customInput.trim()
-                        ? 'Run with Custom Input'
-                        : 'Run code'}
-                  </button>
-                  <button onClick={handleConfirm} className="btn-success">
-                    <Check className="w-4 h-4" />
-                    Confirm
-                  </button>
+                  <div className="flex-none flex items-center justify-between px-4 py-3 border-t border-surface-800 bg-surface-900/50">
+                    <button onClick={handleRunCode} disabled={running} className="btn-outline">
+                      <Play className="w-4 h-4" />
+                      {running
+                        ? 'Running...'
+                        : activeOutputTab === 'input' && currentState.customInput.trim()
+                          ? 'Run with Custom Input'
+                          : 'Run code'}
+                    </button>
+                    <button onClick={handleConfirm} className="btn-success">
+                      <Check className="w-4 h-4" />
+                      Confirm
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

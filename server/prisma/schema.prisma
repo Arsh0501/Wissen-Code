@@ -21,6 +21,7 @@ model User {
 
   inviteRedemptions InviteRedemption[]
   sessions          UserSession[]
+  guestParticipations GuestAssessmentParticipation[]
   interviewedInterviews Interview[] @relation("InterviewerInterviews")
   candidateInterviews   Interview[] @relation("CandidateInterviews")
   interviewNotes        InterviewNote[]
@@ -29,6 +30,7 @@ model User {
 
 model UserSession {
   id           Int      @id @default(autoincrement())
+  guestAssessmentId Int?
   userId       Int
   refreshToken String   @unique
   expiresAt    DateTime
@@ -111,6 +113,7 @@ model Assessment {
   questions        AssessmentQuestion[]
   submissions      Submission[]
   sessions         AssessmentSession[]
+  guestParticipations GuestAssessmentParticipation[]
   inviteLinks      InviteLink[]
 }
 
@@ -550,4 +553,27 @@ model OIDCIdentity {
   subject String
   userId Int
   @@unique([issuer, subject])
+}
+
+// One admission per guest email (User.email is unique) and assessment, across all invite links.
+model GuestAssessmentParticipation {
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  id Int @id @default(autoincrement())
+  userId Int
+  assessmentId Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, assessmentId])
+}
+
+// Keep revocation history even when the affected account is later deleted.
+model SessionRevocationAudit {
+  id Int @id @default(autoincrement())
+  actorUserId Int
+  targetUserId Int
+  revokedSessions Int
+  createdAt DateTime @default(now())
+
+  @@index([targetUserId, createdAt])
 }

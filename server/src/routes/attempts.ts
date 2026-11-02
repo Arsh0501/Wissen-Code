@@ -65,6 +65,8 @@ export function availabilityError(a: {
 router.get('/status/:assessmentId', async (req: Request, res: Response) => {
   try {
     const assessmentId = parseInt(req.params.assessmentId);
+    if (!(await canAccessAssessment(req, assessmentId)))
+      return res.status(403).json({ error: 'Assessment access denied' });
     const candidateName = req.user?.name || 'Anonymous';
 
     const session = await prisma.assessmentSession.findFirst({
@@ -162,6 +164,10 @@ async function getWritableSession(req: Request, res: Response) {
       : session.candidateName !== req.user?.name
   ) {
     res.status(403).json({ error: 'This session belongs to another candidate' });
+    return null;
+  }
+  if (!(await canAccessAssessment(req, session.assessmentId))) {
+    res.status(403).json({ error: 'Assessment access denied' });
     return null;
   }
   if (session.finishedAt) {

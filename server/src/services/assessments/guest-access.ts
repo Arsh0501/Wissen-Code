@@ -45,5 +45,8 @@ export async function canAccessAssessment(req: Request, assessmentId: number): P
     );
   }
   const ids = await guestAssessmentIds(req.user.id);
-  return ids.includes(assessmentId);
+  return (
+    (req.user.guestAssessmentId === undefined || req.user.guestAssessmentId === assessmentId) &&
+    ids.includes(assessmentId)
+  );
 }

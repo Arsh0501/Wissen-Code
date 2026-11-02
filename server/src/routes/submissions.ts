@@ -1,5 +1,6 @@
 import { asynchronousGrading, gradingQueue } from '../platform/jobs/grading-jobs';
 import prisma from '../database/prisma';
+import { canAccessAssessment } from '../services/assessments/guest-access';
 import { Router, Request, Response } from 'express';
 import { computeEvaluation } from '../services/assessments/grading';
 
@@ -16,6 +17,8 @@ router.post('/', (_req, res) =>
 router.get('/:assessmentId/:candidateName', async (req: Request, res: Response) => {
   try {
     const assessmentId = parseInt(req.params.assessmentId);
+    if (!(await canAccessAssessment(req, assessmentId)))
+      return res.status(403).json({ error: 'Assessment access denied' });
     const candidateName = req.params.candidateName;
     const role = req.user?.role;
 

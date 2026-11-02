@@ -1,3 +1,4 @@
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import RoomTools from '../../components/interview/RoomTools';
 import { useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
@@ -45,6 +46,7 @@ interface Interview extends InterviewSummary {
 }
 export default function InterviewWorkspace() {
   const { role } = useAuth();
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const [viewingResume, setViewingResume] = useState(false);
   const [openFinalFeedback, setOpenFinalFeedback] = useState(false);
@@ -209,6 +211,20 @@ export default function InterviewWorkspace() {
       ) : (
         i && (
           <>
+            {confirmEnd && (
+              <ConfirmDialog
+                title="End this interview?"
+                description="This ends the live interview for both participants. You can complete the final feedback afterward."
+                confirmLabel="End interview"
+                cancelLabel="Keep interviewing"
+                onCancel={() => setConfirmEnd(false)}
+                onConfirm={() => {
+                  setConfirmEnd(false);
+                  if (!action.isPending && i.status === 'in_progress')
+                    action.mutate({ operation: 'end' });
+                }}
+              />
+            )}
             {preparing && (
               <QuestionPreparation interviewId={id} onClose={() => setPreparing(false)} />
             )}
@@ -244,7 +260,7 @@ export default function InterviewWorkspace() {
               <button
                 className="btn-outline"
                 disabled={action.isPending || i.status !== 'in_progress'}
-                onClick={() => action.mutate({ operation: 'end' })}
+                onClick={() => setConfirmEnd(true)}
               >
                 End interview
               </button>
