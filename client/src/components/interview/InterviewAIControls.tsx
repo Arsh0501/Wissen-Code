@@ -51,7 +51,7 @@ export default function InterviewAIControls({
   const pending = query.data?.jobs.some((j) => ['queued', 'running'].includes(j.status));
   return (
     <div className={embedded ? 'space-y-3' : 'card space-y-3'}>
-      <h4 className="font-semibold">Generate AI assistance</h4>
+      <h4 className="interview-panel-title interview-panel-title-small">Generate AI assistance</h4>
       {status === 'completed' && (
         <p className="text-xs text-surface-500">
           The final report summarizes finalized Evaluation by skill ratings and feedback. Finalize

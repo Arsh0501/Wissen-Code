@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Question } from '../../types';
 import { parseJsonArray } from '../ui';
 
@@ -25,12 +25,14 @@ export default function QuestionPicker({
   onChange,
   onPreview,
   scrollable = true,
+  selectionActions,
 }: {
   questions: Question[];
   selectedIds: number[];
   onChange: (ids: number[]) => void;
   onPreview?: (question: Question) => void;
   scrollable?: boolean;
+  selectionActions?: ReactNode;
 }) {
   const [search, setSearch] = useState('');
   const [difficulty, setDifficulty] = useState('');
@@ -125,6 +127,7 @@ export default function QuestionPicker({
         >
           Clear selection
         </button>
+        {selectionActions && <div className="ml-auto">{selectionActions}</div>}
       </div>
       {!questions.length ? (
         <p className="card text-surface-500">No questions are available in the bank.</p>

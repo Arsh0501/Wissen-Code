@@ -45,7 +45,7 @@ export default function LiveInterviewEvents({
   }, [id, socket, client]);
   return (
     <section className="space-y-3" aria-label="Live interview events">
-      <h3 className="font-semibold">Live events</h3>
+      <h3 className="interview-panel-title">Live events</h3>
       <p className="text-xs text-surface-500">
         Latest activity first. Saved events refresh automatically if a live update is missed.
       </p>

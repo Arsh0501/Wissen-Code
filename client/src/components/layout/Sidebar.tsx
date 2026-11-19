@@ -50,9 +50,6 @@ export default function Sidebar() {
           </small>
         </span>
       </Link>
-      <p className="workspace-sidebar-footer">
-        A little more human. <span aria-hidden="true">✳</span>
-      </p>
     </aside>
   );
 }

@@ -1,3 +1,5 @@
+import DateSortControl from '../../components/ui/DateSortControl';
+import { sortByCreatedAt, type DateSortOrder } from '../../services/listSort';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -16,6 +18,7 @@ import InterviewNavigation from '../../components/interview/InterviewNavigation'
 import InterviewFeedbackReportDownload from '../../components/interview/InterviewFeedbackReportDownload';
 
 export interface InterviewSummary {
+  createdAt?: string;
   id: number;
   title: string;
   candidateName: string;
@@ -79,6 +82,7 @@ export default function InterviewsPage() {
 
   // Filter state
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<DateSortOrder>('newest');
   const [status, setStatus] = useState('');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidateAssessment, setCandidateAssessment] = useState('');
@@ -133,12 +137,15 @@ export default function InterviewsPage() {
     ).values(),
   ].filter((c) => `${c.name} ${c.email}`.toLowerCase().includes(candidateSearch.toLowerCase()));
 
-  const visible = (list.data ?? []).filter(
-    (i) =>
-      (!status || i.status === status) &&
-      `${i.title} ${i.candidateName} ${i.candidateEmail} ${i.interviewer?.name || ''}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+  const visible = sortByCreatedAt(
+    (list.data ?? []).filter(
+      (i) =>
+        (!status || i.status === status) &&
+        `${i.title} ${i.candidateName} ${i.candidateEmail} ${i.interviewer?.name || ''}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+    ),
+    sortOrder,
   );
 
   const create = useMutation({
@@ -732,6 +739,7 @@ export default function InterviewsPage() {
           <option value="expired">Ended — not started</option>
           <option value="cancelled">Cancelled</option>
         </select>
+        <DateSortControl label="Sort interviews" value={sortOrder} onChange={setSortOrder} />
         {(status || search) && (
           <button
             className="btn-outline text-xs"

@@ -10,7 +10,7 @@ import { apiData, Evaluation } from '../../services/workflows';
 import { apiError } from '../../services/api';
 import { Question } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Code2, Video, Sparkles, NotebookPen, Activity, Clock3 } from 'lucide-react';
 import {
   getStarterCodeForLanguage,
   getAvailableQuestionLanguages,
@@ -23,11 +23,11 @@ import CurrentQuestionSources from './CurrentQuestionSources';
 import { TranscriptionControlsContext } from './TranscriptionControlsContext';
 type LiveRoomSection = 'question' | 'communication' | 'ai' | 'notes' | 'activity';
 const LIVE_ROOM_SECTIONS = [
-  { id: 'question', label: 'Question & code' },
-  { id: 'communication', label: 'Video, chat & board' },
-  { id: 'ai', label: 'AI assistance' },
-  { id: 'notes', label: 'Private notes' },
-  { id: 'activity', label: 'Live events' },
+  { id: 'question', icon: Code2, label: 'Question & code' },
+  { id: 'communication', icon: Video, label: 'Video, chat & board' },
+  { id: 'ai', icon: Sparkles, label: 'AI assistance' },
+  { id: 'notes', icon: NotebookPen, label: 'Private notes' },
+  { id: 'activity', icon: Activity, label: 'Live events' },
 ] as const;
 export interface LiveRoomInterview {
   id: number;
@@ -204,25 +204,31 @@ export default function LiveInterviewRoom({
   return (
     <TranscriptionControlsContext.Provider value={transcriptionTarget}>
       <div className="space-y-5">
-        <div className="card flex flex-wrap justify-between gap-5 items-center">
-          <div>
-            <h2 className="text-xl font-semibold">Live Interview Room</h2>
-            <p className="text-sm text-surface-400">
-              {interview.candidateName} · {interview.candidateEmail}
-            </p>
+        <div className="card interview-room-summary flex flex-wrap justify-between gap-5 items-center">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-500/10 text-primary-600 border border-primary-500/15">
+              <Video className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-xl font-semibold tracking-tight">Live Interview Room</h2>
+              <p className="text-sm text-surface-400 mt-1 break-words">
+                {interview.candidateName} · {interview.candidateEmail}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span
               role="status"
-              className={`badge ${live.connection === 'connected' ? 'text-emerald-700' : 'text-amber-700'}`}
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold capitalize ${live.connection === 'connected' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700' : 'border-amber-500/20 bg-amber-500/10 text-amber-700'}`}
             >
+              <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />
               {live.connection}
             </span>
             {status === 'in_progress' && (
               <button
                 onClick={() => extendMutation.mutate(15)}
                 disabled={extendMutation.isPending}
-                className="btn-outline text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 px-2.5 py-1 flex items-center gap-1 font-medium"
+                className="btn-outline text-xs border-primary-500/30 text-primary-600 hover:bg-primary-500/10 px-3 py-2 font-semibold"
                 title="Extend interview duration by 15 minutes"
               >
                 +15m Extend
@@ -231,8 +237,9 @@ export default function LiveInterviewRoom({
             <span
               role="timer"
               aria-label="Interview time remaining"
-              className={`font-mono text-2xl ${seconds <= 300 ? 'text-amber-700' : ''}`}
+              className={`inline-flex items-center gap-2 rounded-xl border border-surface-800 bg-surface-950 px-3 py-2 font-mono text-xl tabular-nums font-semibold ${seconds <= 300 ? 'text-amber-700' : 'text-surface-100'}`}
             >
+              <Clock3 className="h-4 w-4 text-surface-500" aria-hidden="true" />
               {Math.floor(seconds / 60)
                 .toString()
                 .padStart(2, '0')}
@@ -258,19 +265,20 @@ export default function LiveInterviewRoom({
             The planned duration has elapsed. End the interview when the discussion is complete.
           </p>
         )}
-        <nav aria-label="Live room sections" className="flex gap-2 overflow-x-auto pb-2">
+        <nav aria-label="Live room sections" className="interview-tab-bar">
           {LIVE_ROOM_SECTIONS.map((item) => (
             <button
               key={item.id}
               aria-pressed={section === item.id}
               onClick={() => setSection(item.id)}
-              className={`${section === item.id ? 'btn-primary' : 'btn-outline'} text-xs shrink-0`}
+              className="interview-tab-button text-xs"
             >
+              <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
               {item.label}
             </button>
           ))}
         </nav>
-        <div className="max-h-[70dvh] overflow-y-auto min-w-0">
+        <div className="max-h-[70dvh] overflow-y-auto min-w-0 pr-1 pb-1">
           <div hidden={section !== 'communication'}>
             {communication ?? <p className="card">Communication tools are unavailable.</p>}
           </div>
@@ -282,8 +290,11 @@ export default function LiveInterviewRoom({
               className={`grid ${nonCoding ? '' : 'xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]'} gap-5 min-w-0`}
             >
               <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
-                <label className="label">
-                  Current question
+                <label className="label font-semibold text-surface-200">
+                  <span className="inline-flex items-center gap-2 text-base font-bold tracking-tight mb-1">
+                    <Code2 className="h-4 w-4 text-primary-600" aria-hidden="true" />
+                    Current question
+                  </span>
                   <select
                     className="input mt-2"
                     value={activeId ?? ''}
@@ -307,10 +318,14 @@ export default function LiveInterviewRoom({
                 />
                 {question ? (
                   <>
-                    <h3 className="font-semibold [overflow-wrap:anywhere]">{question.title}</h3>
-                    <ExpandableQuestionContent key={question.id}>
-                      <QuestionDescription question={question} />
-                    </ExpandableQuestionContent>
+                    <h3 className="interview-question-title [overflow-wrap:anywhere]">
+                      {question.title}
+                    </h3>
+                    <div className="interview-question-body">
+                      <ExpandableQuestionContent key={question.id}>
+                        <QuestionDescription question={question} />
+                      </ExpandableQuestionContent>
+                    </div>
                   </>
                 ) : (
                   <p className="text-surface-500">No active question selected.</p>
@@ -437,8 +452,13 @@ export default function LiveInterviewRoom({
           </div>
           <div hidden={section !== 'notes'}>
             <section className="card space-y-4">
-              <h3 className="font-semibold">Interviewer notes</h3>
-              <label className="label">
+              <div>
+                <h3 className="interview-panel-title">Interviewer notes</h3>
+                <p className="interview-panel-subtitle">
+                  Capture your observations and supporting evidence privately.
+                </p>
+              </div>
+              <label className="label font-medium text-surface-300">
                 Private notes
                 <textarea
                   rows={5}
@@ -469,14 +489,14 @@ export default function LiveInterviewRoom({
                 {interview.notes.map((n) => (
                   <li
                     key={n.id}
-                    className="p-3 rounded bg-surface-800/40 text-sm whitespace-pre-wrap"
+                    className="rounded-xl border border-surface-800 bg-surface-950 p-4 text-sm leading-relaxed whitespace-pre-wrap"
                   >
                     {n.content}
                   </li>
                 ))}
               </ul>
               {!interview.notes.length && (
-                <p className="text-sm text-surface-500">No saved notes yet.</p>
+                <p className="interview-empty-state">No saved notes yet.</p>
               )}
             </section>
           </div>

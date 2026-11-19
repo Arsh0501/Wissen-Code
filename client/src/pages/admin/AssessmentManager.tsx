@@ -1,3 +1,5 @@
+import DateSortControl from '../../components/ui/DateSortControl';
+import { sortByCreatedAt, type DateSortOrder } from '../../services/listSort';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AdminLayout from '../../components/layout/AdminLayout';
@@ -65,6 +67,7 @@ export default function AssessmentManager() {
   const [error, setError] = useState('');
   const [filter, setFilter] = useState<'all' | Availability>('all');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<DateSortOrder>('newest');
   const [menuFor, setMenuFor] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
@@ -117,10 +120,13 @@ export default function AssessmentManager() {
         : assessments.filter((a) => a.availability === f.key).length,
     ]),
   );
-  const visible = assessments.filter(
-    (a) =>
-      (filter === 'all' || a.availability === filter) &&
-      a.name.toLowerCase().includes(search.toLowerCase()),
+  const visible = sortByCreatedAt(
+    assessments.filter(
+      (a) =>
+        (filter === 'all' || a.availability === filter) &&
+        a.name.toLowerCase().includes(search.toLowerCase()),
+    ),
+    sortOrder,
   );
 
   return (
@@ -156,6 +162,7 @@ export default function AssessmentManager() {
             </button>
           ))}
         </div>
+        <DateSortControl label="Sort assessments" value={sortOrder} onChange={setSortOrder} />
         <div className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
           <input

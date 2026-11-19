@@ -143,17 +143,16 @@ export default function InterviewWorkspace() {
               </dl>
               {(i.candidateResume || i.candidateResumeUrl) && (
                 <section className="card">
-                  <h2 className="font-semibold">Candidate resume</h2>
+                  <h2 className="interview-section-heading">Candidate resume</h2>
                   <ResumeViewer interview={i} />
                 </section>
               )}
               <section className="card space-y-3">
-                <h2 className="font-semibold">Interview questions</h2>
+                <h2 className="interview-section-heading">Interview questions</h2>
                 {i.questions.length ? (
                   i.questions.map(({ question }) => (
                     <div key={question.id}>
                       <h3 className="font-medium">{question.title}</h3>
-                      <ReactMarkdown>{question.statement}</ReactMarkdown>
                     </div>
                   ))
                 ) : (
@@ -162,7 +161,7 @@ export default function InterviewWorkspace() {
               </section>
               {i.finalFeedback && (
                 <section className="card">
-                  <h2 className="font-semibold">Final feedback</h2>
+                  <h2 className="interview-section-heading">Final feedback</h2>
                   <p className="whitespace-pre-wrap">{i.finalFeedback}</p>
                 </section>
               )}
@@ -173,7 +172,7 @@ export default function InterviewWorkspace() {
               />
               {!!i.feedbackCriteria?.length && (
                 <section className="card space-y-3">
-                  <h2 className="font-semibold">Interview feedback criteria</h2>
+                  <h2 className="interview-section-heading">Interview feedback criteria</h2>
                   {i.feedbackCriteria.map((criterion) => (
                     <div key={criterion.key}>
                       <h3 className="font-medium">
@@ -287,10 +286,11 @@ export default function InterviewWorkspace() {
                 />
               </div>
             )}
-            <div className="flex gap-3 mb-5 overflow-x-auto">
+            <nav aria-label="Interview workspace sections" className="interview-tab-bar mb-5">
               {['live', 'ai', 'evaluation', 'feedback'].map((t) => (
                 <button
-                  className={`${tab === t ? 'btn-primary' : 'btn-outline'} shrink-0`}
+                  className="interview-tab-button"
+                  aria-pressed={tab === t}
                   key={t}
                   onClick={() => setTab(t)}
                 >
@@ -303,7 +303,7 @@ export default function InterviewWorkspace() {
                         : 'Questions and evaluation'}
                 </button>
               ))}
-            </div>
+            </nav>
             <div hidden={tab !== 'feedback'}>
               <InterviewFeedback key={id} interview={i} openFinal={openFinalFeedback} />
             </div>

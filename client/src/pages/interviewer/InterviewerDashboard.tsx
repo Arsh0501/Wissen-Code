@@ -1,3 +1,5 @@
+import DateSortControl from '../../components/ui/DateSortControl';
+import { sortByCreatedAt, type DateSortOrder } from '../../services/listSort';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
@@ -24,6 +26,7 @@ import QuestionPreparation from '../../components/interview/QuestionPreparation'
 import InterviewFeedbackReportDownload from '../../components/interview/InterviewFeedbackReportDownload';
 
 export interface AssignedInterview {
+  createdAt?: string;
   id: number;
   title: string;
   description?: string;
@@ -71,6 +74,7 @@ export default function InterviewerDashboard() {
   // Selected tab: all | live | upcoming | completed
   const [tab, setTab] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<DateSortOrder>('newest');
 
   // Modals state
   const [selectedInterview, setSelectedInterview] = useState<AssignedInterview | null>(null);
@@ -143,18 +147,21 @@ export default function InterviewerDashboard() {
   const upcomingInterviews = interviews.filter((i) => i.status === 'scheduled');
   const completedInterviews = interviews.filter((i) => i.status === 'completed');
 
-  const visibleInterviews = interviews
-    .filter((i) => {
-      if (tab === 'live') return i.status === 'in_progress';
-      if (tab === 'upcoming') return i.status === 'scheduled';
-      if (tab === 'completed') return i.status === 'completed';
-      return true;
-    })
-    .filter((i) =>
-      `${i.title} ${i.candidateName} ${i.candidateEmail}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
-    );
+  const visibleInterviews = sortByCreatedAt(
+    interviews
+      .filter((i) => {
+        if (tab === 'live') return i.status === 'in_progress';
+        if (tab === 'upcoming') return i.status === 'scheduled';
+        if (tab === 'completed') return i.status === 'completed';
+        return true;
+      })
+      .filter((i) =>
+        `${i.title} ${i.candidateName} ${i.candidateEmail}`
+          .toLowerCase()
+          .includes(search.toLowerCase()),
+      ),
+    sortOrder,
+  );
 
   return (
     <div className="space-y-6">
@@ -273,13 +280,18 @@ export default function InterviewerDashboard() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 items-center justify-between">
         <input
           type="search"
           placeholder="Filter by candidate or title…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="input w-full sm:max-w-md"
+        />
+        <DateSortControl
+          label="Sort assigned interviews"
+          value={sortOrder}
+          onChange={setSortOrder}
         />
         <div className="flex gap-2 self-start sm:self-auto">
           {(['all', 'live', 'upcoming', 'completed'] as const).map((t) => (
@@ -508,9 +520,9 @@ export default function InterviewerDashboard() {
                         setSelectedInterview(interview);
                         setShowQuestionsModal(true);
                       }}
-                      className="btn-outline text-xs px-3 py-2 flex items-center gap-1.5 border-purple-500/30 text-purple-300 hover:bg-purple-950/30"
+                      className="btn-outline text-sm font-semibold px-3 py-2 flex items-center gap-1.5 border-primary-500/50 text-primary-700 bg-primary-500/10 hover:bg-primary-500/20 disabled:opacity-50"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                      <Sparkles className="w-4 h-4" />
                       Select questions
                     </button>
 

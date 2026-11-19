@@ -252,24 +252,27 @@ export default function RoomTools({
   };
   return (
     <section className="card mt-5 space-y-4">
+      <div>
+        <h3 className="interview-panel-title">Communication tools</h3>
+        <p className="interview-panel-subtitle">
+          Connect with your candidate through chat, a shared whiteboard, or video.
+        </p>
+      </div>
       {!interviewer && transcriptionActive && (
         <p role="status" className="text-sm text-amber-400">
           The interviewer is transcribing candidate audio for this interview.
         </p>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-surface-800 pb-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="interview-tab-bar max-w-full">
           {[
             { id: 'chat', label: 'Chat', icon: MessagesSquare },
             { id: 'whiteboard', label: 'Whiteboard', icon: PenTool },
             { id: 'video', label: 'Video', icon: Video },
           ].map(({ id, label, icon: Icon }) => (
             <button
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                tab === id
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-surface-800/80 hover:bg-surface-800 text-surface-300'
-              }`}
+              className="interview-tab-button"
+              aria-pressed={tab === id}
               key={id}
               onClick={() => setTab(id)}
             >

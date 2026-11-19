@@ -102,7 +102,9 @@ export default function InterviewFeedbackReportDownload({
       aria-label="Interview feedback PDF report"
       className="rounded-xl border border-surface-700 p-4 space-y-3"
     >
-      <h3 className="font-semibold">Interview report PDF</h3>
+      <h3 className="interview-section-heading interview-section-heading-small">
+        Interview report PDF
+      </h3>
       <p className="text-sm text-surface-400">
         Includes main questions, asked follow-ups and their transcript answers, feedback for each
         question, submitted code, and final interview feedback.

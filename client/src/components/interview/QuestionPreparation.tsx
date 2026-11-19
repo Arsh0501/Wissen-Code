@@ -227,6 +227,17 @@ export default function QuestionPreparation({
                         onChange={setSelection}
                         onPreview={setPreview}
                         scrollable={false}
+                        selectionActions={
+                          <button
+                            className="btn-primary"
+                            disabled={!selection.length}
+                            onClick={() => add.mutate(selection)}
+                          >
+                            {add.isPending
+                              ? 'Adding…'
+                              : `Add selected questions (${selection.length})`}
+                          </button>
+                        }
                       />
                       {preview && (
                         <div className="border border-surface-700 rounded p-3">
@@ -235,13 +246,6 @@ export default function QuestionPreparation({
                           <button onClick={() => setPreview(null)}>Close preview</button>
                         </div>
                       )}
-                      <button
-                        className="btn-primary"
-                        disabled={!selection.length}
-                        onClick={() => add.mutate(selection)}
-                      >
-                        {add.isPending ? 'Adding…' : `Add selected questions (${selection.length})`}
-                      </button>
                     </fieldset>
                   )}
                   {add.error && <p role="alert">{apiError(add.error)}</p>}

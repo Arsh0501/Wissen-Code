@@ -183,13 +183,13 @@ export default function InterviewAIConversation({
       evaluation.areasToProbe.length);
   return (
     <section
-      className="min-w-0 overflow-hidden rounded-xl border border-surface-800 bg-surface-950"
+      className="min-w-0 overflow-hidden rounded-2xl border border-surface-800 bg-surface-900 shadow-sm"
       aria-label="Interview AI conversation"
     >
-      <header className="flex items-center justify-between gap-3 border-b border-surface-800 p-4">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-800 p-5">
         <div>
-          <h3 className="font-semibold">Interview AI</h3>
-          <p className="text-xs text-surface-500">
+          <h3 className="interview-panel-title">Interview AI</h3>
+          <p className="interview-panel-subtitle">
             Suggestions and notes linked to interview activity
           </p>
         </div>
@@ -209,10 +209,10 @@ export default function InterviewAIConversation({
         onScroll={() => {
           if (feed.current) atTop.current = feed.current.scrollTop < 50;
         }}
-        className={`overflow-y-auto overscroll-contain p-4 space-y-5 min-h-48 ${expanded ? 'h-[75dvh]' : 'max-h-[28rem]'}`}
+        className={`overflow-y-auto overscroll-contain p-5 space-y-5 min-h-36 ${expanded ? 'h-[75dvh]' : 'max-h-[28rem]'}`}
       >
         {!messages.length && !hasEvaluation && (
-          <p className="text-sm text-surface-500">
+          <p className="interview-empty-state">
             AI suggestions and notes will appear here after interview activity. Expand a message to
             see its details and evidence.
           </p>
@@ -247,7 +247,7 @@ export default function InterviewAIConversation({
         )}
       </div>
       {(controls || error) && (
-        <div className="border-t border-surface-800 p-4 space-y-2">
+        <div className="border-t border-surface-800 bg-surface-950/60 p-5 space-y-3">
           {error && (
             <p role="alert" className="text-sm text-red-500">
               {error}
