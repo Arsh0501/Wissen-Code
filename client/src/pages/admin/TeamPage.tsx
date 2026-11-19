@@ -26,17 +26,6 @@ export default function TeamPage() {
     queryFn: () => apiData<Member[]>(`/users?search=${encodeURIComponent(search)}`),
     enabled: owner,
   });
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState('interviewer');
-  const invite = useMutation({
-    mutationFn: () => apiData('/users/invite', 'post', { name, email, role }),
-    onSuccess: () => {
-      setName('');
-      setEmail('');
-      return client.invalidateQueries({ queryKey: ['team-users'] });
-    },
-  });
   const update = useMutation({
     mutationFn: ({ id, role }: { id: number; role: string }) =>
       apiData(`/users/${id}/role`, 'put', { role }),
@@ -59,57 +48,6 @@ export default function TeamPage() {
         <p className="card">Only an administrator can manage team access.</p>
       ) : (
         <div className="space-y-5">
-          <section className="card space-y-4">
-            <h2 className="font-semibold">Invite a team member</h2>
-            <p className="text-sm text-surface-500">
-              Administrators manage team access, assessments, and candidate operations. Interviewers
-              work with their assigned interviews. Role changes revoke existing login sessions.
-            </p>
-            <form
-              className="grid sm:grid-cols-2 gap-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                invite.mutate();
-              }}
-            >
-              <label className="label">
-                Name
-                <input
-                  required
-                  className="input mt-2"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
-              <label className="label">
-                Email
-                <input
-                  required
-                  type="email"
-                  className="input mt-2"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </label>
-              <label className="label">
-                Role
-                <select
-                  className="input mt-2"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                >
-                  {['interviewer', 'admin'].map((v) => (
-                    <option key={v}>{v}</option>
-                  ))}
-                </select>
-              </label>
-              <button className="btn-primary self-end" disabled={invite.isPending}>
-                Send invitation
-              </button>
-            </form>
-            {invite.isSuccess && <p role="status">Team invitation queued. Check email delivery.</p>}
-            {invite.error && <p role="alert">{apiError(invite.error)}</p>}
-          </section>
           <section className="card overflow-auto">
             <h2 className="font-semibold mb-4">Accounts</h2>
             <input

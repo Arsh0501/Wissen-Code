@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import api from '../../services/api';
 import ResumeViewer from './ResumeViewer';
 
-it('loads the protected PDF and offers preview and download, then releases the blob URL', async () => {
+it('previews the protected PDF without a separate download link, then releases the blob URL', async () => {
   const createObjectURL = vi.fn(() => 'blob:test-resume');
   const revokeObjectURL = vi.fn();
   vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
@@ -17,10 +17,7 @@ it('loads the protected PDF and offers preview and download, then releases the b
       'src',
       'blob:test-resume#view=FitH&navpanes=0',
     );
-    expect(screen.getByRole('link', { name: 'Download PDF resume' })).toHaveAttribute(
-      'download',
-      'candidate-resume-8.pdf',
-    );
+    expect(screen.queryByRole('link', { name: 'Download PDF resume' })).not.toBeInTheDocument();
     expect(api.get).toHaveBeenCalledWith('/interviews/8/resume', { responseType: 'blob' });
     unmount();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:test-resume');

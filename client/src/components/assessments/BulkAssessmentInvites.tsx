@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiData } from '../../services/workflows';
 import { apiError } from '../../services/api';
@@ -102,8 +103,11 @@ export default function BulkAssessmentInvites({
     },
   });
   const frozen = submitted || send.isPending;
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-3">
+  return createPortal(
+    <div
+      data-bulk-invite-modal
+      className="fixed inset-0 z-[80] bg-black/70 flex items-center justify-center p-3"
+    >
       <section
         role="dialog"
         aria-modal="true"
@@ -434,6 +438,7 @@ export default function BulkAssessmentInvites({
           </p>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

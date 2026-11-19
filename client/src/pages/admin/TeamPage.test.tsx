@@ -5,7 +5,7 @@ import api from '../../services/api';
 import { renderWithProviders, adminUser } from '../../test/test-utils';
 import TeamPage from './TeamPage';
 
-it('offers Admin and Interviewer invitations and no Recruiter role in account permissions', async () => {
+it('keeps account permissions while hiding the team invitation form', async () => {
   vi.mocked(api.request).mockResolvedValue({
     data: [
       {
@@ -18,12 +18,8 @@ it('offers Admin and Interviewer invitations and no Recruiter role in account pe
     ],
   });
   renderWithProviders(<TeamPage />, { loggedInAs: adminUser });
-  const inviteRole = screen.getByLabelText('Role');
-  expect(
-    within(inviteRole)
-      .getAllByRole('option')
-      .map((option) => option.textContent),
-  ).toEqual(['interviewer', 'admin']);
+  expect(screen.queryByText('Invite a team member')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Send invitation' })).not.toBeInTheDocument();
   const accountRole = await screen.findByLabelText('Role for Team interviewer');
   expect(screen.queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: /active sessions for/ })).not.toBeInTheDocument();
@@ -39,9 +35,6 @@ it('offers Admin and Interviewer invitations and no Recruiter role in account pe
   await userEvent.keyboard('{Escape}');
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   expect(screen.queryByRole('option', { name: /recruiter/i })).not.toBeInTheDocument();
-  expect(
-    screen.getByText(/Administrators manage team access, assessments, and candidate operations/),
-  ).toBeInTheDocument();
 });
 
 it('confirms session revocation, supports guests, and reports the result', async () => {

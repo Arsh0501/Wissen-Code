@@ -374,6 +374,12 @@
     transform: translateY(0);
   }
 }
+/* Preserve the shell layout while the invitation dialog covers its navigation. */
+body:has([data-bulk-invite-modal]) .workspace-topbar {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 main table {
   width: 100%;
   border-collapse: collapse;

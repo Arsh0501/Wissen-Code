@@ -41,24 +41,15 @@ export default function ResumeViewer({
       {error && <p role="alert">{error}</p>}
       {interview.candidateResumeUrl && !url && !error && <p role="status">Loading PDF resume…</p>}
       {url && (
-        <>
-          <a
-            href={url}
-            download={`candidate-resume-${interview.id}.pdf`}
-            className="btn-outline text-xs self-start shrink-0"
-          >
-            Download PDF resume
-          </a>
-          <iframe
-            src={`${url}#view=FitH&navpanes=0`}
-            title="Candidate resume PDF"
-            className={
-              expanded
-                ? 'w-full flex-1 min-h-0 border-0 bg-white'
-                : 'w-full h-[55vh] rounded-lg bg-white'
-            }
-          />
-        </>
+        <iframe
+          src={`${url}#view=FitH&navpanes=0`}
+          title="Candidate resume PDF"
+          className={
+            expanded
+              ? 'w-full flex-1 min-h-0 border-0 bg-white'
+              : 'w-full h-[55vh] rounded-lg bg-white'
+          }
+        />
       )}
       {interview.candidateResume && (
         <p
