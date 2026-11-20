@@ -12,6 +12,7 @@ RUN npm run build
 FROM build AS runtime
 ENV NODE_ENV=production
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+RUN chmod -R a+rX /app/prisma /app/dist
 USER node
 EXPOSE 4001
 CMD ["node", "dist/index.js"]
