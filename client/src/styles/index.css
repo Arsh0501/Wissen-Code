@@ -374,8 +374,8 @@
     transform: translateY(0);
   }
 }
-/* Preserve the shell layout while the invitation dialog covers its navigation. */
-body:has([data-bulk-invite-modal]) .workspace-topbar {
+/* Preserve the shell layout while assessment invitation dialogs cover its navigation. */
+body:has([data-bulk-invite-modal], [data-share-links-modal]) .workspace-topbar {
   visibility: hidden;
   pointer-events: none;
 }

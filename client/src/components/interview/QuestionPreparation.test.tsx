@@ -136,8 +136,8 @@ it('reviews resume drafts and adds only selected questions to the current interv
   const user = userEvent.setup();
   await user.click(await screen.findByRole('button', { name: 'Generate from resume' }));
   expect(
-    screen.getByText('Uses the resume attached to this interview automatically.'),
-  ).toBeVisible();
+    screen.queryByText('Uses the resume attached to this interview automatically.'),
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText('Resume text')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Generate questions' }));
   expect(api.request).toHaveBeenCalledWith(

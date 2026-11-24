@@ -17,7 +17,6 @@ import {
 } from '../../services/starterCodes';
 import ExecutionResults from './ExecutionResults';
 import QuestionDescription from '../questions/QuestionDescription';
-import ExpandableQuestionContent from './ExpandableQuestionContent';
 import LiveInterviewEvents from './LiveInterviewEvents';
 import CurrentQuestionSources from './CurrentQuestionSources';
 import { TranscriptionControlsContext } from './TranscriptionControlsContext';
@@ -322,9 +321,7 @@ export default function LiveInterviewRoom({
                       {question.title}
                     </h3>
                     <div className="interview-question-body">
-                      <ExpandableQuestionContent key={question.id}>
-                        <QuestionDescription question={question} />
-                      </ExpandableQuestionContent>
+                      <QuestionDescription key={question.id} question={question} collapsible />
                     </div>
                   </>
                 ) : (
@@ -339,12 +336,6 @@ export default function LiveInterviewRoom({
                     controls={<div ref={setTranscriptionTarget} />}
                   />
                 )}
-                {!nonCoding && (
-                  <p className="text-xs text-surface-500">
-                    Conversation follow-ups use the reviewed transcript for the current turn. Speech
-                    alone does not verify code correctness.
-                  </p>
-                )}
                 {question?.settings?.rubric && (
                   <p className="text-sm whitespace-pre-wrap">Rubric: {question.settings.rubric}</p>
                 )}
@@ -353,7 +344,9 @@ export default function LiveInterviewRoom({
                 <section className="card space-y-4 min-w-0 max-w-full overflow-hidden">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-white">Candidate code</h3>
+                      <h3 className="interview-panel-title interview-panel-title-small">
+                        Candidate code
+                      </h3>
                       <span className="badge">
                         {{ 71: 'Python', 63: 'JavaScript', 62: 'Java', 54: 'C++', 82: 'SQL' }[
                           languageId
@@ -388,10 +381,6 @@ export default function LiveInterviewRoom({
                       </button>
                     </div>
                   </div>
-                  <p className="text-xs text-surface-400">
-                    Shared coding area: you and the candidate can edit the same code during the
-                    interview.
-                  </p>
                   <CollaborativeEditor
                     key={activeId}
                     socket={live.socket}
@@ -403,7 +392,7 @@ export default function LiveInterviewRoom({
                     onCode={live.updateDraft}
                     resetStarterCode={resetStarterCode}
                   />
-                  <div className="flex flex-wrap gap-3 items-center">
+                  <div className="flex flex-wrap gap-3 items-center border-t border-surface-800 pt-4">
                     <button
                       className="btn-outline"
                       disabled={!runnable}
@@ -413,30 +402,6 @@ export default function LiveInterviewRoom({
                     >
                       Run candidate code
                     </button>
-                    <button
-                      className="btn-primary"
-                      disabled={!runnable}
-                      onClick={() =>
-                        live.execute('submit', {
-                          code,
-                          languageId,
-                          questionId: activeId!,
-                        })
-                      }
-                    >
-                      Submit for evaluation
-                    </button>
-                    <span role="status" className="text-xs text-surface-500">
-                      {live.activity === 'idle'
-                        ? 'No execution yet'
-                        : live.activity === 'running'
-                          ? 'Running code…'
-                          : live.activity === 'submitting'
-                            ? 'Submitting code…'
-                            : live.activity === 'failed'
-                              ? 'Execution needs attention'
-                              : 'Execution completed'}
-                    </span>
                   </div>
                   {live.result !== null && <ExecutionResults value={live.result} />}
                 </section>
@@ -454,9 +419,6 @@ export default function LiveInterviewRoom({
             <section className="card space-y-4">
               <div>
                 <h3 className="interview-panel-title">Interviewer notes</h3>
-                <p className="interview-panel-subtitle">
-                  Capture your observations and supporting evidence privately.
-                </p>
               </div>
               <label className="label font-medium text-surface-300">
                 Private notes
@@ -468,13 +430,15 @@ export default function LiveInterviewRoom({
                   placeholder="Record observed behavior, decisions and evidence…"
                 />
               </label>
-              <button
-                className="btn-primary"
-                disabled={!notes.trim() || saveNote.isPending}
-                onClick={() => saveNote.mutate(notes.trim(), { onSuccess: () => setNotes('') })}
-              >
-                {saveNote.isPending ? 'Saving…' : 'Save notes'}
-              </button>
+              <div className="flex justify-end border-t border-surface-800 pt-4">
+                <button
+                  className="btn-primary"
+                  disabled={!notes.trim() || saveNote.isPending}
+                  onClick={() => saveNote.mutate(notes.trim(), { onSuccess: () => setNotes('') })}
+                >
+                  {saveNote.isPending ? 'Saving…' : 'Save notes'}
+                </button>
+              </div>
               {saveNote.error && (
                 <p role="alert" className="text-red-600">
                   {apiError(saveNote.error)}

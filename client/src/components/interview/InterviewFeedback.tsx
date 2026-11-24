@@ -190,10 +190,7 @@ export default function InterviewFeedback({
     <>
       <section aria-label="Interview feedback" className="card space-y-5">
         <div>
-          <h2 className="font-semibold">Interview feedback</h2>
-          <p className="text-sm text-surface-400 mt-1">
-            A rating from 1–5 is required for every criterion. Supporting comments are optional.
-          </p>
+          <h2 className="interview-section-heading">Interview feedback</h2>
         </div>
         <form
           className="space-y-5"
@@ -310,20 +307,16 @@ export default function InterviewFeedback({
                 Select a rating for every criterion before saving or submitting.
               </p>
             )}
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={!valid}
-              onClick={() => save.mutate(false)}
-            >
-              Save feedback criteria
-            </button>
-            {!completed && (
-              <p className="text-sm text-surface-400">
-                You can save feedback during the interview. Overall rating, recommendation, and
-                final feedback are submitted after it ends.
-              </p>
-            )}
+            <div className="flex justify-end border-t border-surface-800 pt-4">
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={!valid}
+                onClick={() => save.mutate(false)}
+              >
+                Save feedback criteria
+              </button>
+            </div>
             {completed && (
               <section
                 aria-label="Final interview feedback"
@@ -331,10 +324,9 @@ export default function InterviewFeedback({
               >
                 <div className="flex flex-wrap justify-between items-center gap-3">
                   <div>
-                    <h3 className="font-semibold">Interview ended</h3>
-                    <p className="text-sm text-surface-400">
-                      Submit your final rating, recommendation and interview feedback.
-                    </p>
+                    <h3 className="interview-panel-title interview-panel-title-small">
+                      Interview ended
+                    </h3>
                   </div>
                   {!editing && (
                     <button
@@ -394,12 +386,9 @@ export default function InterviewFeedback({
               className="card w-full max-w-4xl max-h-[90dvh] overflow-y-auto space-y-4"
             >
               <div>
-                <h2 id="final-feedback-title" className="font-semibold">
+                <h2 id="final-feedback-title" className="interview-section-heading">
                   Interview ended
                 </h2>
-                <p className="text-sm text-surface-400">
-                  Submit your final rating, recommendation and interview feedback.
-                </p>
               </div>
               <form
                 className="space-y-4"
@@ -477,7 +466,7 @@ export default function InterviewFeedback({
                       </button>
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap justify-end gap-3 border-t border-surface-800 pt-4">
                     <button
                       type="submit"
                       className="btn-primary"

@@ -1,3 +1,4 @@
+import AssessmentActionsDialog from '../../components/assessments/AssessmentActionsDialog';
 import DateSortControl from '../../components/ui/DateSortControl';
 import { sortByCreatedAt, type DateSortOrder } from '../../services/listSort';
 import { useEffect, useState } from 'react';
@@ -24,22 +25,14 @@ import {
 import type { Assessment, Availability, AssessmentStatus } from '../../types';
 import {
   Plus,
-  Trash2,
   Clock,
-  Users,
   Search,
-  Copy,
-  Edit,
-  Rocket,
   EyeOff,
-  Archive,
   CheckSquare,
   Target,
   Calendar,
   Shuffle,
   Code2,
-  MoreHorizontal,
-  Link2,
 } from 'lucide-react';
 
 const FILTERS: { key: 'all' | Availability; label: string }[] = [
@@ -68,7 +61,8 @@ export default function AssessmentManager() {
   const [filter, setFilter] = useState<'all' | Availability>('all');
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState<DateSortOrder>('newest');
-  const [menuFor, setMenuFor] = useState<number | null>(null);
+  const [actionId, setActionId] = useState<number | null>(null);
+  const selectedAssessment = assessments.find((assessment) => assessment.id === actionId);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -87,11 +81,11 @@ export default function AssessmentManager() {
   }
 
   async function run(id: number, action: () => Promise<unknown>) {
-    setMenuFor(null);
     setBusyId(id);
     setError('');
     try {
       await action();
+      setActionId(null);
       await loadData();
     } catch (err) {
       setError(apiError(err));
@@ -132,7 +126,7 @@ export default function AssessmentManager() {
   return (
     <AdminLayout
       title="Assessments"
-      subtitle="Create, configure and publish coding assessments"
+      eyebrow={null}
       actions={
         <>
           <Link to="/admin/assessments/new" className="btn-primary text-sm">
@@ -162,15 +156,22 @@ export default function AssessmentManager() {
             </button>
           ))}
         </div>
-        <DateSortControl label="Sort assessments" value={sortOrder} onChange={setSortOrder} />
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
-          <input
-            className="input pl-9 py-1.5 text-sm"
-            placeholder="Search assessments..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+        <div className="ml-auto flex w-full sm:w-auto">
+          <DateSortControl
+            compact
+            label="Sort assessments"
+            value={sortOrder}
+            onChange={setSortOrder}
           />
+          <div className="relative min-w-0 flex-1 sm:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
+            <input
+              className="input rounded-l-none pl-9 py-1.5 text-sm"
+              placeholder="Search assessments..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -197,17 +198,27 @@ export default function AssessmentManager() {
             return (
               <div
                 key={a.id}
-                className={`card p-5 ${busyId === a.id ? 'opacity-60 pointer-events-none' : ''}`}
+                role="button"
+                tabIndex={busyId === a.id ? -1 : 0}
+                aria-label={`Open actions for ${a.name}`}
+                aria-haspopup="dialog"
+                onClick={() => {
+                  setError('');
+                  setActionId(a.id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setError('');
+                    setActionId(a.id);
+                  }
+                }}
+                className={`card p-5 cursor-pointer transition-colors hover:border-primary-500/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${busyId === a.id ? 'opacity-60 pointer-events-none' : ''}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Link
-                        to={`/admin/assessments/${a.id}/edit`}
-                        className="text-lg font-semibold text-white hover:text-primary-700"
-                      >
-                        {a.name}
-                      </Link>
+                      <h2 className="text-lg font-semibold text-white">{a.name}</h2>
                       <AvailabilityBadge value={a.availability} />
                     </div>
                     {a.description && (
@@ -277,104 +288,33 @@ export default function AssessmentManager() {
                     </div>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-4 border-t border-surface-800">
-                  <div className="flex items-center gap-2">
-                    <Link to={`/admin/submissions/${a.id}`} className="btn-outline text-sm">
-                      <Users className="w-4 h-4" /> Results
-                      {!!a.stats?.inProgress && (
-                        <span className="text-xs text-sky-600">+{a.stats.inProgress} live</span>
-                      )}
-                    </Link>
-                    <button
-                      onClick={() => setShareFor(a)}
-                      className="btn-outline text-sm"
-                      title="Create a link anyone can use to take this test"
-                    >
-                      <Link2 className="w-4 h-4" /> Share link
-                    </button>
-                    <button
-                      className="btn-outline text-sm"
-                      disabled={a.status !== 'published'}
-                      onClick={() => setBulkFor(a)}
-                    >
-                      Bulk invite candidates
-                    </button>
-                    <button
-                      onClick={() => navigate(`/admin/assessments/${a.id}/edit`)}
-                      className="btn-outline text-sm"
-                    >
-                      <Edit className="w-4 h-4" /> Edit
-                    </button>
-                    {a.status === 'draft' && (
-                      <button
-                        onClick={() => setStatus(a, 'published')}
-                        className="btn-primary text-sm"
-                        disabled={!a._count?.questions}
-                        title={
-                          a._count?.questions ? 'Make visible to candidates' : 'Add questions first'
-                        }
-                      >
-                        <Rocket className="w-4 h-4" /> Publish
-                      </button>
-                    )}
-                    <div className="relative">
-                      <button
-                        onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}
-                        className="btn-ghost p-2"
-                        aria-label="More actions"
-                      >
-                        <MoreHorizontal className="w-4 h-4" />
-                      </button>
-                      {menuFor === a.id && (
-                        <>
-                          <div className="fixed inset-0 z-40" onClick={() => setMenuFor(null)} />
-                          <div className="absolute right-0 mt-1 w-48 rounded-lg bg-surface-800 border border-surface-700 shadow-xl z-50 py-1 text-sm">
-                            <button
-                              onClick={() => run(a.id, () => duplicateAssessment(a.id))}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
-                            >
-                              <Copy className="w-4 h-4" /> Duplicate
-                            </button>
-                            {a.status === 'published' && (
-                              <button
-                                onClick={() => setStatus(a, 'draft')}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
-                              >
-                                <EyeOff className="w-4 h-4" /> Unpublish
-                              </button>
-                            )}
-                            {a.status !== 'archived' ? (
-                              <button
-                                onClick={() => setStatus(a, 'archived')}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
-                              >
-                                <Archive className="w-4 h-4" /> Archive
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setStatus(a, 'draft')}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-surface-200 hover:bg-surface-700"
-                              >
-                                <Archive className="w-4 h-4" /> Restore as draft
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(a)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-500/10"
-                            >
-                              <Trash2 className="w-4 h-4" /> Delete
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
             );
           })}
         </div>
+      )}
+      {selectedAssessment && (
+        <AssessmentActionsDialog
+          assessment={selectedAssessment}
+          busy={busyId === selectedAssessment.id}
+          error={error}
+          onClose={() => setActionId(null)}
+          onResults={() => navigate(`/admin/submissions/${selectedAssessment.id}`)}
+          onShare={() => {
+            setShareFor(selectedAssessment);
+            setActionId(null);
+          }}
+          onBulkInvite={() => {
+            setBulkFor(selectedAssessment);
+            setActionId(null);
+          }}
+          onEdit={() => navigate(`/admin/assessments/${selectedAssessment.id}/edit`)}
+          onStatus={(status) => setStatus(selectedAssessment, status)}
+          onDuplicate={() =>
+            run(selectedAssessment.id, () => duplicateAssessment(selectedAssessment.id))
+          }
+          onDelete={() => handleDelete(selectedAssessment)}
+        />
       )}
       {bulkFor && (
         <BulkAssessmentInvites

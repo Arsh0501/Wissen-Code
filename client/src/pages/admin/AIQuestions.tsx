@@ -135,7 +135,7 @@ export default function AIQuestions() {
   return (
     <AdminLayout
       title="AI Question Studio"
-      subtitle="Generate → Preview → Edit → Validate → Approve → Question Bank"
+      eyebrow={null}
       actions={
         <Link className="btn-outline" to="/admin/questions">
           Question Bank
@@ -180,10 +180,6 @@ export default function AIQuestions() {
           generate.mutate(request);
         }}
       >
-        <p className="text-sm text-surface-500 md:col-span-3">
-          Enter multiple topics separated by commas. The total count is distributed evenly across
-          topics. Each question is saved with its assigned topic tag.
-        </p>
         <label className="label">
           Topics (comma separated)
           <input
@@ -219,13 +215,7 @@ export default function AIQuestions() {
         </label>
         {questionType === 'coding' && (
           <div className="md:col-span-3 card bg-surface-900/60 p-4 border border-surface-700/60 rounded-xl space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <span className="text-sm font-semibold text-surface-200">Starter Code Languages</span>
-              <span className="text-xs text-surface-400">
-                Select languages. Starters include input/output handling; candidates implement only
-                the marked core logic.
-              </span>
-            </div>
+            <div className="text-sm font-semibold text-surface-200">Starter Code Languages</div>
             <div className="flex flex-wrap gap-2 pt-1">
               {AVAILABLE_STARTER_LANGUAGES.map((lang) => {
                 const isSelected = selectedLanguages.includes(lang.id);
@@ -272,7 +262,7 @@ export default function AIQuestions() {
           />
         </label>
         <button
-          className="btn-primary self-end"
+          className="btn-primary self-end justify-self-end md:col-start-3 min-w-[160px]"
           disabled={generate.isPending || !status.data?.configured}
         >
           {generate.isPending ? 'Generating drafts…' : 'Generate'}
@@ -748,7 +738,7 @@ function DraftEditor({ draft }: { draft: QuestionDraft & { content: QuestionCont
             />
           </div>
           <button
-            className="btn-primary"
+            className="btn-primary ml-auto"
             disabled={action.isPending}
             onClick={() => action.mutate('approve')}
             title="Save edits and insert into the Question Bank without AI or execution validation"

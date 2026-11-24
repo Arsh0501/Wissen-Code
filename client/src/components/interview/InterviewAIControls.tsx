@@ -52,12 +52,6 @@ export default function InterviewAIControls({
   return (
     <div className={embedded ? 'space-y-3' : 'card space-y-3'}>
       <h4 className="interview-panel-title interview-panel-title-small">Generate AI assistance</h4>
-      {status === 'completed' && (
-        <p className="text-xs text-surface-500">
-          The final report summarizes finalized Evaluation by skill ratings and feedback. Finalize
-          your skill evaluations before generating it.
-        </p>
-      )}
       {query.isLoading && <p role="status">Loading AI status…</p>}
       {query.error && (
         <div role="alert">

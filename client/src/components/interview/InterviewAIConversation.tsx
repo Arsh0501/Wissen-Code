@@ -189,9 +189,6 @@ export default function InterviewAIConversation({
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-800 p-5">
         <div>
           <h3 className="interview-panel-title">Interview AI</h3>
-          <p className="interview-panel-subtitle">
-            Suggestions and notes linked to interview activity
-          </p>
         </div>
         <button
           className="btn-outline text-xs shrink-0"
@@ -209,13 +206,10 @@ export default function InterviewAIConversation({
         onScroll={() => {
           if (feed.current) atTop.current = feed.current.scrollTop < 50;
         }}
-        className={`overflow-y-auto overscroll-contain p-5 space-y-5 min-h-36 ${expanded ? 'h-[75dvh]' : 'max-h-[28rem]'}`}
+        className={`overflow-y-auto overscroll-contain p-5 space-y-5 ${expanded ? 'h-[75dvh]' : 'max-h-[28rem]'}`}
       >
         {!messages.length && !hasEvaluation && (
-          <p className="interview-empty-state">
-            AI suggestions and notes will appear here after interview activity. Expand a message to
-            see its details and evidence.
-          </p>
+          <p className="interview-empty-state">No AI suggestions or notes yet.</p>
         )}
         {messages.map(({ item, isNote }) => (
           <Message key={item.id} {...{ item, isNote, status, busy, onReview }} />

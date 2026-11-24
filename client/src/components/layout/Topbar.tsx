@@ -28,9 +28,6 @@ export default function Topbar() {
   const menu = useRef<HTMLDivElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const items = getNavItemsForRole(role, user?.accessRole);
-  const current = items.find((item) =>
-    item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to),
-  );
   useEffect(() => {
     setMenuOpen(false);
   }, [location.pathname]);
@@ -75,16 +72,11 @@ export default function Topbar() {
             onClick={handleBack}
             className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-sm text-surface-400 hover:bg-surface-800 hover:text-white transition-colors cursor-pointer shrink-0"
             aria-label="Go back"
+            title="Go back"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">Back</span>
           </button>
         )}
-        <div className="workspace-breadcrumb hidden md:flex">
-          <span>{role === 'admin' ? 'Hiring studio' : 'My space'}</span>
-          <span aria-hidden="true">/</span>
-          <b>{current?.label || 'Workspace'}</b>
-        </div>
         <nav
           aria-label="Primary mobile"
           className="order-last w-full flex md:hidden gap-1 overflow-x-auto pb-1"

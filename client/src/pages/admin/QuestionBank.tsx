@@ -1,3 +1,4 @@
+import { sortByCreatedAt } from '../../services/listSort';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
@@ -22,6 +23,8 @@ import {
   FileText,
   Search,
   ChevronDown,
+  ChevronsDown,
+  ChevronsUp,
   Upload,
   Eye,
   X,
@@ -41,6 +44,7 @@ export default function QuestionBank() {
   const [actionError, setError] = useState('');
   const error = actionError || (bank.error ? apiError(bank.error, 'Failed to load questions') : '');
   const [questionType, setQuestionType] = useState('');
+  const [showAllQuestions, setShowAllQuestions] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState('');
   const [previewId, setPreviewId] = useState<number | null>(null);
@@ -130,21 +134,16 @@ export default function QuestionBank() {
     () => Array.from(new Set(questions.flatMap((q) => parseJsonArray(q.tags)))).sort(),
     [questions],
   );
-  const counts = useMemo(
-    () => ({
-      easy: questions.filter((q) => q.difficulty === 'easy').length,
-      medium: questions.filter((q) => q.difficulty === 'medium').length,
-      hard: questions.filter((q) => q.difficulty === 'hard').length,
+  const filteredQuestions = sortByCreatedAt(
+    filterQuestions(questions, {
+      search: searchTerm,
+      difficulty,
+      topic: tag,
+      type: questionType,
     }),
-    [questions],
+    'newest',
   );
-
-  const filteredQuestions = filterQuestions(questions, {
-    search: searchTerm,
-    difficulty,
-    topic: tag,
-    type: questionType,
-  });
+  const visibleQuestions = showAllQuestions ? filteredQuestions : filteredQuestions.slice(0, 5);
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -179,7 +178,7 @@ export default function QuestionBank() {
   return (
     <AdminLayout
       title="Question Bank"
-      subtitle={`${questions.length} questions · ${counts.easy} easy · ${counts.medium} medium · ${counts.hard} hard`}
+      eyebrow={null}
       actions={
         <div className="relative">
           <button
@@ -230,7 +229,7 @@ export default function QuestionBank() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-3">
         <div className="relative flex-1 min-w-[220px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
           <input
@@ -291,7 +290,6 @@ export default function QuestionBank() {
         )}
       </div>
 
-      <p className="mb-4 text-sm text-surface-400">{filteredQuestions.length} questions shown</p>
       {bank.error && (
         <button className="btn-outline mb-4" onClick={() => bank.refetch()}>
           Retry loading questions
@@ -314,7 +312,7 @@ export default function QuestionBank() {
         <p className="text-center text-surface-500 py-16">No questions match these filters.</p>
       ) : (
         <div className="card p-0 overflow-hidden">
-          <div className="overflow-x-auto">
+          <div id="question-bank-list" className="overflow-x-auto">
             <table className="w-full min-w-[680px]">
               <thead>
                 <tr className="border-b border-surface-800 text-xs font-medium text-surface-500 uppercase tracking-wider whitespace-nowrap">
@@ -328,7 +326,7 @@ export default function QuestionBank() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-800/50">
-                {filteredQuestions.map((q) => (
+                {visibleQuestions.map((q) => (
                   <tr key={q.id} className="hover:bg-surface-800/30 transition-colors">
                     <td className="px-6 py-3">
                       <button
@@ -388,6 +386,29 @@ export default function QuestionBank() {
               </tbody>
             </table>
           </div>
+          {filteredQuestions.length > 5 && (
+            <div className="flex justify-end px-5 py-3 border-t border-surface-800">
+              <button
+                type="button"
+                className="inline-flex shrink-0 h-9 w-12 items-center justify-center rounded-xl border border-primary-500/25 bg-primary-500/10 text-primary-600 transition-colors hover:bg-primary-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                aria-label={
+                  showAllQuestions
+                    ? 'Show recent 5 questions'
+                    : `Show all ${filteredQuestions.length} questions`
+                }
+                title={showAllQuestions ? 'Collapse to recent questions' : 'Expand all questions'}
+                aria-expanded={showAllQuestions}
+                aria-controls="question-bank-list"
+                onClick={() => setShowAllQuestions((previous) => !previous)}
+              >
+                {showAllQuestions ? (
+                  <ChevronsUp className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <ChevronsDown className="h-5 w-5" aria-hidden="true" />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

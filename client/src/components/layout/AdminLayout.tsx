@@ -6,12 +6,14 @@ import api from '../../services/api';
 
 export default function AdminLayout({
   title,
+  eyebrow = 'Team workspace',
   subtitle,
   actions,
   children,
   maxWidth = 'max-w-7xl',
 }: {
   title: string;
+  eyebrow?: string | null;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   children: React.ReactNode;
@@ -37,9 +39,11 @@ export default function AdminLayout({
 
   return (
     <div className={`${maxWidth} mx-auto`}>
-      <div className="page-heading flex flex-wrap items-end justify-between gap-4">
+      <div
+        className={`page-heading flex flex-wrap justify-between gap-4 ${!eyebrow && !subtitle ? 'page-heading--compact items-center' : 'items-end'}`}
+      >
         <div>
-          <p className="eyebrow mb-2">Team workspace</p>
+          {eyebrow && <p className="eyebrow mb-2">{eyebrow}</p>}
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-white">{title}</h1>{' '}
             {judgeMode === 'mock' && (

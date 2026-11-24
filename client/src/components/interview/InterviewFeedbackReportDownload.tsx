@@ -76,20 +76,21 @@ export default function InterviewFeedbackReportDownload({
   if (compact)
     return (
       <div className="shrink-0 space-y-1">
-        <button
-          type="button"
-          className="btn-outline text-xs px-3 py-2 whitespace-nowrap"
-          disabled={!submitted || prepareDownload.isPending}
-          title={
-            submitted
-              ? 'Generate or download the complete interview report'
-              : 'The interviewer must submit final feedback before downloading the report.'
-          }
-          onClick={() => prepareDownload.mutate()}
-        >
-          {prepareDownload.isPending ? 'Preparing PDF…' : 'Download PDF report'}
-        </button>
-        {!submitted && <p className="text-xs text-surface-400">Awaiting final feedback</p>}
+        <span className="inline-flex" title={!submitted ? 'Awaiting final feedback' : undefined}>
+          <button
+            type="button"
+            className={`btn-outline text-xs px-3 py-2 whitespace-nowrap ${!submitted ? 'pointer-events-none' : ''}`}
+            disabled={!submitted || prepareDownload.isPending}
+            title={
+              submitted
+                ? 'Generate or download the complete interview report'
+                : 'Awaiting final feedback'
+            }
+            onClick={() => prepareDownload.mutate()}
+          >
+            {prepareDownload.isPending ? 'Preparing PDF…' : 'Download PDF report'}
+          </button>
+        </span>
         {prepareDownload.error && (
           <p role="alert" className="text-xs text-red-400 max-w-64 whitespace-normal">
             {apiError(prepareDownload.error)}
@@ -105,19 +106,12 @@ export default function InterviewFeedbackReportDownload({
       <h3 className="interview-section-heading interview-section-heading-small">
         Interview report PDF
       </h3>
-      <p className="text-sm text-surface-400">
-        Includes main questions, asked follow-ups and their transcript answers, feedback for each
-        question, submitted code, and final interview feedback.
-      </p>
       {!submitted ? (
-        <>
-          <button type="button" className="btn-outline" disabled>
+        <span className="inline-flex" title="Awaiting final feedback">
+          <button type="button" className="btn-outline pointer-events-none" disabled>
             Download PDF report
           </button>
-          <p className="text-sm text-surface-400">
-            The interviewer must submit final feedback before this report can be downloaded.
-          </p>
-        </>
+        </span>
       ) : (
         <>
           {report.isLoading && <p role="status">Checking report…</p>}

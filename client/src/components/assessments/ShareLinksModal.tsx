@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { listInvites, createInvite, revokeInvite, inviteUrl, apiError } from '../../services/api';
 import type { InviteLink } from '../../services/api';
 import { formatDate } from '../ui';
@@ -77,9 +78,10 @@ export default function ShareLinksModal({
     }
   }
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto"
+      data-share-links-modal
+      className="fixed inset-0 z-[80] flex items-start sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto"
       onClick={onClose}
     >
       <div
@@ -231,7 +233,8 @@ export default function ShareLinksModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

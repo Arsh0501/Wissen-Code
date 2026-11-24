@@ -130,6 +130,10 @@ it('opens and closes the full-window resume repeatedly and restores focus', asyn
   const user = userEvent.setup();
   setupScheduledInterview();
   renderWithProviders(<InterviewerDashboard />);
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: 'Filter assigned interviews' }),
+    'upcoming',
+  );
   const trigger = await screen.findByRole('button', { name: 'View Resume' });
   await user.click(trigger);
   const dialog = await screen.findByRole('dialog', { name: 'Resume: Maya' });
@@ -149,6 +153,10 @@ it('selects available bank questions alongside resume generation', async () => {
   setupScheduledInterview();
   renderWithProviders(<InterviewerDashboard />);
   const user = userEvent.setup();
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: 'Filter assigned interviews' }),
+    'upcoming',
+  );
   await user.click(await screen.findByRole('button', { name: 'Select questions' }));
   const prep = within(await screen.findByRole('dialog', { name: 'Prepare interview questions' }));
   const bank = within(await prep.findByRole('region', { name: 'Question bank' }));
@@ -184,6 +192,10 @@ it('shows missed interviews as ended without offering Start or final feedback', 
     ],
   });
   renderWithProviders(<InterviewerDashboard />);
+  await userEvent.selectOptions(
+    screen.getByRole('combobox', { name: 'Filter assigned interviews' }),
+    'all',
+  );
   expect(await screen.findByText('Ended — not started')).toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Start Interview' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: 'Submit Feedback' })).not.toBeInTheDocument();
@@ -210,6 +222,10 @@ it.each(['completed', 'expired', 'cancelled'])(
       ],
     });
     renderWithProviders(<InterviewerDashboard />);
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Filter assigned interviews' }),
+      'all',
+    );
     expect(await screen.findByRole('button', { name: 'Select questions' })).toBeDisabled();
     await user.click(screen.getByRole('button', { name: 'View Resume' }));
     const resume = within(await screen.findByRole('dialog', { name: 'Resume: Maya' }));
@@ -218,3 +234,61 @@ it.each(['completed', 'expired', 'cancelled'])(
     ).not.toBeInTheDocument();
   },
 );
+
+it('defaults to live and newest with status and sort dropdowns and no count cards', async () => {
+  setupScheduledInterview();
+  const fixture = {
+    candidateName: 'Maya',
+    candidateEmail: 'maya@example.test',
+    timeLimitMinutes: 45,
+    extendedMinutes: 0,
+    scheduledAt: null,
+  };
+  vi.mocked(api.request).mockResolvedValue({
+    data: [
+      {
+        ...fixture,
+        id: 1,
+        title: 'Older live interview',
+        status: 'in_progress',
+        createdAt: '2026-11-20T12:00:00Z',
+      },
+      {
+        ...fixture,
+        id: 2,
+        title: 'Newer live interview',
+        status: 'in_progress',
+        createdAt: '2026-11-24T12:00:00Z',
+      },
+      { ...fixture, id: 3, title: 'Scheduled interview', status: 'scheduled' },
+      { ...fixture, id: 4, title: 'Completed interview', status: 'completed' },
+    ],
+  });
+  renderWithProviders(<InterviewerDashboard />);
+  const user = userEvent.setup();
+  const filter = screen.getByRole('combobox', { name: 'Filter assigned interviews' });
+  expect(filter).toHaveValue('live');
+  await screen.findByRole('heading', { name: 'Newer live interview' });
+  const liveHeadings = () =>
+    screen.getAllByRole('heading', { name: /^(Older|Newer) live interview$/ });
+  expect(liveHeadings()[0]).toHaveTextContent('Newer live interview');
+  expect(screen.queryByRole('heading', { name: 'Scheduled interview' })).not.toBeInTheDocument();
+  expect(screen.queryByText('All Interviews', { exact: true })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Live Now/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('menuitemradio')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Sort assigned interviews' }));
+  expect(screen.getByRole('menuitemradio', { name: 'Newest' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  );
+  await user.click(screen.getByRole('menuitemradio', { name: 'Oldest' }));
+  expect(liveHeadings()[0]).toHaveTextContent('Older live interview');
+  await user.selectOptions(filter, 'upcoming');
+  expect(screen.getByRole('heading', { name: 'Scheduled interview' })).toBeVisible();
+  await user.selectOptions(filter, 'completed');
+  expect(screen.getByRole('heading', { name: 'Completed interview' })).toBeVisible();
+  await user.selectOptions(filter, 'all');
+  await user.type(screen.getByRole('searchbox', { name: 'Search assigned interviews' }), 'Older');
+  expect(screen.getByRole('heading', { name: 'Older live interview' })).toBeVisible();
+  expect(screen.queryByRole('heading', { name: 'Newer live interview' })).not.toBeInTheDocument();
+});

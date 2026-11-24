@@ -1,3 +1,6 @@
+import { sortByCreatedAt } from '../../services/listSort';
+import { readCandidateDashboardState } from '../../services/candidateDashboardState';
+import { ChevronsDown, ChevronsUp, ArrowDownWideNarrow, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -20,17 +23,8 @@ import {
   CheckCircle,
   PlayCircle,
   Lock,
-  ShieldCheck,
-  Sparkles,
-  Trophy,
-  Timer,
-  TrendingUp,
-  EyeOff,
-  ClipboardPaste,
-  Save,
   XCircle,
   Video,
-  MessagesSquare,
   ExternalLink,
   type LucideIcon,
 } from 'lucide-react';
@@ -109,12 +103,31 @@ function scoreFill(pct: number) {
 }
 
 export default function ExamDashboard() {
-  const { candidateName } = useAuth();
+  const { candidateName, user } = useAuth();
+  const stateKey = `wissen-candidate-dashboard:${user?.id ?? 'anonymous'}`;
+  const [savedView] = useState(() => readCandidateDashboardState(stateKey));
   const navigate = useNavigate();
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [interviews, setInterviews] = useState<CandidateInterviewSummary[]>([]);
+  const [view, setView] = useState(savedView.view);
+  const [assessmentFilter, setAssessmentFilter] = useState(savedView.assessmentFilter);
+  const [interviewFilter, setInterviewFilter] = useState(savedView.interviewFilter);
+  const [search, setSearch] = useState(savedView.search);
+  const [sort, setSort] = useState(savedView.sort);
+  const [showAll, setShowAll] = useState(savedView.showAll);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        stateKey,
+        JSON.stringify({ view, assessmentFilter, interviewFilter, search, sort, showAll }),
+      );
+    } catch {
+      // Browsing still works when session storage is unavailable.
+    }
+  }, [stateKey, view, assessmentFilter, interviewFilter, search, sort, showAll]);
 
   useEffect(() => {
     let active = true;
@@ -201,6 +214,38 @@ export default function ExamDashboard() {
     };
   }, [assessments]);
 
+  const matchingAssessments = sortByCreatedAt(
+    assessments.filter((a) => {
+      const match =
+        assessmentFilter === 'all' ||
+        (assessmentFilter === 'completed'
+          ? a.candidateStatus === 'completed'
+          : assessmentFilter === 'in-progress'
+            ? a.candidateStatus === 'in-progress'
+            : a.candidateStatus !== 'completed' &&
+              (assessmentFilter === 'available'
+                ? a.availability === 'open'
+                : a.availability === assessmentFilter));
+      return match && a.name.toLowerCase().includes(search.toLowerCase());
+    }),
+    sort === 'oldest' ? 'oldest' : 'newest',
+  );
+  const matchingInterviews = sortByCreatedAt(
+    interviews.filter(
+      (i) =>
+        (interviewFilter === 'all' || i.status === interviewFilter) &&
+        (i.title + ' ' + i.interviewer.name).toLowerCase().includes(search.toLowerCase()),
+    ),
+    sort === 'oldest' ? 'oldest' : 'newest',
+  );
+  const dateValue = (value?: string | null) =>
+    value && Number.isFinite(Date.parse(value)) ? Date.parse(value) : Infinity;
+  if (sort === 'soon') {
+    matchingAssessments.sort((a, b) => dateValue(a.endAt) - dateValue(b.endAt));
+    matchingInterviews.sort((a, b) => dateValue(a.scheduledAt) - dateValue(b.scheduledAt));
+  }
+  const visibleAssessments = showAll ? matchingAssessments : matchingAssessments.slice(0, 5);
+  const visibleInterviews = showAll ? matchingInterviews : matchingInterviews.slice(0, 5);
   const firstName = candidateName?.split(' ')[0] || 'there';
 
   if (loading) return <Spinner label="Loading your dashboard..." />;
@@ -208,23 +253,13 @@ export default function ExamDashboard() {
   return (
     <div className="w-full space-y-6">
       {/* HERO */}
-      <section className="relative overflow-hidden rounded-2xl border border-primary-500/15 bg-gradient-to-br from-primary-50 via-surface-900 to-sky-50 p-6 md:p-8">
+      <section className="card relative overflow-hidden px-6 py-6 md:px-7">
         <div className="pointer-events-none absolute -top-16 -right-16 w-64 h-64 rounded-full bg-primary-500/10 blur-3xl" />
         <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
-            <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary-700 bg-primary-500/10 rounded-full px-2.5 py-1 mb-3">
-              <Sparkles className="w-3.5 h-3.5" /> Candidate portal
-            </p>
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-              {greeting()}, {firstName}
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight leading-tight">
+              {greeting()}, <span className="text-primary-600 font-bold">{firstName}</span>
             </h1>
-            <p className="text-surface-500 text-sm mt-2 max-w-xl">
-              {data.inProgress
-                ? 'You have a test in progress. Your timer is still running.'
-                : data.nextOpen
-                  ? `You have ${data.upNext.filter((a) => a.availability === 'open').length} test${data.upNext.filter((a) => a.availability === 'open').length === 1 ? '' : 's'} open right now.`
-                  : 'You’re all caught up. New tests will appear here when they open.'}
-            </p>
           </div>
           {data.inProgress ? (
             <NextAction
@@ -234,14 +269,6 @@ export default function ExamDashboard() {
               icon={PlayCircle}
               urgent
               onClick={() => navigate(`/exam/${data.inProgress!.id}`)}
-            />
-          ) : data.nextOpen ? (
-            <NextAction
-              title={data.nextOpen.name}
-              meta={`${data.nextOpen.timeLimitMinutes} min · ${data.nextOpen._count?.questions ?? 0} questions${data.nextOpen.endAt ? ` · closes ${relativeTime(data.nextOpen.endAt)}` : ''}`}
-              label="Start test"
-              icon={Zap}
-              onClick={() => navigate(`/exam/${data.nextOpen!.id}`)}
             />
           ) : null}
         </div>
@@ -290,230 +317,254 @@ export default function ExamDashboard() {
         </div>
       )}
 
-      {/* STATS */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat
-          icon={CheckCircle}
-          tone="bg-emerald-500/10 text-emerald-700"
-          label="Completed"
-          value={String(data.completed.length)}
-          hint={`of ${assessments.length} assessment${assessments.length === 1 ? '' : 's'}`}
-        />
-        <Stat
-          icon={Target}
-          tone="bg-primary-500/10 text-primary-700"
-          label="Average score"
-          value={data.average === null ? '—' : `${data.average.toFixed(0)}%`}
-          hint={data.best === null ? 'No results yet' : `Best ${data.best.toFixed(0)}%`}
-        />
-        <Stat
-          icon={Trophy}
-          tone="bg-amber-500/10 text-amber-700"
-          label="Passed"
-          value={data.scored.length ? `${data.passed} / ${data.scored.length}` : '—'}
-          hint="Tests with results"
-        />
-        <Stat
-          icon={Timer}
-          tone="bg-sky-500/10 text-sky-700"
-          label="Time on tests"
-          value={data.timeSpent ? formatDuration(data.timeSpent) : '—'}
-          hint="Across completed tests"
-        />
-      </section>
-
-      {/* MAIN GRID */}
-      <div className="grid lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 space-y-6 min-w-0">
-          {/* Live Technical Interviews */}
-          {interviews.length > 0 && (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <MessagesSquare className="w-5 h-5 text-primary-400" />
-                  <h2 className="text-lg font-bold text-white">Live Technical Interviews</h2>
-                </div>
-                <span className="badge bg-primary-500/10 text-primary-400 ring-1 ring-primary-500/20 text-xs">
-                  {interviews.length} Assigned
-                </span>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                {interviews.map((interview) => {
-                  const isLive = interview.status === 'in_progress';
-                  const isScheduled = interview.status === 'scheduled';
-                  const isCompleted = interview.status === 'completed';
-                  return (
-                    <div
-                      key={interview.id}
-                      className={`card relative overflow-hidden transition-all duration-200 flex flex-col justify-between ${
-                        isLive
-                          ? 'border-emerald-500/40 bg-gradient-to-br from-emerald-950/30 to-surface-900 ring-1 ring-emerald-500/25'
-                          : 'hover:border-surface-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              isLive
-                                ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30'
-                                : isScheduled
-                                  ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
-                                  : 'bg-surface-800 text-surface-400 ring-1 ring-surface-700'
-                            }`}
-                          >
-                            {isLive && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                            )}
-                            {interview.status === 'expired'
-                              ? 'Ended — not started'
-                              : isLive
-                                ? 'Live Now'
-                                : isScheduled
-                                  ? 'Scheduled'
-                                  : interview.status === 'cancelled'
-                                    ? 'Cancelled'
-                                    : 'Completed'}
-                          </span>
-                        </div>
-                        <h3 className="text-base font-semibold text-white">{interview.title}</h3>
-                        {interview.description && (
-                          <p className="text-surface-400 text-xs mt-1 line-clamp-2">
-                            {interview.description}
-                          </p>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-2 text-xs text-surface-400 my-3 py-2 border-y border-surface-800">
-                          <div>
-                            <span className="text-surface-500 block">Interviewer</span>
-                            <span className="font-medium text-surface-300">
-                              {interview.interviewer.name}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-surface-500 block">Time Limit</span>
-                            <span className="font-medium text-surface-300">
-                              {interview.timeLimitMinutes} min
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-surface-500 block">Schedule</span>
-                            <span className="font-medium text-surface-300">
-                              {interview.scheduledAt
-                                ? formatDate(interview.scheduledAt)
-                                : 'Flexible'}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-surface-500 block">Questions</span>
-                            <span className="font-medium text-surface-300">
-                              {interview.questionCount} question(s)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-end pt-2">
-                        {interview.status === 'expired' ? (
-                          <span className="text-sm text-surface-400">
-                            Interview ended without being started
-                          </span>
-                        ) : interview.status === 'cancelled' ? (
-                          <span className="text-sm text-surface-400">Interview cancelled</span>
-                        ) : isCompleted ? (
-                          <Link
-                            to={`/interview/${interview.roomToken}`}
-                            className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5"
-                          >
-                            View Summary
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </Link>
-                        ) : (
-                          <Link
-                            to={`/interview/${interview.roomToken}`}
-                            className={`btn-primary text-xs py-2 px-4 flex items-center gap-2 ${
-                              isLive
-                                ? 'bg-emerald-600 hover:bg-emerald-500 ring-2 ring-emerald-500/30'
-                                : ''
-                            }`}
-                          >
-                            <Video className="w-3.5 h-3.5" />
-                            {isLive ? 'Join Live Now' : 'Join Interview Room'}
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* Up next */}
-          <section>
-            <SectionHeader title="Up next" count={data.upNext.length} />
-            {data.upNext.length === 0 ? (
-              <EmptyCard
-                icon={Calendar}
-                title="Nothing scheduled"
-                body="When an admin opens a new assessment for you, it will show up here."
-              />
-            ) : (
-              <div className="space-y-3">
-                {data.upNext.map((a) => (
-                  <UpcomingCard key={a.id} a={a} onOpen={() => navigate(`/exam/${a.id}`)} />
+      <section className="space-y-4">
+        <nav className="interview-tab-bar" aria-label="Candidate dashboard sections">
+          {(['assessments', 'interviews'] as const).map((item) => (
+            <button
+              key={item}
+              className="interview-tab-button capitalize"
+              aria-pressed={view === item}
+              onClick={() => {
+                setView(item);
+                setShowAll(false);
+                setSearch('');
+                setSort('newest');
+              }}
+            >
+              {item}
+            </button>
+          ))}
+        </nav>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative w-full sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500" />
+            <input
+              className="input pl-9"
+              type="search"
+              aria-label="Search dashboard"
+              placeholder={
+                view === 'assessments' ? 'Search assessments...' : 'Search interviews...'
+              }
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setShowAll(false);
+              }}
+            />
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <select
+              className="input w-auto"
+              aria-label="Filter dashboard"
+              value={view === 'assessments' ? assessmentFilter : interviewFilter}
+              onChange={(e) => {
+                view === 'assessments'
+                  ? setAssessmentFilter(e.target.value)
+                  : setInterviewFilter(e.target.value);
+                setShowAll(false);
+              }}
+            >
+              {(view === 'assessments'
+                ? [
+                    ['all', 'All'],
+                    ['available', 'Available'],
+                    ['in-progress', 'In progress'],
+                    ['upcoming', 'Upcoming'],
+                    ['completed', 'Completed'],
+                    ['closed', 'Closed'],
+                  ]
+                : [
+                    ['all', 'All'],
+                    ['in_progress', 'Live'],
+                    ['scheduled', 'Upcoming'],
+                    ['completed', 'Completed'],
+                    ['cancelled', 'Cancelled'],
+                    ['expired', 'Ended'],
+                  ]
+              ).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <details className="relative group">
+              <summary
+                aria-label="Sort dashboard"
+                title="Sort dashboard"
+                className="btn-outline cursor-pointer list-none p-3 [&::-webkit-details-marker]:hidden"
+              >
+                <ArrowDownWideNarrow className="w-4 h-4 text-primary-600" />
+              </summary>
+              <div className="absolute right-0 top-full mt-2 z-30 w-44 rounded-xl border border-surface-700 bg-surface-900 p-1 shadow-xl">
+                {(['newest', 'oldest', 'soon'] as const).map((order) => (
+                  <button
+                    key={order}
+                    type="button"
+                    aria-pressed={sort === order}
+                    className={
+                      'w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-primary-500/10 ' +
+                      (sort === order ? 'bg-primary-500/10 text-primary-600 font-semibold' : '')
+                    }
+                    onClick={(e) => {
+                      setSort(order);
+                      setShowAll(false);
+                      e.currentTarget.closest('details')?.removeAttribute('open');
+                    }}
+                  >
+                    {order === 'newest'
+                      ? 'Newest'
+                      : order === 'oldest'
+                        ? 'Oldest'
+                        : view === 'assessments'
+                          ? 'Closing soon'
+                          : 'Scheduled soon'}
+                  </button>
                 ))}
               </div>
-            )}
-          </section>
-
-          {/* Completed */}
-          <section>
-            <SectionHeader title="Completed" count={data.completed.length} />
-            {data.completed.length === 0 ? (
-              <EmptyCard
-                icon={FileText}
-                title="No completed tests yet"
-                body="Your results will appear here after you submit a test."
-              />
-            ) : (
-              <div className="card p-0 overflow-hidden divide-y divide-surface-800">
-                {data.completed.map((a) => (
-                  <CompletedRow key={a.id} a={a} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {data.missed.length > 0 && (
-            <section>
-              <SectionHeader title="Closed" count={data.missed.length} />
-              <div className="card p-0 overflow-hidden divide-y divide-surface-800">
-                {data.missed.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-surface-300 truncate">{a.name}</p>
-                      <p className="text-xs text-surface-500">
-                        {a.endAt ? `Closed ${formatDate(a.endAt, false)}` : 'No longer available'}
-                      </p>
-                    </div>
-                    <span className="badge bg-surface-800 text-surface-500 ring-1 ring-surface-700 gap-1 shrink-0">
-                      <Lock className="w-3 h-3" /> Closed
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+            </details>
+          </div>
         </div>
+        {view === 'interviews' ? (
+          <div className="grid md:grid-cols-2 gap-4">
+            {visibleInterviews.map((interview) => {
+              const isLive = interview.status === 'in_progress';
+              const isScheduled = interview.status === 'scheduled';
+              const isCompleted = interview.status === 'completed';
+              return (
+                <div
+                  key={interview.id}
+                  className={`card relative overflow-hidden transition-all duration-200 flex flex-col justify-between ${
+                    isLive
+                      ? 'border-emerald-500/40 bg-gradient-to-br from-emerald-950/30 to-surface-900 ring-1 ring-emerald-500/25'
+                      : 'hover:border-surface-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          isLive
+                            ? 'bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30'
+                            : isScheduled
+                              ? 'bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30'
+                              : 'bg-surface-800 text-surface-400 ring-1 ring-surface-700'
+                        }`}
+                      >
+                        {isLive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                        )}
+                        {interview.status === 'expired'
+                          ? 'Ended — not started'
+                          : isLive
+                            ? 'Live Now'
+                            : isScheduled
+                              ? 'Scheduled'
+                              : interview.status === 'cancelled'
+                                ? 'Cancelled'
+                                : 'Completed'}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-semibold text-white">{interview.title}</h3>
+                    {interview.description && (
+                      <details className="text-sm text-surface-500 mt-2">
+                        <summary className="cursor-pointer">Description</summary>
+                        <p className="mt-2 whitespace-pre-wrap">{interview.description}</p>
+                      </details>
+                    )}
 
-        {/* Side column */}
-        <aside className="space-y-6 min-w-0">
-          <PerformanceCard completed={data.completed} />
-          <RulesCard />
-        </aside>
-      </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-surface-400 my-3 py-2 border-y border-surface-800">
+                      <div>
+                        <span className="text-surface-500 block">Interviewer</span>
+                        <span className="font-medium text-surface-300">
+                          {interview.interviewer.name}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-surface-500 block">Time Limit</span>
+                        <span className="font-medium text-surface-300">
+                          {interview.timeLimitMinutes} min
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-surface-500 block">Schedule</span>
+                        <span className="font-medium text-surface-300">
+                          {interview.scheduledAt ? formatDate(interview.scheduledAt) : 'Flexible'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-surface-500 block">Questions</span>
+                        <span className="font-medium text-surface-300">
+                          {interview.questionCount} question(s)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-2">
+                    {interview.status === 'expired' ? (
+                      <span className="text-sm text-surface-400">
+                        Interview ended without being started
+                      </span>
+                    ) : interview.status === 'cancelled' ? (
+                      <span className="text-sm text-surface-400">Interview cancelled</span>
+                    ) : isCompleted ? (
+                      <Link
+                        to={`/interview/${interview.roomToken}`}
+                        className="btn-outline text-xs py-1.5 px-3 flex items-center gap-1.5"
+                      >
+                        View Summary
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    ) : (
+                      <Link
+                        to={`/interview/${interview.roomToken}`}
+                        className={`btn-primary text-xs py-2 px-4 flex items-center gap-2 ${
+                          isLive
+                            ? 'bg-emerald-600 hover:bg-emerald-500 ring-2 ring-emerald-500/30'
+                            : ''
+                        }`}
+                      >
+                        <Video className="w-3.5 h-3.5" />
+                        {isLive ? 'Join Live Now' : 'Join Interview Room'}
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {visibleAssessments.map((a) =>
+              a.candidateStatus === 'completed' ? (
+                <div key={a.id} className="card !p-0 overflow-hidden">
+                  <CompletedRow a={a} />
+                </div>
+              ) : (
+                <UpcomingCard key={a.id} a={a} onOpen={() => navigate('/exam/' + a.id)} />
+              ),
+            )}
+          </div>
+        )}
+        {(view === 'assessments' ? matchingAssessments : matchingInterviews).length === 0 && (
+          <div className="card text-center text-surface-500 py-10">
+            No {view} match your filters.
+          </div>
+        )}
+        {(view === 'assessments' ? matchingAssessments : matchingInterviews).length > 5 && (
+          <div className="flex justify-end">
+            <button
+              className="btn-outline p-2"
+              aria-label={showAll ? 'Show recent five' : 'Show all ' + view}
+              aria-expanded={showAll}
+              onClick={() => setShowAll(!showAll)}
+            >
+              {showAll ? <ChevronsUp className="w-4 h-4" /> : <ChevronsDown className="w-4 h-4" />}
+            </button>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -547,56 +598,6 @@ function NextAction({
       <button type="button" onClick={onClick} className="btn-primary w-full mt-3 text-sm">
         <Icon className="w-4 h-4" /> {label}
       </button>
-    </div>
-  );
-}
-
-function Stat({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  hint,
-}: {
-  icon: LucideIcon;
-  tone: string;
-  label: string;
-  value: string;
-  hint: string;
-}) {
-  return (
-    <div className="card p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-surface-500 uppercase tracking-wider">{label}</p>
-          <p className="text-3xl font-bold text-white mt-2 tabular-nums tracking-tight">{value}</p>
-        </div>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tone}`}>
-          <Icon className="w-5 h-5" />
-        </div>
-      </div>
-      <p className="text-xs text-surface-500 mt-3 pt-3 border-t border-surface-800">{hint}</p>
-    </div>
-  );
-}
-
-function SectionHeader({ title, count }: { title: string; count: number }) {
-  return (
-    <div className="flex items-baseline justify-between mb-3">
-      <h2 className="text-lg font-semibold text-white">{title}</h2>
-      <span className="text-xs text-surface-500 tabular-nums">{count}</span>
-    </div>
-  );
-}
-
-function EmptyCard({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
-  return (
-    <div className="card text-center py-10">
-      <div className="w-12 h-12 rounded-xl bg-surface-800 flex items-center justify-center mx-auto mb-3">
-        <Icon className="w-6 h-6 text-surface-500" />
-      </div>
-      <p className="text-sm font-semibold text-white">{title}</p>
-      <p className="text-xs text-surface-500 mt-1">{body}</p>
     </div>
   );
 }
@@ -645,7 +646,10 @@ function UpcomingCard({ a, onOpen }: { a: Assessment; onOpen: () => void }) {
             <span className={`badge ring-1 ${status.pill}`}>{status.label}</span>
           </div>
           {a.description && (
-            <p className="text-sm text-surface-500 mt-1 line-clamp-1">{a.description}</p>
+            <details className="mt-2 text-sm text-surface-500" onClick={(e) => e.stopPropagation()}>
+              <summary className="cursor-pointer">Description</summary>
+              <p className="mt-2 whitespace-pre-wrap">{a.description}</p>
+            </details>
           )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-surface-500">
             <span className="flex items-center gap-1">
@@ -766,146 +770,6 @@ function CompletedRow({ a }: { a: Assessment }) {
           View <ChevronRight className="w-3.5 h-3.5" />
         </Link>
       </div>
-    </div>
-  );
-}
-
-// Score per completed test (oldest → newest), each bar marked with that test's own pass mark
-function PerformanceCard({ completed }: { completed: Assessment[] }) {
-  const points = [...completed]
-    .filter((a) => a.result)
-    .reverse()
-    .slice(-8);
-  const trend =
-    points.length >= 2
-      ? points[points.length - 1].result!.percentage - points[0].result!.percentage
-      : null;
-
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-primary-600" /> Your performance
-        </h2>
-        {trend !== null && (
-          <span
-            className={`text-xs font-semibold tabular-nums ${trend >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
-          >
-            {trend >= 0 ? '+' : ''}
-            {trend.toFixed(0)} pts
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-surface-500 mb-4">Score in each completed test</p>
-
-      {points.length === 0 ? (
-        <p className="text-sm text-surface-500 text-center py-8">
-          Complete a test to see your scores here.
-        </p>
-      ) : (
-        <>
-          <div className="relative h-40 flex items-end gap-2 border-b border-surface-700 pb-px">
-            {[25, 50, 75].map((g) => (
-              <div
-                key={g}
-                className="absolute inset-x-0 border-t border-dashed border-surface-800"
-                style={{ bottom: `${g}%` }}
-                aria-hidden="true"
-              />
-            ))}
-            {points.map((a) => {
-              const pct = a.result!.percentage;
-              return (
-                <div
-                  key={a.id}
-                  className="relative flex-1 h-full flex items-end justify-center group"
-                  title={`${a.name}: ${pct.toFixed(0)}% (pass ${a.passingScore}%)`}
-                >
-                  <div
-                    className={`w-full max-w-[36px] rounded-t ${a.result!.passed ? 'bg-emerald-500' : 'bg-red-400'}`}
-                    style={{ height: `${Math.max(2, pct)}%` }}
-                  />
-                  <div
-                    className="absolute inset-x-0 mx-auto max-w-[44px] border-t-2 border-surface-100"
-                    style={{ bottom: `${a.passingScore}%` }}
-                    aria-hidden="true"
-                  />
-                  <span className="absolute -top-5 text-[10px] font-semibold text-surface-300 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity">
-                    {pct.toFixed(0)}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex gap-2 mt-1.5">
-            {points.map((a) => (
-              <span
-                key={a.id}
-                className="flex-1 text-center text-[10px] text-surface-500 truncate"
-                title={a.name}
-              >
-                {a.name}
-              </span>
-            ))}
-          </div>
-          <div className="flex items-center gap-4 mt-4 text-[11px] text-surface-500">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Passed
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-red-400" /> Failed
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 border-t-2 border-surface-100" /> Pass mark
-            </span>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function RulesCard() {
-  const rules: { icon: LucideIcon; title: string; body: string }[] = [
-    {
-      icon: Timer,
-      title: 'The timer keeps running',
-      body: 'It starts when you click Start and continues even if you close the page.',
-    },
-    {
-      icon: EyeOff,
-      title: 'Stay on the test tab',
-      body: 'Leaving the tab is recorded. The 3rd time submits your test automatically.',
-    },
-    {
-      icon: ClipboardPaste,
-      title: 'Pastes are recorded',
-      body: 'Pasting code into the editor is logged for the reviewer.',
-    },
-    {
-      icon: Save,
-      title: 'Your work is saved',
-      body: 'Answers auto-save every few seconds and when you switch questions.',
-    },
-  ];
-  return (
-    <div className="card">
-      <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-4">
-        <ShieldCheck className="w-4 h-4 text-emerald-600" /> Before you start
-      </h2>
-      <ul className="space-y-3.5">
-        {rules.map(({ icon: Icon, title, body }) => (
-          <li key={title} className="flex gap-3">
-            <div className="w-8 h-8 rounded-lg bg-surface-950 ring-1 ring-surface-800 flex items-center justify-center shrink-0">
-              <Icon className="w-4 h-4 text-surface-400" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white">{title}</p>
-              <p className="text-xs text-surface-500 mt-0.5 leading-relaxed">{body}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

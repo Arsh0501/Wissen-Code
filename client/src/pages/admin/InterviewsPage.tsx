@@ -270,7 +270,7 @@ export default function InterviewsPage() {
   return (
     <AdminLayout
       title="Interview Dashboard & Scheduler"
-      subtitle="Schedule multiple interviews, select interviewers & candidates, upload resumes, and review live progress"
+      eyebrow={null}
       actions={
         <button
           className="btn-primary"

@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Award,
   Video,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { apiData, workflowKeys } from '../../services/workflows';
@@ -72,7 +73,7 @@ export default function InterviewerDashboard() {
   const client = useQueryClient();
 
   // Selected tab: all | live | upcoming | completed
-  const [tab, setTab] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
+  const [tab, setTab] = useState<'all' | 'live' | 'upcoming' | 'completed'>('live');
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState<DateSortOrder>('newest');
 
@@ -144,8 +145,6 @@ export default function InterviewerDashboard() {
 
   // Filter interviews
   const liveInterviews = interviews.filter((i) => i.status === 'in_progress');
-  const upcomingInterviews = interviews.filter((i) => i.status === 'scheduled');
-  const completedInterviews = interviews.filter((i) => i.status === 'completed');
 
   const visibleInterviews = sortByCreatedAt(
     interviews
@@ -166,27 +165,19 @@ export default function InterviewerDashboard() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="card bg-gradient-to-r from-primary-950/60 via-surface-900 to-surface-900 border-primary-500/30 p-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="badge bg-primary-500/20 text-primary-400 border border-primary-500/30 text-xs px-2.5 py-1">
-                Interviewer Workspace
-              </span>
-              <span className="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-1">
-                Role: Interviewer
-              </span>
-            </div>
-            <h1 className="text-2xl font-bold text-white">
-              Welcome back, {user?.name || 'Interviewer'}
+      <div className="card px-6 py-5 md:px-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-semibold text-surface-100 tracking-tight leading-tight break-words">
+              Welcome back,{' '}
+              <span className="font-bold text-primary-600">{user?.name || 'Interviewer'}</span>
             </h1>
-            <p className="text-surface-400 text-sm mt-1">
-              Manage your technical interviews, select available questions, and review live
-              candidate evaluations.
-            </p>
           </div>
           <div className="flex items-center gap-3">
-            <Link to="/admin/interviews" className="btn-outline text-sm flex items-center gap-2">
+            <Link
+              to="/admin/interviews"
+              className="btn-outline text-sm font-medium flex items-center gap-2 text-surface-200 hover:text-primary-600"
+            >
               <FileText className="w-4 h-4" />
               All Assigned Interviews
             </Link>
@@ -221,92 +212,48 @@ export default function InterviewerDashboard() {
         </div>
       )}
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <button
-          onClick={() => setTab('all')}
-          className={`card p-4 text-left transition-all ${
-            tab === 'all' ? 'ring-2 ring-primary-500 bg-surface-800/80' : 'hover:bg-surface-850'
-          }`}
-        >
-          <div className="flex items-center justify-between text-surface-400 mb-2">
-            <span className="text-xs uppercase tracking-wider font-medium">All Interviews</span>
-            <FileText className="w-4 h-4" />
-          </div>
-          <span className="text-3xl font-bold text-white">{interviews.length}</span>
-        </button>
-
-        <button
-          onClick={() => setTab('live')}
-          className={`card p-4 text-left transition-all ${
-            tab === 'live' ? 'ring-2 ring-emerald-500 bg-emerald-950/30' : 'hover:bg-surface-850'
-          }`}
-        >
-          <div className="flex items-center justify-between text-emerald-400 mb-2">
-            <span className="text-xs uppercase tracking-wider font-medium flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live Now
-            </span>
-            <Video className="w-4 h-4 text-emerald-400" />
-          </div>
-          <span className="text-3xl font-bold text-emerald-400">{liveInterviews.length}</span>
-        </button>
-
-        <button
-          onClick={() => setTab('upcoming')}
-          className={`card p-4 text-left transition-all ${
-            tab === 'upcoming' ? 'ring-2 ring-blue-500 bg-blue-950/30' : 'hover:bg-surface-850'
-          }`}
-        >
-          <div className="flex items-center justify-between text-blue-400 mb-2">
-            <span className="text-xs uppercase tracking-wider font-medium">Upcoming</span>
-            <Calendar className="w-4 h-4 text-blue-400" />
-          </div>
-          <span className="text-3xl font-bold text-blue-400">{upcomingInterviews.length}</span>
-        </button>
-
-        <button
-          onClick={() => setTab('completed')}
-          className={`card p-4 text-left transition-all ${
-            tab === 'completed' ? 'ring-2 ring-purple-500 bg-purple-950/30' : 'hover:bg-surface-850'
-          }`}
-        >
-          <div className="flex items-center justify-between text-purple-400 mb-2">
-            <span className="text-xs uppercase tracking-wider font-medium">Completed</span>
-            <CheckCircle2 className="w-4 h-4 text-purple-400" />
-          </div>
-          <span className="text-3xl font-bold text-purple-400">{completedInterviews.length}</span>
-        </button>
-      </div>
-
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 items-center justify-between">
-        <input
-          type="search"
-          placeholder="Filter by candidate or title…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input w-full sm:max-w-md"
-        />
-        <DateSortControl
-          label="Sort assigned interviews"
-          value={sortOrder}
-          onChange={setSortOrder}
-        />
-        <div className="flex gap-2 self-start sm:self-auto">
-          {(['all', 'live', 'upcoming', 'completed'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium capitalize transition-colors ${
-                tab === t
-                  ? 'bg-primary-500 text-white'
-                  : 'bg-surface-800 text-surface-400 hover:text-white'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+      <div className="flex flex-wrap gap-3 items-center justify-between">
+        <div className="relative w-full sm:max-w-md">
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            aria-label="Search assigned interviews"
+            placeholder="Filter by candidate or title…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input w-full pl-9"
+          />
+        </div>
+        <div className="ml-auto flex items-stretch gap-2">
+          <select
+            aria-label="Filter assigned interviews"
+            className="input w-auto min-w-[150px]"
+            value={tab}
+            onChange={(event) => setTab(event.target.value as typeof tab)}
+          >
+            {(['all', 'live', 'upcoming', 'completed'] as const).map((t) => (
+              <option key={t} value={t}>
+                {t === 'all'
+                  ? 'All'
+                  : t === 'live'
+                    ? 'Live'
+                    : t === 'upcoming'
+                      ? 'Upcoming'
+                      : 'Completed'}
+              </option>
+            ))}
+          </select>
+          <DateSortControl
+            compact
+            attached={false}
+            label="Sort assigned interviews"
+            value={sortOrder}
+            onChange={setSortOrder}
+          />
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 import { beforeEach, it, expect, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import * as services from '../../services/api';
 import QuestionBank from './QuestionBank';
@@ -70,5 +70,33 @@ it('filters questions without assessment controls or selection checkboxes', asyn
   await user.selectOptions(screen.getByLabelText('Question type'), 'mcq');
   expect(screen.getByRole('button', { name: 'Fix cache' })).toBeVisible();
   expect(screen.queryByRole('button', { name: 'Array sum' })).not.toBeInTheDocument();
-  expect(screen.getByText('1 questions shown')).toBeVisible();
+  expect(screen.queryByText(/questions shown/i)).not.toBeInTheDocument();
+});
+
+it('shows the newest five questions, expands older rows and searches the entire bank', async () => {
+  vi.mocked(services.getQuestions).mockResolvedValue(
+    Array.from({ length: 7 }, (_, index) => ({
+      ...questions[0],
+      id: 20 - index,
+      title: `Demo question ${index + 1}`,
+      createdAt: `2026-11-${String(index + 1).padStart(2, '0')}T12:00:00Z`,
+    })),
+  );
+  renderWithProviders(<QuestionBank />, { loggedInAs: adminUser });
+  const user = userEvent.setup();
+  await screen.findByRole('button', { name: 'Demo question 7' });
+  const table = screen.getByRole('table');
+  expect(within(table).getAllByRole('row')).toHaveLength(6);
+  expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Demo question 7');
+  expect(screen.queryByRole('button', { name: 'Demo question 1' })).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Show all 7 questions' }));
+  expect(within(table).getAllByRole('row')).toHaveLength(8);
+  await user.click(screen.getByRole('button', { name: 'Show recent 5 questions' }));
+  expect(within(table).getAllByRole('row')).toHaveLength(6);
+  await user.type(
+    screen.getByPlaceholderText(/Search titles, statements and tags/),
+    'Demo question 1',
+  );
+  expect(screen.getByRole('button', { name: 'Demo question 1' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument();
 });

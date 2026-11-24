@@ -98,7 +98,7 @@ export default function InterviewWorkspace() {
     return (
       <AdminLayout
         title={i?.title || 'Interview details'}
-        subtitle="View scheduled interviews and review results"
+        eyebrow={null}
         actions={
           <Link to="/admin/interviews" className="btn-outline">
             All interviews
@@ -192,11 +192,7 @@ export default function InterviewWorkspace() {
   return (
     <AdminLayout
       title={i?.title || 'Interview workspace'}
-      subtitle={
-        i
-          ? `${i.candidateName} · ${i.status.replace(/_/g, ' ')} · ${i.timeLimitMinutes} minutes`
-          : ''
-      }
+      eyebrow={null}
       actions={
         <Link to="/admin/interviews" className="btn-outline">
           All interviews
@@ -234,37 +230,53 @@ export default function InterviewWorkspace() {
                 backLabel="Back to interview"
               />
             )}
-            <div className="card mb-5 flex flex-wrap gap-3 items-center">
-              <button
-                className="btn-primary"
-                disabled={!['scheduled', 'in_progress'].includes(i.status)}
-                onClick={() => setPreparing(true)}
-              >
-                Prepare questions
-              </button>
-              <button
-                className="btn-outline"
-                disabled={!i.candidateResume && !i.candidateResumeUrl}
-                onClick={() => setViewingResume(true)}
-              >
-                View resume
-              </button>
-              <button
-                className="btn-primary"
-                disabled={action.isPending || i.status !== 'scheduled'}
-                onClick={() => action.mutate({ operation: 'start' })}
-              >
-                Start interview
-              </button>
-              <button
-                className="btn-outline"
-                disabled={action.isPending || i.status !== 'in_progress'}
-                onClick={() => setConfirmEnd(true)}
-              >
-                End interview
-              </button>
-              {action.error && <p role="alert">{apiError(action.error)}</p>}
-            </div>
+            <section className="card mb-5 space-y-4" aria-label="Interview controls">
+              <dl className="flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                <div>
+                  <dt className="text-xs text-surface-500 mb-1">Candidate</dt>
+                  <dd className="font-medium break-words">{i.candidateName}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-surface-500 mb-1">Status</dt>
+                  <dd className="capitalize">{i.status.replace(/_/g, ' ')}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-surface-500 mb-1">Duration</dt>
+                  <dd>{i.timeLimitMinutes} minutes</dd>
+                </div>
+              </dl>
+              <div className="flex flex-wrap gap-3 items-center border-t border-surface-800 pt-4">
+                <button
+                  className="btn-primary"
+                  disabled={!['scheduled', 'in_progress'].includes(i.status)}
+                  onClick={() => setPreparing(true)}
+                >
+                  Prepare questions
+                </button>
+                <button
+                  className="btn-outline"
+                  disabled={!i.candidateResume && !i.candidateResumeUrl}
+                  onClick={() => setViewingResume(true)}
+                >
+                  View resume
+                </button>
+                <button
+                  className="btn-primary"
+                  disabled={action.isPending || i.status !== 'scheduled'}
+                  onClick={() => action.mutate({ operation: 'start' })}
+                >
+                  Start interview
+                </button>
+                <button
+                  className="btn-outline"
+                  disabled={action.isPending || i.status !== 'in_progress'}
+                  onClick={() => setConfirmEnd(true)}
+                >
+                  End interview
+                </button>
+                {action.error && <p role="alert">{apiError(action.error)}</p>}
+              </div>
+            </section>
             {i.status === 'completed' && tab !== 'feedback' && (
               <div className="space-y-3 mb-5">
                 <section className="card flex flex-wrap items-center justify-between gap-3">
@@ -345,9 +357,11 @@ export default function InterviewWorkspace() {
                   </select>
                 </label>
                 {tab === 'evaluation' && question && (
-                  <div className="card mb-5">
-                    <div className="flex justify-between mb-3">
-                      <h2 className="text-lg font-semibold">{question.question.title}</h2>
+                  <div className="card mb-5 space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-surface-800 pb-4">
+                      <h2 className="text-lg font-semibold min-w-0 break-words">
+                        {question.question.title}
+                      </h2>
                       <button
                         className="btn-outline text-sm"
                         disabled={
@@ -444,7 +458,7 @@ function AskedFollowUps({
   ];
   return (
     <section className="card space-y-3">
-      <h2 className="font-semibold">Asked follow-ups</h2>
+      <h2 className="interview-panel-title">Asked follow-ups</h2>
       {saved.isLoading && <Spinner />}
       {saved.error && <p role="alert">{apiError(saved.error)}</p>}
       {questions.length ? (
@@ -618,15 +632,11 @@ export function EvaluationEditor({
         </div>
       )}
       <div className="card space-y-4">
-        <h2 className="font-semibold">Evaluation by skill</h2>
-        <p className="text-sm text-surface-500">
-          Rate 1–5 and cite evidence. Leave unobserved skills unrated; remove them before
-          finalizing.
-        </p>
+        <h2 className="interview-section-heading">Evaluation by skill</h2>
         {skills.map((s, n) => (
           <div
             key={s.skill}
-            className="grid md:grid-cols-[140px_110px_1fr_70px] gap-3 items-center"
+            className="grid md:grid-cols-[140px_110px_1fr_70px] gap-3 items-center rounded-xl border border-surface-800 p-4"
           >
             <strong className="text-sm">{s.skill}</strong>
             <select
@@ -706,7 +716,7 @@ export function EvaluationEditor({
             </p>
           )}
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3 border-t border-surface-800 pt-4">
           <button
             className="btn-outline"
             disabled={save.isPending || observe.isPending || !skills.length}
@@ -740,13 +750,6 @@ export function EvaluationEditor({
             {observe.isPending ? 'Analyzing evidence…' : 'Get AI observations'}
           </button>
         </div>
-        <p className="text-xs text-surface-500">
-          {!hasEvidence
-            ? 'Add an answer, code, interviewer notes or skill rationale to request AI observations.'
-            : dirty
-              ? 'Your current evidence and skill feedback will be saved before AI analysis.'
-              : 'AI uses the saved answer, code, execution results, interviewer notes and skill feedback for this question.'}
-        </p>
         {incompleteFinalSkills && (
           <p className="text-xs text-amber-600">
             Rate each added skill and provide supporting feedback before requesting observations for
@@ -762,12 +765,8 @@ export function EvaluationEditor({
         )}
       </div>
       <div className="card space-y-4">
-        <h2 className="font-semibold">AI observations with supporting evidence</h2>
-        {!existing?.observations.length && (
-          <p className="text-surface-500">
-            No observations yet. Save an evaluation and request AI observations.
-          </p>
-        )}
+        <h2 className="interview-section-heading">AI observations with supporting evidence</h2>
+        {!existing?.observations.length && <p className="text-surface-500">No observations yet.</p>}
         {existing?.observations.map((o, n) => (
           <div key={n} className="p-4 border border-surface-700 rounded-lg">
             <strong>{o.skill}</strong>
@@ -782,9 +781,6 @@ export function EvaluationEditor({
             ))}
           </div>
         ))}
-        <p className="text-xs text-surface-500">
-          AI observations support interviewer judgment; the final skill ratings are human decisions.
-        </p>
       </div>
     </fieldset>
   );

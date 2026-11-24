@@ -84,8 +84,8 @@ it('does not request observations without any recorded evidence', () => {
   });
   expect(screen.getByRole('button', { name: 'Get AI observations' })).toBeDisabled();
   expect(
-    screen.getByText(/Add an answer, code, interviewer notes or skill rationale/),
-  ).toBeInTheDocument();
+    screen.queryByText(/Add an answer, code, interviewer notes or skill rationale/),
+  ).not.toBeInTheDocument();
 });
 
 it('adds skill rows, prevents duplicate names and saves their ratings and feedback', async () => {

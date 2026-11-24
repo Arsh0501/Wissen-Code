@@ -251,12 +251,9 @@ export default function RoomTools({
     };
   };
   return (
-    <section className="card mt-5 space-y-4">
+    <section className="card space-y-4">
       <div>
         <h3 className="interview-panel-title">Communication tools</h3>
-        <p className="interview-panel-subtitle">
-          Connect with your candidate through chat, a shared whiteboard, or video.
-        </p>
       </div>
       {!interviewer && transcriptionActive && (
         <p role="status" className="text-sm text-amber-400">
@@ -467,7 +464,7 @@ export default function RoomTools({
               />
             ))}
           </svg>
-          <p className="text-xs text-surface-500">
+          <p className="sr-only">
             Use chat or the code editor for a keyboard-accessible alternative to drawing.
           </p>
         </>

@@ -1,10 +1,11 @@
+import DashboardInterviews from '../../components/dashboard/DashboardInterviews';
+import { sortByCreatedAt } from '../../services/listSort';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import AdminLayout from '../../components/layout/AdminLayout';
 import DashboardCommandCenter from '../../components/dashboard/DashboardCommandCenter';
 import {
-  PassFailBadge,
   StatCard,
   Spinner,
   EmptyState,
@@ -19,114 +20,12 @@ import {
   Users,
   Target,
   Award,
-  Plus,
-  Library,
-  Activity,
-  ChevronRight,
+  ChevronsDown,
+  ChevronsUp,
   Clock,
   BarChart3,
   Search,
 } from 'lucide-react';
-
-function ScoreDistribution({ buckets }: { buckets: DashboardData['scoreDistribution'] }) {
-  const [hover, setHover] = useState<number | null>(null);
-  const max = Math.max(1, ...buckets.map((b) => b.count));
-  const total = buckets.reduce((a, b) => a + b.count, 0);
-  const peak = buckets.findIndex((b) => b.count === max);
-  // Round the axis up to a tidy tick so gridlines land on whole numbers
-  const step = Math.max(1, Math.ceil(max / 4));
-  const axisMax = step * Math.ceil(max / step);
-  const ticks = Array.from({ length: axisMax / step + 1 }, (_, i) => i * step);
-
-  return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-1">
-        <h2 className="text-sm font-semibold text-white">Score distribution</h2>
-        <span className="text-xs text-surface-500">{total} completed attempts</span>
-      </div>
-      <p className="text-xs text-surface-500 mb-6">Candidates by overall score, all assessments</p>
-
-      <div className="relative h-44 flex">
-        {/* Y axis */}
-        <div className="relative w-6 shrink-0 text-[10px] text-surface-500 tabular-nums">
-          {ticks.map((t) => (
-            <span
-              key={t}
-              className="absolute right-1 translate-y-1/2 leading-none"
-              style={{ bottom: `${(t / axisMax) * 100}%` }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-        <div className="relative flex-1">
-          {ticks.map((t) => (
-            <div
-              key={t}
-              className={`absolute inset-x-0 border-t ${t === 0 ? 'border-surface-600' : 'border-surface-800'}`}
-              style={{ bottom: `${(t / axisMax) * 100}%` }}
-            />
-          ))}
-          <div className="absolute inset-0 flex items-end gap-[2px] px-1">
-            {buckets.map((b, i) => (
-              <div
-                key={b.range}
-                className="relative flex-1 h-full flex items-end justify-center cursor-default"
-                onMouseEnter={() => setHover(i)}
-                onMouseLeave={() => setHover(null)}
-              >
-                <div
-                  className={`w-full max-w-[44px] rounded-t transition-opacity ${hover !== null && hover !== i ? 'opacity-50' : ''}`}
-                  style={{
-                    height: `${(b.count / axisMax) * 100}%`,
-                    minHeight: b.count ? 2 : 0,
-                    background: '#60a5fa',
-                  }}
-                />
-                {i === peak && hover === null && b.count > 0 && (
-                  <span
-                    className="absolute text-xs font-semibold text-surface-200 tabular-nums"
-                    style={{
-                      bottom: `calc(${(b.count / axisMax) * 100}% + 4px)`,
-                    }}
-                  >
-                    {b.count}
-                  </span>
-                )}
-                {hover === i && (
-                  <div
-                    className="absolute z-10 px-2.5 py-1.5 rounded-lg bg-surface-800 border border-surface-700 shadow-xl text-xs whitespace-nowrap pointer-events-none"
-                    style={{
-                      bottom: `calc(${(b.count / axisMax) * 100}% + 6px)`,
-                    }}
-                  >
-                    <div className="text-surface-400">Score {b.range}</div>
-                    <div className="text-white font-semibold tabular-nums">
-                      {b.count} candidate{b.count === 1 ? '' : 's'}
-                      {total > 0 && (
-                        <span className="text-surface-400 font-normal">
-                          {' '}
-                          · {Math.round((b.count / total) * 100)}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="flex gap-[2px] pl-7 pr-1 mt-2">
-        {buckets.map((b) => (
-          <span key={b.range} className="flex-1 text-center text-[10px] text-surface-500">
-            {b.range}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default function AssessmentDashboard() {
   const dashboard = useQuery({
@@ -138,6 +37,7 @@ export default function AssessmentDashboard() {
   const error = dashboard.error ? apiError(dashboard.error, 'Failed to load dashboard') : '';
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [showAllAssessments, setShowAllAssessments] = useState(false);
   const lifecycle = (a: DashboardData['assessments'][number]) =>
     a.status === 'draft'
       ? 'draft'
@@ -148,28 +48,20 @@ export default function AssessmentDashboard() {
           : a.availability === 'upcoming'
             ? 'scheduled'
             : 'active';
-  const visible =
+  const matching =
     data?.assessments.filter(
       (a) =>
         (filter === 'all' || lifecycle(a) === filter) &&
         a.name.toLowerCase().includes(search.trim().toLowerCase()),
     ) ?? [];
+  const sortedAssessments = sortByCreatedAt(matching, 'newest');
+  const visible = showAllAssessments ? sortedAssessments : sortedAssessments.slice(0, 5);
 
   return (
     <AdminLayout
       maxWidth="w-full max-w-none"
       title="Assessment Dashboard"
-      subtitle="Overview of your assessments and candidate performance"
-      actions={
-        <>
-          <Link to="/admin/questions/new" className="btn-outline text-sm">
-            <Library className="w-4 h-4" /> Add Question
-          </Link>
-          <Link to="/admin/assessments/new" className="btn-primary text-sm">
-            <Plus className="w-4 h-4" /> Create Assessment
-          </Link>
-        </>
-      }
+      eyebrow={null}
     >
       {error ? (
         <div role="alert" className="card text-center text-red-600">
@@ -255,29 +147,10 @@ export default function AssessmentDashboard() {
                 Manage all →
               </Link>
             </div>
-            <div className="px-5 pt-4 pb-3 border-b border-surface-800 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <p className="text-xs text-surface-500">
-                  {visible.length} of {data.assessments.length} assessments
-                </p>
-                <label className="relative w-full sm:w-72">
-                  <span className="sr-only">Search assessments</span>
-                  <Search
-                    aria-hidden="true"
-                    className="absolute left-3 top-3.5 w-4 h-4 text-surface-500"
-                  />
-                  <input
-                    type="search"
-                    className="input pl-10"
-                    placeholder="Search assessments…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </label>
-              </div>
+            <div className="flex items-center gap-3 px-5 py-3 border-b border-surface-800">
               <nav
                 aria-label="Assessment status filters"
-                className="flex gap-1 overflow-x-auto pb-1"
+                className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto"
               >
                 {['all', 'draft', 'active', 'scheduled', 'completed', 'expired'].map((status) => {
                   const count =
@@ -303,6 +176,20 @@ export default function AssessmentDashboard() {
                   );
                 })}
               </nav>
+              <label className="relative w-44 sm:w-64 shrink-0">
+                <span className="sr-only">Search assessments</span>
+                <Search
+                  aria-hidden="true"
+                  className="absolute left-3 top-3.5 w-4 h-4 text-surface-500"
+                />
+                <input
+                  type="search"
+                  className="input pl-10"
+                  placeholder="Search assessments…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </label>
             </div>
             {visible.length === 0 ? (
               <EmptyState
@@ -325,14 +212,14 @@ export default function AssessmentDashboard() {
                       Clear filters
                     </button>
                   ) : (
-                    <Link to="/admin/assessments/new" className="btn-primary">
-                      <Plus className="w-4 h-4" /> Create Assessment
+                    <Link to="/admin/assessments" className="btn-outline">
+                      View assessments
                     </Link>
                   )
                 }
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div id="dashboard-assessment-list" className="overflow-x-auto">
                 <table className="w-full min-w-[920px] text-sm">
                   <thead>
                     <tr className="border-b border-surface-800 text-xs text-surface-500 uppercase tracking-wider">
@@ -405,88 +292,35 @@ export default function AssessmentDashboard() {
                 </table>
               </div>
             )}
-            <div className="px-5 py-3 border-t border-surface-800 text-xs text-surface-500">
-              Candidate counts include invited and started candidates. Completed assessments are
-              archived after review.
+            <div className="flex items-center justify-between gap-4 px-5 py-3 border-t border-surface-800 text-xs text-surface-500">
+              <p className="min-w-0">
+                Candidate counts include invited and started candidates. Completed assessments are
+                archived after review.
+              </p>
+              {matching.length > 5 && (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 h-9 w-12 items-center justify-center rounded-xl border border-primary-500/25 bg-primary-500/10 text-primary-600 transition-colors hover:bg-primary-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                  aria-label={
+                    showAllAssessments ? 'Show recent 5' : `Show all ${matching.length} assessments`
+                  }
+                  title={
+                    showAllAssessments ? 'Collapse to recent assessments' : 'Expand all assessments'
+                  }
+                  aria-expanded={showAllAssessments}
+                  aria-controls="dashboard-assessment-list"
+                  onClick={() => setShowAllAssessments((previous) => !previous)}
+                >
+                  {showAllAssessments ? (
+                    <ChevronsUp className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <ChevronsDown className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </button>
+              )}
             </div>
           </section>
-          <section aria-labelledby="dashboard-performance-title">
-            <h2
-              id="dashboard-performance-title"
-              className="text-sm font-semibold text-surface-200 mb-3"
-            >
-              Performance and activity
-            </h2>
-            <div className="grid lg:grid-cols-2 gap-6">
-              <div className="lg:col-span-1">
-                <ScoreDistribution buckets={data.scoreDistribution} />
-              </div>
-
-              {/* Recent activity */}
-              <div className="card lg:col-span-1 p-0 overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
-                  <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-primary-600" /> Recent activity
-                  </h2>
-                </div>
-                {data.recentActivity.length === 0 ? (
-                  <p className="text-sm text-surface-500 text-center py-10">
-                    No candidate activity yet.
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-surface-800/60 max-h-[260px] overflow-y-auto">
-                    {data.recentActivity.map((r) => (
-                      <li
-                        key={`${r.assessmentId}-${r.candidateName}`}
-                        className="flex items-center justify-between gap-3 px-5 py-3"
-                      >
-                        <div className="min-w-0">
-                          <p
-                            title={r.candidateName}
-                            className="text-sm font-medium text-surface-100 truncate"
-                          >
-                            {r.candidateName}
-                          </p>
-                          <p
-                            title={r.assessmentName}
-                            className="text-xs text-surface-400 truncate mt-0.5"
-                          >
-                            {r.assessmentName}
-                          </p>
-                          <p className="text-xs text-surface-500">
-                            {formatDate(r.finishedAt || r.startedAt)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          {r.status === 'completed' && r.overallScore !== null ? (
-                            <>
-                              <span
-                                className={`text-sm font-semibold tabular-nums ${scoreTextClass(r.overallScore)}`}
-                              >
-                                {r.overallScore.toFixed(0)}%
-                              </span>
-                              <PassFailBadge passed={!!r.passed} />
-                              <Link
-                                to={`/admin/reports/${encodeURIComponent(String(r.candidateUserId ?? r.candidateName))}/${r.assessmentId}`}
-                                className="btn-ghost p-1.5"
-                                title="View evaluation"
-                              >
-                                <ChevronRight className="w-4 h-4" />
-                              </Link>
-                            </>
-                          ) : (
-                            <span className="badge bg-sky-500/15 text-sky-600 ring-1 ring-sky-500/25 gap-1">
-                              <Clock className="w-3 h-3" /> In progress
-                            </span>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </section>
+          <DashboardInterviews />
         </div>
       )}
     </AdminLayout>

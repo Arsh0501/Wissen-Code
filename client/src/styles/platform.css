@@ -67,9 +67,71 @@ a {
   color: rgb(var(--surface-500));
   opacity: 1;
 }
-select.input option {
+select option {
   background: rgb(var(--surface-900));
   color: rgb(var(--surface-100));
+}
+/* Theme every single-choice dropdown while retaining native form and keyboard behavior. */
+@supports (appearance: base-select) {
+  select:not([multiple]):not([size]),
+  select:not([multiple]):not([size])::picker(select) {
+    appearance: base-select;
+  }
+  select:not([multiple]):not([size]) {
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    text-overflow: ellipsis;
+  }
+  select::picker(select) {
+    margin-block: 6px;
+    padding: 6px;
+    max-block-size: min(320px, 60dvh);
+    overflow: auto;
+    border: 1px solid rgb(var(--surface-700));
+    border-radius: 12px;
+    background: rgb(var(--surface-900));
+    color: rgb(var(--surface-100));
+    box-shadow: 0 12px 32px rgb(35 20 50 / 0.16);
+  }
+  select::picker-icon {
+    margin-inline-start: auto;
+    color: #9569e4;
+    transition: rotate 0.18s;
+  }
+  select:open::picker-icon {
+    rotate: 180deg;
+  }
+  select:not([multiple]):not([size]) option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  select option:enabled:is(:hover, :focus-visible),
+  select option:checked {
+    background: rgb(128 85 223 / 0.12);
+    color: rgb(var(--surface-100));
+    outline: none;
+  }
+  select option:checked {
+    font-weight: 600;
+  }
+  select option::checkmark {
+    order: 1;
+    margin-inline-start: auto;
+    color: #9569e4;
+  }
+  select:disabled,
+  select option:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 .card {
   box-shadow: 0 3px 14px rgb(35 20 50 / 0.025);
@@ -424,6 +486,10 @@ select.input option {
   padding-bottom: 22px;
   margin-bottom: 26px;
   position: relative;
+}
+.page-heading--compact {
+  padding-bottom: 16px;
+  margin-bottom: 20px;
 }
 .page-heading:after {
   content: '';

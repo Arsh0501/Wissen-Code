@@ -63,7 +63,7 @@ it('keeps interview agents disabled before the interview starts', async () => {
   renderWithProviders(<InterviewAgentsPanel id={21} status="scheduled" />, {
     loggedInAs: adminUser,
   });
-  await screen.findByText(/AI suggestions and notes will appear here/);
+  await screen.findByText('No AI suggestions or notes yet.');
   await waitFor(() => expect(api.request).toHaveBeenCalled());
   for (const name of ['Suggest follow-ups', 'Generate notes', 'Generate interview report'])
     expect(screen.getByRole('button', { name })).toBeDisabled();

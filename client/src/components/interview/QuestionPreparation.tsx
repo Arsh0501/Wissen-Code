@@ -147,9 +147,6 @@ export default function QuestionPreparation({
               </nav>
               {source === 'lineup' && (
                 <section aria-label="Interview lineup" className="space-y-3">
-                  <p className="text-sm text-surface-400">
-                    All questions assigned to this interview, in interview order.
-                  </p>
                   {!interview.data?.questions.length && (
                     <p>No questions have been added to this interview yet.</p>
                   )}
@@ -206,10 +203,6 @@ export default function QuestionPreparation({
               )}
               {source === 'bank' && (
                 <section aria-label="Question bank" className="space-y-3">
-                  <p className="text-sm text-surface-400">
-                    Select available questions from the bank. Questions already assigned to this
-                    interview are excluded.
-                  </p>
                   {bank.isLoading && <p role="status">Loading question bank…</p>}
                   {bank.error && (
                     <p role="alert">

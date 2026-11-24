@@ -44,7 +44,11 @@ it('shows a download button on a completed interview while explaining missing fi
     { loggedInAs: adminUser },
   );
   expect(screen.getByRole('button', { name: 'Download PDF report' })).toBeDisabled();
-  expect(screen.getByText('Awaiting final feedback')).toBeVisible();
+  expect(screen.queryByText('Awaiting final feedback')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Download PDF report' }).parentElement).toHaveAttribute(
+    'title',
+    'Awaiting final feedback',
+  );
   expect(api.request).not.toHaveBeenCalled();
 });
 

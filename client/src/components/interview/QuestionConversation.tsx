@@ -78,10 +78,6 @@ function TranscriptComposer({
         onChange={(event) => setText(event.target.value)}
         placeholder="Candidate speech appears here. Review or edit the transcript before sending."
       />
-      <p className="text-xs text-surface-400">
-        New speech is appended to this turn without replacing your edits. Send the reviewed answer
-        to request follow-ups.
-      </p>
     </div>
   );
 }
@@ -169,7 +165,7 @@ export default function QuestionConversation({
       aria-label="Question conversation"
       className="border-t border-surface-800 pt-4 space-y-4 min-w-0 max-w-full [overflow-wrap:anywhere]"
     >
-      <h3 className="font-semibold">Question conversation</h3>
+      <h3 className="interview-panel-title interview-panel-title-small">Question conversation</h3>
       {query.isLoading && <p role="status">Loading conversation…</p>}
       {query.error && (
         <p role="alert">
@@ -213,7 +209,7 @@ export default function QuestionConversation({
             controls={controls}
             onDraft={onDraft}
           />
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 border-t border-surface-800 pt-4">
             <button
               className="btn-primary"
               disabled={!active || busy || !hasDraft}
@@ -288,18 +284,15 @@ export default function QuestionConversation({
                 onChange={(event) => setFeedback(event.target.value)}
               />
             </label>
-            <p className="text-xs text-surface-400">
-              AI summarizes the concepts this question assesses and how well the candidate
-              demonstrated understanding across the full conversation. Review the draft before
-              saving.
-            </p>
-            <button
-              className="btn-primary"
-              disabled={!active || busy || !feedback.trim()}
-              onClick={() => perform('save-feedback')}
-            >
-              Save question feedback
-            </button>
+            <div className="flex justify-end">
+              <button
+                className="btn-primary"
+                disabled={!active || busy || !feedback.trim()}
+                onClick={() => perform('save-feedback')}
+              >
+                Save question feedback
+              </button>
+            </div>
           </section>
         </>
       )}

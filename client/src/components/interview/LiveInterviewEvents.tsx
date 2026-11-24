@@ -46,9 +46,6 @@ export default function LiveInterviewEvents({
   return (
     <section className="space-y-3" aria-label="Live interview events">
       <h3 className="interview-panel-title">Live events</h3>
-      <p className="text-xs text-surface-500">
-        Latest activity first. Saved events refresh automatically if a live update is missed.
-      </p>
       {query.isLoading && <p role="status">Loading interview events…</p>}
       {query.error && <p role="alert">{apiError(query.error)}</p>}
       {query.data?.length ? (

@@ -40,10 +40,7 @@ export default function TeamPage() {
     },
   });
   return (
-    <AdminLayout
-      title="Team access"
-      subtitle="Manage user access, login sessions, and team permissions."
-    >
+    <AdminLayout title="Team access" eyebrow={null}>
       {!owner ? (
         <p className="card">Only an administrator can manage team access.</p>
       ) : (

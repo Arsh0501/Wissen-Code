@@ -83,15 +83,9 @@ export default function ResumeQuestions({
   const busy = generate.isPending || add.isPending;
   return (
     <section aria-label="Resume question generation" className="space-y-4">
-      <p className="text-sm text-surface-400">
-        Generate questions from the candidate’s resume, review the drafts, and add your selections
-        to this interview only.
-      </p>
-      <p className="text-sm text-surface-400">
-        {resume?.trim() || hasPdf
-          ? 'Uses the resume attached to this interview automatically.'
-          : 'No resume is attached to this interview. Attach a resume before generating questions.'}
-      </p>
+      {!resume?.trim() && !hasPdf && (
+        <p className="text-sm text-surface-400">No resume attached.</p>
+      )}
       <fieldset disabled={busy} className="space-y-3">
         <div className="flex flex-wrap gap-3">
           <label className="label">

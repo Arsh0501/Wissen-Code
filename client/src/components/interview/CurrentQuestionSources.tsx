@@ -148,9 +148,6 @@ export default function CurrentQuestionSources({
               setNotice('Questions added. Choose which one to ask from Current question above.');
             }}
           />
-          <p className="text-xs text-surface-400">
-            Add questions from a set, then select one in Current question above.
-          </p>
         </>
       )}
       {add.error && (
