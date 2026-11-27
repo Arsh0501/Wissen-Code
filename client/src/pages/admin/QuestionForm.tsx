@@ -1,5 +1,6 @@
+import BulkTestCaseImport from '../../components/questions/BulkTestCaseImport';
 import { useTheme } from '../../context/ThemeContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import Editor from '../../components/editor/CodeEditor';
 import {
@@ -76,18 +77,38 @@ export default function QuestionForm() {
       { id: 'a', text: '' },
       { id: 'b', text: '' },
     ],
-    correctOptionIds: ['a'],
+    correctOptionIds: [],
     multiple: false,
   });
   const [projectFiles, setProjectFiles] = useState(
     '[{"path":"src/solution.ts","content":"// Implement your solution\\n"}]',
   );
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const focusValidation = useRef(false);
+  const field = (key: string) => ({
+    'aria-invalid': !!fieldErrors[key],
+    'aria-describedby': fieldErrors[key] ? 'question-validation-errors' : undefined,
+    'data-validation-key': key,
+    style: fieldErrors[key]
+      ? { borderColor: '#dc2626', boxShadow: '0 0 0 1px #dc2626' }
+      : undefined,
+  });
   const [formError, setFormError] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [timeLimit, setTimeLimit] = useState(2);
   const [memoryLimit, setMemoryLimit] = useState(256000);
   const [activeTab, setActiveTab] = useState<'details' | 'testcases' | 'starter'>('details');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!focusValidation.current) return;
+    focusValidation.current = false;
+    const target = document.querySelector<HTMLElement>(
+      '[data-question-form] [aria-invalid="true"]',
+    );
+    target?.focus();
+    target?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+  }, [fieldErrors, activeTab]);
 
   // Test cases state
   const [testCases, setTestCases] = useState<(TestCase & { isNew?: boolean })[]>([]);
@@ -187,17 +208,76 @@ export default function QuestionForm() {
   }
 
   async function handleSave() {
-    if (!title.trim() || !statement.trim()) {
-      alert('Title and problem statement are required.');
+    if (saving) return;
+    const errors: Record<string, string> = {};
+    if (!title.trim() || title.trim().length > 200)
+      errors.title = 'Enter a title of 1?200 characters.';
+    if (!statement.trim() || statement.trim().length > 100000)
+      errors.statement = 'Enter a question of 1?100,000 characters.';
+    if (questionType === 'mcq') {
+      const options = settings.options ?? [];
+      const answers = settings.correctOptionIds ?? [];
+      if (
+        options.length < 2 ||
+        options.length > 12 ||
+        options.some((option) => !option.text.trim() || option.text.trim().length > 2000) ||
+        !answers.length ||
+        (!settings.multiple && answers.length !== 1) ||
+        new Set(answers).size !== answers.length ||
+        answers.some((id) => !options.some((option) => option.id === id))
+      )
+        errors.choices = 'Add at least two non-empty options and select the correct answer.';
+    } else {
+      if (!['easy', 'medium', 'hard'].includes(difficulty))
+        errors.difficulty = 'Choose a valid difficulty.';
+      const tags = tagsInput
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      if (tags.length > 40 || tags.some((tag) => tag.length > 100))
+        errors.tags = 'Use up to 40 tags, each at most 100 characters.';
+      if (!Number.isFinite(timeLimit) || timeLimit < 0.1 || timeLimit > 20)
+        errors.timeLimit = 'CPU time must be between 0.1 and 20 seconds.';
+      if (!Number.isInteger(memoryLimit) || memoryLimit < 16000 || memoryLimit > 512000)
+        errors.memoryLimit = 'Memory must be a whole number between 16,000 and 512,000 KB.';
+      if (
+        testCases.length > 100 ||
+        testCases.some((test) => test.input.length > 100000 || test.expectedOutput.length > 100000)
+      )
+        errors.testcases =
+          'Use at most 100 test cases; each input/output must be at most 100,000 characters.';
+      if (newTC.input || newTC.expectedOutput)
+        errors.testcases =
+          'A test case has not been added. Click Add or clear its fields before saving.';
+      if (Object.values(starterCodes).some((code) => code.length > 100000))
+        errors.starter = 'Starter code must be at most 100,000 characters per language.';
+    }
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      setFormError(errors.choices ?? 'Please correct the highlighted fields before saving.');
+      setActiveTab(
+        errors.title ||
+          errors.statement ||
+          errors.choices ||
+          errors.difficulty ||
+          errors.tags ||
+          errors.timeLimit ||
+          errors.memoryLimit
+          ? 'details'
+          : errors.testcases
+            ? 'testcases'
+            : 'starter',
+      );
+      focusValidation.current = true;
       return;
     }
-
+    setFormError('');
     setSaving(true);
     try {
       const questionSettings =
         questionType === 'mcq'
           ? {
-              options: settings.options,
+              options: settings.options?.map((option) => ({ ...option, text: option.text.trim() })),
               correctOptionIds: settings.correctOptionIds,
               multiple: !!settings.multiple,
               explanation: settings.explanation,
@@ -214,7 +294,7 @@ export default function QuestionForm() {
         .map((t) => t.trim())
         .filter(Boolean);
 
-      const starterCodesArr = Object.entries(starterCodes)
+      const starterCodesArr = Object.entries(questionType === 'mcq' ? {} : starterCodes)
         .filter(
           ([id, code]) =>
             code.trim() && (questionType === 'sql' ? Number(id) === 82 : Number(id) !== 82),
@@ -230,14 +310,11 @@ export default function QuestionForm() {
 
       if (isEdit && id) {
         await updateQuestion(parseInt(id), {
-          title,
-          statement,
-          difficulty,
+          title: title.trim(),
+          statement: statement.trim(),
           questionType,
           settings: questionSettings,
-          tags,
-          timeLimit,
-          memoryLimit,
+          ...(questionType === 'mcq' ? {} : { difficulty, tags, timeLimit, memoryLimit }),
         });
 
         // Save starter codes individually
@@ -246,7 +323,7 @@ export default function QuestionForm() {
         }
 
         // Add new test cases
-        const newTCs = testCases.filter((tc) => tc.isNew);
+        const newTCs = questionType === 'mcq' ? [] : testCases.filter((tc) => tc.isNew);
         if (newTCs.length > 0) {
           await addTestCases(
             parseInt(id),
@@ -258,7 +335,7 @@ export default function QuestionForm() {
           );
         }
       } else {
-        const newTCs = testCases.map((tc) => ({
+        const newTCs = (questionType === 'mcq' ? [] : testCases).map((tc) => ({
           input: tc.input,
           expectedOutput: tc.expectedOutput,
           isSample: tc.isSample,
@@ -267,12 +344,9 @@ export default function QuestionForm() {
         await createQuestion({
           title,
           statement,
-          difficulty,
           questionType,
           settings: questionSettings,
-          tags,
-          timeLimit,
-          memoryLimit,
+          ...(questionType === 'mcq' ? {} : { difficulty, tags, timeLimit, memoryLimit }),
           starterCodes: starterCodesArr,
           testCases: newTCs,
         });
@@ -291,6 +365,10 @@ export default function QuestionForm() {
   }
 
   function addTestCase() {
+    if (testCases.length >= 100) {
+      setFormError('A question can contain up to 100 test cases.');
+      return;
+    }
     if (!newTC.input.trim() && !newTC.expectedOutput.trim()) return;
     setTestCases((prev) => [
       ...prev,
@@ -321,7 +399,7 @@ export default function QuestionForm() {
   return (
     <div className="min-h-screen bg-surface-950">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
+      <header className="relative bg-surface-900 border-b border-surface-800">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link to="/admin/questions" className="btn-ghost p-2">
@@ -356,7 +434,7 @@ export default function QuestionForm() {
                     })
                     .catch((err) => {
                       console.error(err);
-                      alert('Failed to export markdown');
+                      setFormError('Failed to export markdown. Please try again.');
                     });
                 }}
                 className="btn-outline"
@@ -373,260 +451,284 @@ export default function QuestionForm() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-6 py-8">
+      <main data-question-form className="max-w-5xl mx-auto px-6 py-8">
         {formError && (
-          <p role="alert" className="card mb-4 text-red-600">
-            {formError}
-          </p>
-        )}
-        <label className="label mb-5">
-          Question format
-          <select
-            className="input mt-2"
-            value={questionType}
-            onChange={(e) => {
-              setQuestionType(e.target.value as NonNullable<Question['questionType']>);
-              setActiveTab('details');
-            }}
+          <div
+            role="alert"
+            id="question-validation-errors"
+            className="mb-5 rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600"
           >
-            {['coding', 'debugging', 'mcq', 'sql', 'written', 'project'].map((type) => (
-              <option key={type} value={type}>
-                {type === 'mcq' ? 'Multiple choice' : type.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </label>
-        {questionType === 'mcq' && (
-          <section className="card mb-5 space-y-3">
-            <h2 className="font-semibold">Choices and answer key</h2>
-            <label className="flex gap-2">
-              <input
-                type="checkbox"
-                checked={!!settings.multiple}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...s,
-                    multiple: e.target.checked,
-                    correctOptionIds: [],
-                  }))
-                }
-              />
-              Allow multiple answers
-            </label>
-            {(settings.options ?? []).map((o, index) => (
-              <div className="flex gap-3 items-center" key={o.id}>
-                <input
-                  aria-label={`Correct choice ${index + 1}`}
-                  type={settings.multiple ? 'checkbox' : 'radio'}
-                  name="correct-choice"
-                  checked={settings.correctOptionIds?.includes(o.id) ?? false}
-                  onChange={(e) =>
-                    setSettings((s) => ({
-                      ...s,
-                      correctOptionIds: s.multiple
-                        ? e.target.checked
-                          ? [...(s.correctOptionIds ?? []), o.id]
-                          : s.correctOptionIds?.filter((id) => id !== o.id)
-                        : [o.id],
-                    }))
-                  }
-                />
-                <input
-                  aria-label={`Choice ${index + 1}`}
-                  className="input"
-                  value={o.text}
-                  onChange={(e) =>
-                    setSettings((s) => ({
-                      ...s,
-                      options: s.options?.map((option) =>
-                        option.id === o.id ? { ...option, text: e.target.value } : option,
-                      ),
-                    }))
-                  }
-                />
-                <button
-                  className="btn-outline"
-                  onClick={() =>
-                    setSettings((s) => ({
-                      ...s,
-                      options: s.options?.filter((option) => option.id !== o.id),
-                      correctOptionIds: s.correctOptionIds?.filter((id) => id !== o.id),
-                    }))
-                  }
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
+            <p className="font-semibold">{formError}</p>
+            {!!Object.keys(fieldErrors).length && (
+              <ul className="mt-2 list-disc pl-5 space-y-1">
+                {Object.entries(fieldErrors).map(([key, message]) => (
+                  <li key={key}>{message}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        <div
+          className="mb-6 inline-flex gap-1 rounded-xl border border-surface-700 bg-surface-900 p-1"
+          role="group"
+          aria-label="Question type"
+        >
+          {(['coding', 'mcq'] as const).map((type) => (
             <button
-              className="btn-outline"
-              disabled={(settings.options?.length ?? 0) >= 12}
-              onClick={() =>
-                setSettings((s) => ({
-                  ...s,
-                  options: [
-                    ...(s.options ?? []),
-                    { id: crypto.randomUUID().slice(0, 8), text: '' },
-                  ],
-                }))
+              type="button"
+              key={type}
+              aria-pressed={questionType === type}
+              className={
+                'rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ' +
+                (questionType === type
+                  ? 'bg-primary-600 text-on-accent shadow-sm'
+                  : 'text-surface-400 hover:bg-primary-500/10')
               }
+              onClick={() => {
+                setQuestionType(type);
+                setActiveTab('details');
+                if (type === 'mcq')
+                  setSettings((previous) =>
+                    previous.options?.length
+                      ? previous
+                      : {
+                          options: [
+                            { id: 'a', text: '' },
+                            { id: 'b', text: '' },
+                          ],
+                          correctOptionIds: [],
+                          multiple: false,
+                        },
+                  );
+              }}
             >
-              Add choice
-            </button>
-          </section>
-        )}
-        {['written', 'project'].includes(questionType) && (
-          <label className="label mb-5">
-            Scoring rubric
-            <textarea
-              className="input mt-2"
-              rows={5}
-              value={settings.rubric ?? ''}
-              onChange={(e) => setSettings((s) => ({ ...s, rubric: e.target.value }))}
-              placeholder="Describe observable criteria, score levels, and required evidence."
-            />
-          </label>
-        )}
-        {questionType === 'project' && (
-          <label className="label mb-5">
-            Project files (JSON array with path and content)
-            <textarea
-              className="input font-mono mt-2"
-              rows={8}
-              value={projectFiles}
-              onChange={(e) => setProjectFiles(e.target.value)}
-            />
-          </label>
-        )}
-        {questionType === 'sql' && (
-          <label className="label mb-5">
-            Visible database schema
-            <textarea
-              className="input font-mono mt-2"
-              rows={6}
-              value={settings.sqlSchema ?? ''}
-              onChange={(e) => setSettings((s) => ({ ...s, sqlSchema: e.target.value }))}
-            />
-            <p className="text-sm mt-2">
-              Use SQL setup statements as each test case input. The isolated SQLite runner executes
-              the setup followed by the candidate query.
-            </p>
-          </label>
-        )}
-        {/* Tabs */}
-        <div className="flex gap-1 mb-8 bg-surface-900 rounded-xl p-1 w-fit">
-          {(
-            [
-              'details',
-              ...(!['mcq', 'written', 'project'].includes(questionType)
-                ? (['testcases', 'starter'] as const)
-                : []),
-            ] as const
-          ).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === tab
-                  ? 'bg-primary-600 text-on-accent shadow-lg'
-                  : 'text-surface-400 hover:text-on-accent hover:bg-surface-800'
-              }`}
-            >
-              {tab === 'details' && 'Question Details'}
-              {tab === 'testcases' && `Test Cases (${testCases.length})`}
-              {tab === 'starter' && 'Starter Code'}
+              {type === 'mcq' ? 'MCQ' : 'Coding'}
             </button>
           ))}
         </div>
+        {/* Tabs */}
+        {questionType !== 'mcq' && (
+          <div className="flex flex-wrap gap-1 mb-6 bg-surface-900 rounded-xl p-1 w-fit">
+            {(['details', 'testcases', 'starter'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  activeTab === tab
+                    ? 'bg-primary-600 text-on-accent shadow-lg'
+                    : 'text-surface-400 hover:text-on-accent hover:bg-surface-800'
+                }`}
+              >
+                {tab === 'details' && 'Question Details'}
+                {tab === 'testcases' && `Test Cases (${testCases.length})`}
+                {tab === 'starter' && 'Starter Code'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Details Tab */}
         {activeTab === 'details' && (
           <div className="space-y-6 animate-fade-in">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <label className="label">Title</label>
-                <input
-                  className="input"
-                  placeholder="e.g. Two Sum, Reverse Linked List"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="label">Difficulty</label>
-                <select
-                  className="input"
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value as any)}
-                >
-                  <option value="easy">Easy</option>
-                  <option value="medium">Medium</option>
-                  <option value="hard">Hard</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="label">Tags (comma-separated)</label>
-                <input
-                  className="input"
-                  placeholder="array, hash-map, sorting"
-                  value={tagsInput}
-                  onChange={(e) => setTagsInput(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="label">CPU Time Limit (seconds)</label>
-                <input
-                  type="number"
-                  className="input"
-                  value={timeLimit}
-                  onChange={(e) => setTimeLimit(parseFloat(e.target.value))}
-                  step={0.5}
-                  min={0.5}
-                />
-              </div>
-
-              <div>
-                <label className="label">Memory Limit (KB)</label>
-                <input
-                  type="number"
-                  className="input"
-                  value={memoryLimit}
-                  onChange={(e) => setMemoryLimit(parseInt(e.target.value))}
-                  step={1000}
-                  min={1000}
-                />
-              </div>
+            <div className="md:col-span-2">
+              <label className="label" htmlFor="question-title">
+                Title
+              </label>
+              <input
+                id="question-title"
+                {...field('title')}
+                className="input"
+                placeholder={
+                  questionType === 'mcq'
+                    ? 'Enter a short title'
+                    : 'e.g. Two Sum, Reverse Linked List'
+                }
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
             </div>
-
-            <label className="label">
-              Question type
-              <select
-                className="input mt-2"
-                value={questionType}
-                onChange={(e) => setQuestionType(e.target.value as 'coding' | 'debugging')}
-              >
-                <option value="coding">Coding</option>
-                <option value="debugging">Debugging</option>
-              </select>
-            </label>
             <div>
-              <label className="label">Problem Statement (Markdown supported)</label>
+              <label className="label" htmlFor="question-statement">
+                {questionType === 'mcq' ? 'Question' : 'Question (Markdown supported)'}
+              </label>
               <textarea
-                className="input min-h-[300px] font-mono text-sm"
-                placeholder={`Write the problem statement here. Markdown is supported.\n\n## Example:\nGiven an array of integers, find two numbers that add up to a specific target.\n\n**Input:** nums = [2, 7, 11, 15], target = 9\n**Output:** [0, 1]`}
+                id="question-statement"
+                {...field('statement')}
+                className="input min-h-[220px] text-sm leading-relaxed"
+                placeholder={
+                  questionType === 'mcq'
+                    ? 'Type a question...'
+                    : `Write the problem statement here. Markdown is supported.\n\n## Example:\nGiven an array of integers, find two numbers that add up to a specific target.\n\n**Input:** nums = [2, 7, 11, 15], target = 9\n**Output:** [0, 1]`
+                }
                 value={statement}
                 onChange={(e) => setStatement(e.target.value)}
               />
             </div>
+
+            {questionType !== 'mcq' && (
+              <section className="card space-y-4">
+                <h2 className="font-semibold">Coding settings</h2>
+                <div className="grid md:grid-cols-2 gap-5">
+                  {' '}
+                  <div>
+                    <label className="label">Difficulty</label>
+                    <select
+                      className="input"
+                      {...field('difficulty')}
+                      value={difficulty}
+                      onChange={(e) => setDifficulty(e.target.value as any)}
+                    >
+                      <option value="easy">Easy</option>
+                      <option value="medium">Medium</option>
+                      <option value="hard">Hard</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Tags (comma-separated)</label>
+                    <input
+                      className="input"
+                      placeholder="array, hash-map, sorting"
+                      {...field('tags')}
+                      value={tagsInput}
+                      onChange={(e) => setTagsInput(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">CPU Time Limit (seconds)</label>
+                    <input
+                      type="number"
+                      className="input"
+                      {...field('timeLimit')}
+                      value={Number.isFinite(timeLimit) ? timeLimit : ''}
+                      onChange={(e) => setTimeLimit(parseFloat(e.target.value))}
+                      step={0.5}
+                      min={0.1}
+                      max={20}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Memory Limit (KB)</label>
+                    <input
+                      type="number"
+                      className="input"
+                      {...field('memoryLimit')}
+                      value={Number.isFinite(memoryLimit) ? memoryLimit : ''}
+                      onChange={(e) => setMemoryLimit(parseInt(e.target.value))}
+                      step={1000}
+                      min={16000}
+                      max={512000}
+                    />
+                  </div>
+                </div>
+              </section>
+            )}
+            {questionType === 'mcq' && (
+              <section tabIndex={-1} {...field('choices')} className="card mb-5 space-y-4">
+                <h2 className="font-semibold">Choices and answer key</h2>
+                <label className="flex gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!settings.multiple}
+                    onChange={(e) =>
+                      setSettings((s) => ({
+                        ...s,
+                        multiple: e.target.checked,
+                        correctOptionIds: [],
+                      }))
+                    }
+                  />
+                  Allow multiple answers
+                </label>
+                {(settings.options ?? []).map((o, index) => (
+                  <div
+                    className="flex gap-3 items-center rounded-xl border border-surface-700 p-3"
+                    key={o.id}
+                  >
+                    <input
+                      aria-label={`Correct choice ${index + 1}`}
+                      type={settings.multiple ? 'checkbox' : 'radio'}
+                      name="correct-choice"
+                      checked={settings.correctOptionIds?.includes(o.id) ?? false}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          correctOptionIds: s.multiple
+                            ? e.target.checked
+                              ? [...(s.correctOptionIds ?? []), o.id]
+                              : s.correctOptionIds?.filter((id) => id !== o.id)
+                            : [o.id],
+                        }))
+                      }
+                    />
+                    <input
+                      aria-label={`Choice ${index + 1}`}
+                      aria-invalid={!!fieldErrors.choices && !o.text.trim()}
+                      className="input"
+                      value={o.text}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          options: s.options?.map((option) =>
+                            option.id === o.id ? { ...option, text: e.target.value } : option,
+                          ),
+                        }))
+                      }
+                    />
+                    <button
+                      className="btn-outline"
+                      onClick={() =>
+                        setSettings((s) => ({
+                          ...s,
+                          options: s.options?.filter((option) => option.id !== o.id),
+                          correctOptionIds: s.correctOptionIds?.filter((id) => id !== o.id),
+                        }))
+                      }
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  className="btn-outline"
+                  disabled={(settings.options?.length ?? 0) >= 12}
+                  onClick={() =>
+                    setSettings((s) => ({
+                      ...s,
+                      options: [
+                        ...(s.options ?? []),
+                        { id: crypto.randomUUID().slice(0, 8), text: '' },
+                      ],
+                    }))
+                  }
+                >
+                  Add choice
+                </button>
+              </section>
+            )}
           </div>
         )}
 
         {/* Test Cases Tab */}
         {activeTab === 'testcases' && (
-          <div className="space-y-6 animate-fade-in">
+          <div
+            tabIndex={-1}
+            {...field('testcases')}
+            className="space-y-6 animate-fade-in rounded-xl"
+          >
+            <BulkTestCaseImport
+              remaining={100 - testCases.length}
+              onImport={(cases) =>
+                setTestCases((previous) => [
+                  ...previous,
+                  ...cases.map((test) => ({
+                    ...test,
+                    id: Date.now() + Math.random(),
+                    questionId: Number(id || 0),
+                    isNew: true,
+                  })),
+                ])
+              }
+            />
             {/* Existing test cases */}
             {testCases.length > 0 && (
               <div className="space-y-3">
@@ -727,7 +829,7 @@ export default function QuestionForm() {
 
         {/* Starter Code Tab */}
         {activeTab === 'starter' && (
-          <div className="animate-fade-in">
+          <div tabIndex={-1} {...field('starter')} className="animate-fade-in rounded-xl">
             {/* Language tabs */}
             <div className="flex gap-1 mb-4 bg-surface-900 rounded-lg p-1 w-fit">
               {LANGUAGES.filter((lang) =>

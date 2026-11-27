@@ -41,7 +41,7 @@ router.get('/submissions/:assessmentId', async (req: Request, res: Response) => 
 
     const [submissions, sessions] = await Promise.all([
       prisma.submission.findMany({
-        where: { assessmentId },
+        where: { OR: [{ sessionId: null }, { session: { invalidatedAt: null } }], assessmentId },
         select: {
           candidateName: true,
           score: true,
@@ -52,7 +52,7 @@ router.get('/submissions/:assessmentId', async (req: Request, res: Response) => 
         },
       }),
       prisma.assessmentSession.findMany({
-        where: { assessmentId },
+        where: { invalidatedAt: null, assessmentId },
         select: {
           id: true,
           candidateUserId: true,
@@ -129,7 +129,7 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
 
     const [submissions, sessions] = await Promise.all([
       prisma.submission.findMany({
-        where: { assessmentId },
+        where: { OR: [{ sessionId: null }, { session: { invalidatedAt: null } }], assessmentId },
         select: {
           candidateName: true,
           score: true,
@@ -140,7 +140,7 @@ router.get('/export/:assessmentId', async (req: Request, res: Response) => {
         },
       }),
       prisma.assessmentSession.findMany({
-        where: { assessmentId },
+        where: { invalidatedAt: null, assessmentId },
         select: {
           candidateName: true,
           id: true,
@@ -389,6 +389,7 @@ export async function buildReportData(
   }
   const target = await prisma.assessmentSession.findFirst({
     where: {
+      invalidatedAt: null,
       assessmentId,
       candidateName,
       ...(candidateUserId ? { candidateUserId } : {}),
@@ -396,6 +397,7 @@ export async function buildReportData(
     orderBy: { startedAt: 'desc' },
     select: { id: true, candidateUserId: true, gradingStatus: true },
   });
+  if (candidateUserId && !target) return null;
   // Fetch assessment
   const assessment = await prisma.assessment.findUnique({
     where: { id: assessmentId },
@@ -407,6 +409,7 @@ export async function buildReportData(
   // Fetch all submissions for this candidate + assessment with test results
   const submissions = await prisma.submission.findMany({
     where: {
+      OR: [{ sessionId: null }, { session: { invalidatedAt: null } }],
       assessmentId,
       candidateName,
       ...(target?.candidateUserId ? { sessionId: target.id } : {}),
@@ -440,6 +443,7 @@ export async function buildReportData(
   // Fetch session info for submission timestamp
   const session = await prisma.assessmentSession.findFirst({
     where: {
+      invalidatedAt: null,
       assessmentId,
       candidateName,
       ...(target?.id ? { id: target.id } : {}),
@@ -607,7 +611,7 @@ async function buildCohort(assessmentId: number, candidateName: string, candidat
 
   const [submissions, sessions] = await Promise.all([
     prisma.submission.findMany({
-      where: { assessmentId },
+      where: { OR: [{ sessionId: null }, { session: { invalidatedAt: null } }], assessmentId },
       select: {
         candidateName: true,
         score: true,
@@ -618,7 +622,7 @@ async function buildCohort(assessmentId: number, candidateName: string, candidat
       },
     }),
     prisma.assessmentSession.findMany({
-      where: { assessmentId },
+      where: { invalidatedAt: null, assessmentId },
       select: {
         id: true,
         candidateUserId: true,

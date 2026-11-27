@@ -1,5 +1,3 @@
-import { generatedQuestionSchema } from './workflow-schemas';
-
 export const CODING_STARTER_LAYOUT_INSTRUCTIONS = `For coding starters, CORE LOGIC markers delimit the function BODY, never the method declaration. In Java, declare the method inside public class Main BEFORE writing BEGIN CORE LOGIC. Correct layout (replace solve with the documented function name and use appropriate parameter/return types):
 public static int solve(int n) {
     // BEGIN CORE LOGIC
@@ -115,16 +113,4 @@ export function normalizeCodingStarter(
     '}' +
     code.slice(end.index! + end[0].length)
   );
-}
-
-/** Used only by coding generation; MCQ and debugging generation do not call it. */
-export function normalizeGeneratedCodingStarters(raw: unknown) {
-  const question = generatedQuestionSchema.parse(raw);
-  return {
-    ...question,
-    starterCodes: question.starterCodes.map((starter) => ({
-      ...starter,
-      code: normalizeCodingStarter(starter.code, starter.languageId, question.functionSignature),
-    })),
-  };
 }

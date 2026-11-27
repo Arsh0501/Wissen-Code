@@ -1,3 +1,5 @@
+import RestartAssessmentDialog from '../../components/assessments/RestartAssessmentDialog';
+import { getAssessmentRestarts, type AssessmentRestartRecord } from '../../services/api';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import AdminLayout from '../../components/layout/AdminLayout';
@@ -37,6 +39,8 @@ export default function SubmissionsViewer() {
   const [sort, setSort] = useState<SortKey>('score');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+  const [restartTarget, setRestartTarget] = useState<{ id: number; name: string } | null>(null);
+  const [restarts, setRestarts] = useState<AssessmentRestartRecord[]>([]);
 
   async function handleExport() {
     if (!assessmentId) return;
@@ -68,7 +72,12 @@ export default function SubmissionsViewer() {
     try {
       setLoading(true);
       setError('');
-      setData(await getAssessmentSubmissions(parseInt(assessmentId!)));
+      const [results, history] = await Promise.all([
+        getAssessmentSubmissions(Number(assessmentId)),
+        getAssessmentRestarts(Number(assessmentId)),
+      ]);
+      setData(results);
+      setRestarts(history);
     } catch (err: any) {
       setError(
         err?.response?.status === 403
@@ -273,6 +282,17 @@ export default function SubmissionsViewer() {
                         )}
                       </td>
                       <td className="px-5 py-3 text-right">
+                        {c.candidateUserId && (
+                          <button
+                            type="button"
+                            className="btn-outline text-xs px-2.5 py-1 mr-2"
+                            onClick={() =>
+                              setRestartTarget({ id: c.candidateUserId!, name: c.name })
+                            }
+                          >
+                            Restart assessment
+                          </button>
+                        )}
                         {c.status === 'completed' && (
                           <Link
                             to={`/admin/reports/${encodeURIComponent(String(c.candidateUserId ?? c.name))}/${assessmentId}`}
@@ -296,6 +316,66 @@ export default function SubmissionsViewer() {
             </div>
           </div>
         </div>
+      )}
+      {restarts.length > 0 && (
+        <section className="card mt-5 p-5">
+          <h2 className="mb-4 text-lg font-semibold">Restart history</h2>
+          {[
+            ...new Map(restarts.map((r) => [r.candidateUserId, r] as const).reverse()).values(),
+          ].map((r) => (
+            <div
+              key={r.candidateUserId}
+              className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-surface-700 pb-3"
+            >
+              <span className="text-sm">
+                <strong>{r.candidateName}</strong>
+                <span className="ml-2 text-surface-400">
+                  {!r.consumedAt && !r.revokedAt
+                    ? 'Replacement ready to start'
+                    : 'Replacement authorized'}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="btn-outline text-xs"
+                onClick={() => setRestartTarget({ id: r.candidateUserId, name: r.candidateName })}
+              >
+                Restart assessment
+              </button>
+            </div>
+          ))}
+          <details>
+            <summary className="cursor-pointer text-sm text-primary-600">
+              View audit history
+            </summary>
+            <ul className="mt-3 space-y-3">
+              {restarts.map((r) => (
+                <li key={r.id} className="rounded-xl border border-surface-700 p-3 text-sm">
+                  <strong>{r.candidateName}</strong>
+                  <p className="text-surface-400">
+                    {formatDate(r.createdAt)} ï¿½ {r.adminEmail}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap">{r.reason}</p>
+                  <p className="mt-1 text-xs text-surface-400">
+                    Invalidated attempt IDs:{' '}
+                    {r.invalidatedSessionIds.join(', ') || 'Already invalidated'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </details>
+        </section>
+      )}
+      {restartTarget && (
+        <RestartAssessmentDialog
+          assessmentId={Number(assessmentId)}
+          candidate={restartTarget}
+          onClose={() => setRestartTarget(null)}
+          onRestart={() => {
+            setRestartTarget(null);
+            void loadData();
+          }}
+        />
       )}
     </AdminLayout>
   );

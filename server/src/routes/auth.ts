@@ -14,7 +14,7 @@ const REFRESH_TOKEN_EXPIRY_DAYS = 7;
 
 /**
  * Helper to generate a refresh token and create a session.
- * Enforces one-device policy: Invalidates any previous sessions for this user.
+ * Enforces one-device policy: Rejects new candidate logins without changing active sessions.
  */
 export async function createSessionForUser(
   userId: number,
@@ -34,11 +34,7 @@ export async function createSessionForUser(
     await tx.userSession.deleteMany({
       where: { userId, expiresAt: { lte: new Date() } },
     });
-    if (
-      !(guest && guestAssessmentId !== undefined) &&
-      role === 'candidate' &&
-      (await tx.userSession.findFirst({ where: { userId } }))
-    ) {
+    if (role === 'candidate' && (await tx.userSession.findFirst({ where: { userId } }))) {
       return {
         error: 'Active session detected on another device. Please log out from that device first.',
       };

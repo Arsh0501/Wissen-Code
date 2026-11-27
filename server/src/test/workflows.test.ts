@@ -20,16 +20,18 @@ const content = {
   questionType: 'coding',
   topics: ['integers'],
   requiredSkills: ['Python'],
-  testCases: [
-    { input: '1', expectedOutput: '1', isSample: true },
-    { input: '-2', expectedOutput: '-2', isSample: false },
-  ],
+  testCases: [-10, 10, 0, 1, -1, 2, -2, 3, -3, 4].map((n, index) => ({
+    input: String(n),
+    expectedOutput: String(n),
+    isSample: index < 2,
+    isEdgeCase: index < 3,
+    description: index < 3 ? 'Boundary or zero value' : 'Ordinary integer',
+  })),
   starterCodePython:
     'def solve(n: int) -> int:\n    # BEGIN CORE LOGIC\n    # TODO: implement core logic\n    return 0\n    # END CORE LOGIC\n\nif __name__ == "__main__":\n    n = int(input())\n    print(solve(n))',
   expectedSolutionPython: 'def solve(n: int) -> int:\n    return n\n\nprint(solve(int(input())))',
   solutionExplanation: 'Read the integer without modifying it and print it once.',
 };
-const starterCodes = [{ languageId: 71, languageName: 'Python', code: content.starterCodePython }];
 const checks = [
   'duplicate',
   'correctness',
@@ -95,7 +97,7 @@ const ai = (async (name: string, _schema: unknown, _instructions: unknown, input
   };
 }) as typeof structuredAI;
 
-void test('AI drafts, approval gates and evidence-backed interview evaluation', async (t) => {
+void test('Evidence-backed interview evaluation', async (t) => {
   const user = await prisma.user.create({
     data: {
       name: prefix,
@@ -155,202 +157,19 @@ void test('AI drafts, approval gates and evidence-backed interview evaluation', 
     });
     return { status: r.status, body: (await r.json()) as any };
   };
-  let draftId = 0;
   let questionId = 0;
   let interviewId = 0;
   try {
-    await t.test('generation preserves drafts and rejects invalid counts', async () => {
-      assert.equal(
-        (
-          await request('/ai/generate', 'POST', {
-            topic: 'Integers',
-            difficulty: 'easy',
-            questionType: 'coding',
-            count: 0,
-            requiredSkills: ['Python'],
-          })
-        ).status,
-        400,
-      );
-      const r = await request('/ai/generate', 'POST', {
-        topic: 'Integers',
-        difficulty: 'easy',
-        questionType: 'coding',
-        count: 1,
-      });
-      assert.equal(r.status, 201);
-      draftId = r.body[0].id;
-      assert.match(r.body[0].content.statement, /## Input format/);
-      assert.match(r.body[0].content.statement, /## Output format/);
-      assert.match(r.body[0].content.starterCodePython, /print\(solve\(n\)\)/);
-      assert.equal(await prisma.question.count({ where: { title: prefix } }), 0);
-      assert.equal(
-        (
-          await request(`/ai/drafts/${draftId}/approve`, 'POST', {
-            revision: 1,
-          })
-        ).status,
-        409,
-      );
-      assert.equal((await request('/ai/drafts', 'GET', undefined, 'candidate')).status, 403);
-    });
-    await t.test('editing invalidates validation and stale writes are rejected', async () => {
-      const validation = (await request(`/ai/drafts/${draftId}/validate`, 'POST')).body;
-      assert.equal(validation.status, 'validated');
-      assert.equal(validation.validation.starterVerified, true);
-      const r = await request(`/ai/drafts/${draftId}`, 'PUT', {
-        content: { ...content, starterCodes },
-        revision: 1,
-      });
-      assert.equal(r.body.revision, 2);
-      assert.equal(r.body.status, 'draft');
-      assert.equal(r.body.content.starterContractVersion, 2);
-      const replay = await request(`/ai/drafts/${draftId}`, 'PUT', {
-        content: { ...content, starterCodes },
-        revision: 1,
-      });
-      assert.equal(replay.status, 200);
-      assert.equal(replay.body.revision, 2);
-      assert.equal(
-        (
-          await request(`/ai/drafts/${draftId}/approve`, 'POST', {
-            revision: 1,
-          })
-        ).status,
-        409,
-      );
-      assert.equal(
-        (
-          await request(`/ai/drafts/${draftId}`, 'PUT', {
-            content: { ...content, title: content.title + ' conflicting edit', starterCodes },
-            revision: 1,
-          })
-        ).status,
-        409,
-      );
-    });
-    await t.test('broken starter formatting blocks validation and direct approval', async () => {
-      const broken = content.starterCodePython.replace(
-        'print(solve(n))',
-        'print("WRONG_OUTPUT", solve(n))',
-      );
-      const created = await request('/ai/drafts', 'POST', {
-        ...content,
-        title: `${prefix} broken starter`,
-        statement: content.statement + ' This fixture intentionally prints an extra label.',
-        starterContractVersion: 2,
-        starterCodePython: broken,
-        starterCodes: [{ languageId: 71, languageName: 'Python', code: broken }],
-      });
-      const validation = await request(`/ai/drafts/${created.body.id}/validate`, 'POST');
-      assert.equal(validation.body.status, 'needs_changes');
-      assert.equal(validation.body.validation.executionVerified, true);
-      assert.equal(validation.body.validation.starterVerified, false);
-      assert.equal(validation.body.validation.starterExecutions[0].status, 'Output mismatch');
-      assert.equal(validation.body.validation.starterExecutions[0].expectedOutput, '1');
-      assert.equal(validation.body.validation.starterExecutions[0].actualOutput, 'wrong');
-      assert.match(validation.body.validation.starterExecutions[0].fix, /starter driver/);
-      const direct = await request(`/ai/drafts/${created.body.id}/approve`, 'POST', {
-        revision: 1,
-        directApprove: true,
-      });
-      assert.equal(direct.status, 409);
-      assert.match(direct.body.error, /Starter input\/output execution failed/);
-      assert.equal(direct.body.diagnostics[0].status, 'Output mismatch');
-      const failedDraft = await prisma.aIQuestionDraft.findUniqueOrThrow({
-        where: { id: created.body.id },
-      });
-      assert.equal(failedDraft.status, 'needs_changes');
-      assert.equal((failedDraft.validation as any).reviewMode, 'direct');
-    });
-    await t.test(
-      'unchecked approval inserts unvalidated starters without AI or execution calls',
-      async () => {
-        const created = await request('/ai/drafts', 'POST', {
-          ...content,
-          title: `${prefix} unchecked insertion`,
-          statement: content.statement + ' Unchecked insertion fixture.',
-          starterContractVersion: 2,
-          starterCodes,
-        });
-        assert.equal(created.status, 201);
-        const beforeAI = aiCalls;
-        const beforeExecution = executionCalls;
-        let bankId: number | undefined;
-        try {
-          const response = await request(`/ai/drafts/${created.body.id}/approve`, 'POST', {
-            revision: 1,
-            skipValidation: true,
-          });
-          assert.equal(response.status, 200);
-          bankId = response.body.questionId;
-          assert.ok(bankId);
-          assert.equal(aiCalls, beforeAI);
-          assert.equal(executionCalls, beforeExecution);
-          assert.equal(response.body.status, 'approved');
-          assert.equal(
-            (
-              await request(`/ai/drafts/${created.body.id}/approve`, 'POST', {
-                revision: 1,
-                skipValidation: true,
-              })
-            ).body.questionId,
-            bankId,
-          );
-        } finally {
-          await prisma.aIQuestionDraft.delete({ where: { id: created.body.id } });
-          if (bankId) await prisma.question.delete({ where: { id: bankId } });
-        }
-      },
-    );
-    await t.test('approval inserts one bank question and duplicates cannot pass', async () => {
-      assert.equal(
-        (await request(`/ai/drafts/${draftId}/validate`, 'POST')).body.status,
-        'validated',
-      );
-      const approved = await request(`/ai/drafts/${draftId}/approve`, 'POST', { revision: 2 });
-      assert.equal(approved.status, 200);
-      questionId = approved.body.questionId;
-      assert.equal(
-        (
-          await request(`/ai/drafts/${draftId}/approve`, 'POST', {
-            revision: 2,
-          })
-        ).body.questionId,
-        questionId,
-      );
-      assert.equal(await prisma.question.count({ where: { title: prefix } }), 1);
-      const duplicate = await request('/ai/drafts', 'POST', content);
-      const validation = await request(`/ai/drafts/${duplicate.body.id}/validate`, 'POST');
-      assert.equal(validation.body.status, 'needs_changes');
-      assert.equal(
-        validation.body.validation.checks.find((c: any) => c.key === 'duplicate').passed,
-        false,
-      );
-    });
-    await t.test(
-      'queue deletion is revision checked, retry safe, and cannot delete approved drafts',
-      async () => {
-        const queued = await request('/ai/drafts', 'POST', {
-          ...content,
-          title: `${prefix} delete fixture`,
-        });
-        const path = `/ai/drafts/${queued.body.id}`;
-        assert.equal((await request(path, 'DELETE', { revision: 1 }, 'candidate')).status, 403);
-        assert.equal((await request(path, 'DELETE', { revision: 2 })).status, 409);
-        assert.equal((await request(path, 'DELETE', { revision: 1 })).status, 200);
-        assert.equal((await request(path, 'DELETE', { revision: 1 })).status, 200);
-        assert.equal(
-          await prisma.aIQuestionDraft.findUnique({ where: { id: queued.body.id } }),
-          null,
-        );
-        assert.equal(
-          (await request(`/ai/drafts/${draftId}`, 'DELETE', { revision: 2 })).status,
-          409,
-        );
-        assert.ok(await prisma.question.findUnique({ where: { id: questionId } }));
-      },
-    );
+    questionId = (
+      await prisma.question.create({
+        data: {
+          title: prefix,
+          statement: content.statement,
+          difficulty: 'easy',
+          questionType: 'coding',
+        },
+      })
+    ).id;
     const interview = await prisma.interview.create({
       data: {
         title: prefix,

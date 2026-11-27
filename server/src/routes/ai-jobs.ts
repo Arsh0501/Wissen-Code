@@ -13,7 +13,7 @@ import { interviewContext } from '../ai/context';
 import { finalEvaluationContext } from '../ai/final-evaluation-context';
 import { WorkflowError } from '../services/ai/structured-ai';
 import { setCurrentSubquestion } from '../services/interviews/current-subquestion';
-import { generationSchema, draftContentSchema } from '../services/questions/workflow-schemas';
+import { generationSchema, mcqContentSchema } from '../services/questions/workflow-schemas';
 const router = Router();
 router.use(adminOrInterviewer);
 const wrap = (fn: any) => (req: any, res: any, next: any) =>
@@ -38,7 +38,7 @@ router.post(
       generationTopics(generationSchema.parse(body.input));
       body.input.requestId = randomUUID();
     }
-    if (body.kind === 'question-validation') draftContentSchema.parse(body.input.question);
+    if (body.kind === 'question-validation') mcqContentSchema.parse(body.input.question);
     if (!body.kind.startsWith('question-') && !body.interviewId)
       return res.status(400).json({ error: 'Interview ID required' });
     if (body.interviewId) {

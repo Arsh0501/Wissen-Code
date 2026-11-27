@@ -24,7 +24,13 @@ export async function guestAssessmentIds(userId: number): Promise<number[]> {
     },
     select: { invite: { select: { assessmentId: true } } },
   });
-  return Array.from(new Set(rows.map((r) => r.invite.assessmentId)));
+  const restarts = await prisma.assessmentRestart.findMany({
+    where: { candidateUserId: userId, revokedAt: null },
+    select: { assessmentId: true },
+  });
+  return Array.from(
+    new Set([...rows.map((r) => r.invite.assessmentId), ...restarts.map((r) => r.assessmentId)]),
+  );
 }
 
 export async function canAccessAssessment(req: Request, assessmentId: number): Promise<boolean> {
@@ -44,6 +50,12 @@ export async function canAccessAssessment(req: Request, assessmentId: number): P
       )
     );
   }
+  if (req.user.guestAssessmentId !== undefined && req.user.guestAssessmentId !== assessmentId)
+    return false;
+  const restart = await prisma.assessmentRestart.findFirst({
+    where: { assessmentId, candidateUserId: req.user.id, revokedAt: null },
+  });
+  if (restart) return true;
   const ids = await guestAssessmentIds(req.user.id);
   return (
     (req.user.guestAssessmentId === undefined || req.user.guestAssessmentId === assessmentId) &&

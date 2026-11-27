@@ -302,23 +302,50 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
     }
 
     if (!user) {
-      // Results are keyed by display name, so keep names unique across people
-      const clash = await prisma.user.findFirst({
-        where: { name },
-        select: { id: true },
+      const password = req.body.password;
+      if (
+        typeof password !== 'string' ||
+        password.length < 8 ||
+        Buffer.byteLength(password, 'utf8') > 72
+      )
+        return res.status(400).json({ error: 'Create a password between 8 and 72 characters.' });
+      const passwordHash = await bcrypt.hash(password, 10);
+      const created = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "InviteLink" WHERE id = ${invite.id} FOR UPDATE`;
+        const fresh = await tx.inviteLink.findUniqueOrThrow({
+          where: { id: invite.id },
+          include: { _count: { select: { redemptions: true } } },
+        });
+        const unavailable = inviteProblem(fresh);
+        if (unavailable) throw new WorkflowError(unavailable, 403);
+        const existing = await tx.user.findUnique({ where: { email } });
+        if (existing)
+          throw new WorkflowError('This email already has an account. Sign in instead.', 409);
+        const clash = await tx.user.findFirst({ where: { name }, select: { id: true } });
+        const candidate = await tx.user.create({
+          data: {
+            name: clash ? name + ' (' + email + ')' : name,
+            email,
+            password: passwordHash,
+            role: 'candidate',
+            isGuest: false,
+          },
+        });
+        await tx.inviteRedemption.create({ data: { inviteId: invite.id, userId: candidate.id } });
+        const session = await createSessionForUser(
+          candidate.id,
+          candidate.email,
+          candidate.name,
+          candidate.role,
+          false,
+          undefined,
+          tx,
+        );
+        if ('error' in session)
+          throw new WorkflowError(session.error ?? 'Could not create session', 403);
+        return session;
       });
-      user = await prisma.user.upsert({
-        where: { email },
-        update: {},
-        create: {
-          name: clash ? `${name} (${email})` : name,
-          email,
-          // Guests never sign in with a password; this random hash just satisfies the column
-          password: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
-          role: 'candidate',
-          isGuest: true,
-        },
-      });
+      return res.json({ ...created, assessmentId: invite.assessmentId });
     }
 
     if (!user.isGuest)
@@ -370,6 +397,10 @@ publicInviteRoutes.post('/:token/join', async (req: Request, res: Response) => {
   } catch (error) {
     if (error instanceof WorkflowError)
       return res.status(error.status).json({ error: error.message });
+    if ((error as { code?: string }).code === 'P2002')
+      return res
+        .status(409)
+        .json({ error: 'This email already has an account. Please sign in.', code: 'HAS_ACCOUNT' });
     console.error('Error joining via invite:', error);
     res.status(500).json({ error: 'Failed to join the assessment' });
   }

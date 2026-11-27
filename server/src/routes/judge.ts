@@ -11,6 +11,7 @@ router.use(async (req, res, next) => {
       return res.status(400).json({ error: 'A valid question ID is required' });
     const sessions = await prisma.assessmentSession.findMany({
       where: {
+        invalidatedAt: null,
         candidateUserId: req.user.id,
         finishedAt: null,
         ...(questionId ? { assessment: { questions: { some: { questionId } } } } : {}),

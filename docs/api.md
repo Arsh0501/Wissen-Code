@@ -60,13 +60,17 @@ Server events: `SYNC_STATE`, `CANDIDATE_JOINED`, `INTERVIEWER_JOINED`, `INTERVIE
 
 ## AI workflows
 
-Generated questions stay in the draft queue until validation and human approval.
+Generated questions stay in the draft queue until human approval.
 
-- `GET /ai/status`, `GET /ai/drafts`, `POST /ai/generate`.
-- `POST /ai/drafts`, `PUT /ai/drafts/:id`.
-- `POST /ai/drafts/:id/validate` and `/ai/drafts/:id/approve`.
+- `GET /ai/status`, `GET /ai/drafts` list configuration and saved drafts.
+- Coding stages: `POST /ai/coding/generate-question`, `/generate-starter`, `/generate-tests`, `/generate-solution`. Each body includes a stable UUID `requestId`; subsequent stages include `draftId` and `revision`. Starters/solutions take one `languageId` per request; test cases take `sampleCount` and `hiddenCount` and return inputs plus expected outputs.
+- `PUT /ai/coding/:id` saves `{revision, stage, data}`, where stage is `question`, `starter`, `tests`, or `solution`. Contract changes reset dependent stages.
+- `POST /ai/drafts/:id/verify-reference` accepts `{revision, mode: "generated"}` for coding wizard drafts. It executes the saved solution against all generated expected answers and checks starter drivers. Missing outputs or mismatches block verification without changing the draft. Failed generated runs return `{error, revision, executions}` with indexed input, expected output, actual output, pass/fail, status and compiler/runtime details. Successful runs save `executions` in `referenceVerification`; stale runs are rejected. Successful verification records method `generated-case-execution` and binds results to the content hash and revision. The legacy independent-review payload `{revision, reviewedIndependently: true, sourceNote, trustedCases}` remains supported for existing integrations; generated-case verification never claims independent human review.
+- `POST /ai/drafts/:id/test-solution` runs reviewer code against the verified saved cases.
+- `POST /ai/coding/:id/approve` takes `{revision}` and requires execution verification. It saves only empty candidate starters and verified test outputs to the bank.
+- `POST /ai/generate`, `POST /ai/drafts`, `PUT /ai/drafts/:id`, `/validate`, and `/approve` are MCQ-only. Coding requests to the superseded endpoints return 410. `DELETE /ai/drafts/:id` rejects either unapproved question type with revision checks.
 
-Background jobs use `POST /ai/jobs` with `{ kind, interviewId?, input }`. The response is 202 with a job ID. Supported kinds are `question-generation`, `question-validation`, `interview-assistant`, `note-writer` and `evaluation`.
+Background jobs use `POST /ai/jobs` with `{kind, interviewId?, input}`. `question-generation` and `question-validation` now accept MCQs only. Interview jobs remain `interview-assistant`, `note-writer`, and `evaluation`.
 
 Read owned jobs with `GET /ai/jobs` or `/ai/jobs/:id`; retry failed jobs with `POST /ai/jobs/:id/retry`. Interview evaluation requires a completed interview.
 

@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { runAgent } from './gateway';
-import { questionTools } from './question-tools';
 import { interviewContext } from './context';
 import { assistantSchema, notesSchema, reportSchema, validateEvidence } from './schemas';
-import { draftContentSchema, validationSchema } from '../services/questions/workflow-schemas';
+import { mcqContentSchema, validationSchema } from '../services/questions/workflow-schemas';
 import { generateStudioDrafts } from '../services/questions/studio-generation';
 import { enforceInterviewDeadlines } from '../services/interviews/interview-expiry';
 import { isContextLimitError } from './context-budget';
@@ -32,9 +31,9 @@ export async function executeAgent(
     return run(
       'question_validation',
       validationSchema,
-      'For single-choice MCQs, independently solve the question and verify exactly one option is correct. Review option quality under testCases, the answer key under expectedSolution, and counterexamples under edgeCases; no compiler is needed. For coding questions check execution. Validate correctness, duplicate, ambiguity, difficulty, testCases, expectedSolution and edgeCases. Return each of the seven checks exactly once with evidence. Never mark compiler verification successful if tool says unverified.',
-      draftContentSchema.parse(input.question),
-      questionTools(authorId).filter((t) => t.name !== 'saveDraftQuestion'),
+      'Independently solve the single-choice MCQ, verify exactly one correct answer, and review duplicate, correctness, ambiguity, difficulty, testCases (options), expectedSolution (answer key), and edgeCases (counterexamples). Return each check once with evidence. Do not generate code or require code execution.',
+      mcqContentSchema.parse(input.question),
+      [],
     );
   if (!interviewId) throw new Error('An interview is required');
   await enforceInterviewDeadlines({ id: interviewId });

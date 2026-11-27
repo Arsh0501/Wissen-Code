@@ -21,6 +21,7 @@ model User {
 
   inviteRedemptions InviteRedemption[]
   sessions          UserSession[]
+  assessmentRestarts AssessmentRestart[]
   guestParticipations GuestAssessmentParticipation[]
   interviewedInterviews Interview[] @relation("InterviewerInterviews")
   candidateInterviews   Interview[] @relation("CandidateInterviews")
@@ -113,6 +114,7 @@ model Assessment {
   questions        AssessmentQuestion[]
   submissions      Submission[]
   sessions         AssessmentSession[]
+  restarts AssessmentRestart[]
   guestParticipations GuestAssessmentParticipation[]
   inviteLinks      InviteLink[]
 }
@@ -174,6 +176,7 @@ model AssessmentSession {
   startedAt       DateTime  @default(now())
   finishedAt      DateTime? // null = in progress, set on final submit
   gradingStatus String @default("pending")
+  invalidatedAt DateTime?
   gradingStartedAt DateTime?
 
   assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
@@ -464,6 +467,8 @@ model InterviewEvent {
 
 
 model AIQuestionDraft {
+  requiresReferenceReview Boolean @default(false)
+  referenceVerification Json?
   id Int @id @default(autoincrement())
   authorId Int
   content Json
@@ -576,4 +581,25 @@ model SessionRevocationAudit {
   createdAt DateTime @default(now())
 
   @@index([targetUserId, createdAt])
+}
+
+// Immutable administrator decisions; a pending grant authorizes one replacement.
+model AssessmentRestart {
+  id                    Int        @id @default(autoincrement())
+  assessmentId          Int
+  candidateUserId       Int
+  adminId               Int
+  adminEmail            String
+  candidateName         String
+  reason                String
+  allowClosed           Boolean    @default(false)
+  createdAt             DateTime   @default(now())
+  consumedSessionId     Int?       @unique
+  consumedAt            DateTime?
+  revokedAt             DateTime?
+  invalidatedSessionIds Json
+  assessment            Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  candidate             User       @relation(fields: [candidateUserId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId, candidateUserId, createdAt])
 }

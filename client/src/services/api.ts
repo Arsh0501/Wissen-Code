@@ -540,15 +540,16 @@ export async function getPublicInvite(token: string): Promise<PublicInvite> {
 
 export async function joinInvite(
   token: string,
-  input: { name: string; email: string },
+  input: { name: string; email: string; password?: string },
 ): Promise<{
   token: string;
+  refreshToken?: string;
   user: {
     id: number;
     email: string;
     name: string;
     role: 'candidate';
-    guest: true;
+    guest: boolean;
   };
   assessmentId: number;
 }> {
@@ -581,3 +582,33 @@ export async function getCandidateInterviews(): Promise<CandidateInterviewSummar
 }
 
 export default api;
+
+export interface AssessmentRestartRecord {
+  id: number;
+  candidateUserId: number;
+  candidateName: string;
+  adminEmail: string;
+  reason: string;
+  createdAt: string;
+  consumedAt: string | null;
+  revokedAt: string | null;
+  invalidatedSessionIds: number[];
+}
+export async function getAssessmentRestarts(
+  assessmentId: number,
+): Promise<AssessmentRestartRecord[]> {
+  return (await api.get(`/assessments/${assessmentId}/restarts`)).data;
+}
+export async function restartCandidateAssessment(
+  assessmentId: number,
+  candidateUserId: number,
+  reason: string,
+  allowClosed: boolean,
+) {
+  return (
+    await api.post(`/assessments/${assessmentId}/candidates/${candidateUserId}/restart`, {
+      reason,
+      allowClosed,
+    })
+  ).data;
+}

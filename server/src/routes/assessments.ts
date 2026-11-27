@@ -1,3 +1,4 @@
+import { restartAssessment, restartAvailability } from '../services/assessments/restarts';
 import { WorkflowError } from '../services/ai/structured-ai';
 import { Router, Request, Response } from 'express';
 import prisma from '../database/prisma';
@@ -62,7 +63,10 @@ async function statsFor(assessmentIds: number[]) {
       select: { assessmentId: true, questionId: true, marks: true },
     }),
     prisma.submission.findMany({
-      where: { assessmentId: { in: assessmentIds } },
+      where: {
+        OR: [{ sessionId: null }, { session: { invalidatedAt: null } }],
+        assessmentId: { in: assessmentIds },
+      },
       select: {
         assessmentId: true,
         candidateName: true,
@@ -74,7 +78,7 @@ async function statsFor(assessmentIds: number[]) {
       },
     }),
     prisma.assessmentSession.findMany({
-      where: { assessmentId: { in: assessmentIds } },
+      where: { invalidatedAt: null, assessmentId: { in: assessmentIds } },
       select: {
         id: true,
         assessmentId: true,
@@ -274,6 +278,7 @@ router.get('/dashboard', adminOnly, async (_req: Request, res: Response) => {
       }),
       prisma.question.count(),
       prisma.assessmentSession.findMany({
+        where: { invalidatedAt: null },
         orderBy: { startedAt: 'desc' },
         take: 20,
         include: { assessment: { select: { id: true, name: true } } },
@@ -363,16 +368,21 @@ router.get('/', async (req: Request, res: Response) => {
     }
 
     const candidateName = req.user?.name || '';
-    const sessions = await prisma.assessmentSession.findMany({
+    const allAttempts = await prisma.assessmentSession.findMany({
       where: { candidateName, candidateUserId: req.user!.id },
       select: {
         assessmentId: true,
+        invalidatedAt: true,
         startedAt: true,
         finishedAt: true,
         durationMinutes: true,
         gradingStatus: true,
       },
       orderBy: { startedAt: 'desc' },
+    });
+    const sessions = allAttempts.filter((s) => !s.invalidatedAt);
+    const restartGrants = await prisma.assessmentRestart.findMany({
+      where: { candidateUserId: req.user!.id, consumedAt: null, revokedAt: null },
     });
     const sessionIds = sessions.map((s) => s.assessmentId);
 
@@ -398,6 +408,7 @@ router.get('/', async (req: Request, res: Response) => {
       assessments
         .filter((a) => !candidateRestrictionError(req.user!.email, a))
         .map(async (a) => {
+          const grant = restartGrants.find((grant) => grant.assessmentId === a.id);
           const session = sessions.find((s) => s.assessmentId === a.id);
           const deadline = session
             ? session.startedAt.getTime() + (session.durationMinutes ?? a.timeLimitMinutes) * 60000
@@ -437,13 +448,14 @@ router.get('/', async (req: Request, res: Response) => {
             endAt: a.endAt,
             showResults: a.showResults,
             status: a.status,
-            availability: availability(a),
+            availability:
+              grant && !restartAvailability(a, grant.allowClosed) ? 'open' : availability(a),
             candidateStatus,
             maxAttempts: a.maxAttempts,
-            attemptsUsed: sessions.filter((s) => s.assessmentId === a.id).length,
+            attemptsUsed: allAttempts.filter((s) => s.assessmentId === a.id).length,
             canRetake:
               candidateStatus === 'completed' &&
-              sessions.filter((s) => s.assessmentId === a.id).length < a.maxAttempts &&
+              allAttempts.filter((s) => s.assessmentId === a.id).length < a.maxAttempts &&
               availability(a) === 'open',
             startedAt: session?.startedAt.toISOString() ?? null,
             finishedAt: session?.finishedAt?.toISOString() ?? null,
@@ -512,12 +524,24 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (restriction) return res.status(403).json({ error: restriction });
     const candidateName = req.user?.name || '';
     const session = await prisma.assessmentSession.findFirst({
-      where: { assessmentId: id, candidateName, candidateUserId: req.user!.id },
+      where: {
+        invalidatedAt: null,
+        assessmentId: id,
+        candidateName,
+        candidateUserId: req.user!.id,
+      },
       orderBy: { startedAt: 'desc' },
       select: { id: true },
     });
     const blocked = availabilityError(assessment);
-    if (blocked && !session) {
+    const restartGrant = await prisma.assessmentRestart.findFirst({
+      where: { assessmentId: id, candidateUserId: req.user!.id, consumedAt: null, revokedAt: null },
+    });
+    if (
+      blocked &&
+      !session &&
+      !(restartGrant && !restartAvailability(assessment, restartGrant.allowClosed))
+    ) {
       return res.status(403).json({ error: blocked, availability: availability(assessment) });
     }
 
@@ -602,9 +626,13 @@ router.post('/:id/start', async (req: Request, res: Response) => {
       await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${req.user!.id} FOR UPDATE`;
       const identity = { candidateUserId: req.user!.id };
       let session = await tx.assessmentSession.findFirst({
-        where: { assessmentId, ...identity },
+        where: { assessmentId, ...identity, invalidatedAt: null },
         orderBy: { startedAt: 'desc' },
         include: { drafts: true, _count: { select: { tabSwitches: true } } },
+      });
+      const grant = await tx.assessmentRestart.findFirst({
+        where: { assessmentId, candidateUserId: req.user!.id, consumedAt: null, revokedAt: null },
+        orderBy: { id: 'desc' },
       });
       const retake = req.body.retake === true;
       if (retake && session && !session.finishedAt)
@@ -613,20 +641,36 @@ router.post('/:id/start', async (req: Request, res: Response) => {
         const used = await tx.assessmentSession.count({
           where: { assessmentId, ...identity },
         });
-        if (used >= assessment.maxAttempts)
+        if (!grant && used >= assessment.maxAttempts)
           throw new WorkflowError('No assessment attempts remain', 403);
-        const blocked = availabilityError(assessment);
+        const freshAssessment = await tx.assessment.findUniqueOrThrow({
+          where: { id: assessmentId },
+        });
+        const blocked = grant
+          ? restartAvailability(freshAssessment, grant.allowClosed)
+          : availabilityError(freshAssessment);
         if (blocked) throw new WorkflowError(blocked, 403);
         session = await tx.assessmentSession.create({
           data: {
             assessmentId,
             candidateName,
             candidateUserId: req.user!.id,
-            attemptNumber: used + 1,
+            attemptNumber:
+              ((
+                await tx.assessmentSession.aggregate({
+                  where: { assessmentId, ...identity },
+                  _max: { attemptNumber: true },
+                })
+              )._max.attemptNumber ?? 0) + 1,
             durationMinutes: assessment.timeLimitMinutes,
           },
           include: { drafts: true, _count: { select: { tabSwitches: true } } },
         });
+        if (grant)
+          await tx.assessmentRestart.update({
+            where: { id: grant.id },
+            data: { consumedAt: new Date(), consumedSessionId: session.id },
+          });
       }
       return session;
     });
@@ -664,6 +708,50 @@ router.post('/:id/start', async (req: Request, res: Response) => {
   }
 });
 
+// Reset decisions are audit history, separate from current scores.
+router.get('/:id/restarts', adminOnly, async (req, res, next) => {
+  try {
+    const rows = await prisma.assessmentRestart.findMany({
+      where: { assessmentId: Number(req.params.id) },
+      orderBy: { id: 'desc' },
+    });
+    res.json(rows);
+  } catch (error) {
+    next(error);
+  }
+});
+router.post('/:id/candidates/:candidateId/restart', adminOnly, async (req, res, next) => {
+  const assessmentId = Number(req.params.id),
+    candidateId = Number(req.params.candidateId);
+  const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
+  if (
+    !Number.isSafeInteger(assessmentId) ||
+    assessmentId < 1 ||
+    !Number.isSafeInteger(candidateId) ||
+    candidateId < 1 ||
+    !reason ||
+    reason.length > 1000 ||
+    (req.body.allowClosed !== undefined && typeof req.body.allowClosed !== 'boolean')
+  )
+    return res
+      .status(400)
+      .json({ error: 'Enter a reason (1-1000 characters) and valid candidate and assessment IDs' });
+  try {
+    const restart = await restartAssessment(
+      assessmentId,
+      candidateId,
+      req.user!,
+      reason,
+      req.body.allowClosed === true,
+    );
+    res.json(restart);
+  } catch (error) {
+    if (error instanceof WorkflowError)
+      return res.status(error.status).json({ error: error.message });
+    next(error);
+  }
+});
+
 // GET /api/assessments/:id/candidates
 router.get('/:id/candidates', adminOnly, async (req: Request, res: Response) => {
   try {
@@ -689,7 +777,7 @@ router.get('/:id/candidates', adminOnly, async (req: Request, res: Response) => 
 
     const [submissions, sessions] = await Promise.all([
       prisma.submission.findMany({
-        where: { assessmentId },
+        where: { OR: [{ sessionId: null }, { session: { invalidatedAt: null } }], assessmentId },
         select: {
           candidateName: true,
           sessionId: true,
@@ -700,7 +788,7 @@ router.get('/:id/candidates', adminOnly, async (req: Request, res: Response) => 
         },
       }),
       prisma.assessmentSession.findMany({
-        where: { assessmentId },
+        where: { invalidatedAt: null, assessmentId },
         select: {
           id: true,
           candidateUserId: true,

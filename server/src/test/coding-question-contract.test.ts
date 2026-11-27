@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  prepareGeneratedQuestion,
   validateCoreLogicStarter,
   verifyStarterDrivers,
 } from '../services/questions/coding-question-contract';
@@ -23,31 +22,14 @@ const question = {
     'def solve(n: int) -> int:\n    # BEGIN CORE LOGIC\n    # TODO: core logic\n    return 0\n    # END CORE LOGIC\n\nif __name__ == "__main__":\n    n = int(input())\n    print(solve(n))',
   expectedSolutionPython: 'def solve(n: int) -> int:\n    return n\n\nprint(solve(int(input())))',
   solutionExplanation: 'Return the value without modifying it.',
-  testCases: [
-    { input: '1', expectedOutput: '1', isSample: true },
-    { input: '-1', expectedOutput: '-1', isSample: false },
-  ],
+  testCases: [-10, 10, 0, 1, -1, 2, -2, 3, -3, 4].map((n, index) => ({
+    input: String(n),
+    expectedOutput: String(n),
+    isSample: index < 2,
+    isEdgeCase: index < 3,
+    description: index < 3 ? 'Boundary or zero value' : 'Ordinary integer',
+  })),
 };
-test('Generated questions include input/output sections and a complete core-function starter', () => {
-  const result = prepareGeneratedQuestion(question);
-  assert.match(result.statement, /## Input format/);
-  assert.match(result.statement, /## Output format/);
-  assert.match(result.statement, /## Function contract/);
-  assert.equal(result.starterCodes[0].code, question.starterCodePython);
-  assert.throws(
-    () =>
-      prepareGeneratedQuestion({
-        ...question,
-        starterCodePython: 'def solve(n: int) -> int:\n    # TODO\n    pass',
-      }),
-    /CORE LOGIC|input parsing/,
-  );
-  assert.throws(
-    () => prepareGeneratedQuestion(question, [{ id: 62, name: 'Java' }]),
-    /Java starter/,
-  );
-});
-
 const javascript = `const fs = require('fs');
 function solve(n) {
     // BEGIN CORE LOGIC
@@ -114,20 +96,19 @@ test('every supported language separates core logic from a complete runnable dri
       ),
     /Move all input/,
   );
-  assert.throws(
-    () => prepareGeneratedQuestion({ ...question, expectedSolutionPython: 'print(input())' }),
-    /reference solution must implement/,
-  );
 });
 
 test('real Python starter execution verifies parsing and formatting against all expected outputs', async () => {
-  const prepared = prepareGeneratedQuestion(
-    {
-      ...question,
-      starterCodes: [{ languageId: 63, languageName: 'JavaScript', code: javascript }],
-    },
-    [{ id: 63, name: 'JavaScript' }],
-  );
+  const prepared = {
+    ...question,
+    starterContractVersion: 2 as const,
+    questionType: 'coding' as const,
+    difficulty: 'easy' as const,
+    starterCodes: [
+      { languageId: 71, languageName: 'Python', code: question.starterCodePython },
+      { languageId: 63, languageName: 'JavaScript', code: javascript },
+    ],
+  };
   let pythonRuns = 0,
     jsRuns = 0;
   const execute = (async (input: any) => {

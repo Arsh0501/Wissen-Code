@@ -62,7 +62,7 @@ test('personalized links reject different emails and accounts and recheck guest 
         'Content-Type': 'application/json',
         ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
       },
-      body: JSON.stringify({ name: 'Guest fixture', email }),
+      body: JSON.stringify({ name: 'Guest fixture', email, password: 'Candidate@123' }),
     });
     return { status: response.status, data: (await response.json()) as any };
   }

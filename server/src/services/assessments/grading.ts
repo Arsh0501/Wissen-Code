@@ -20,6 +20,7 @@ export async function gradeAnswer(
   sessionId?: number,
   onProgress?: () => Promise<void>,
 ) {
+  await onProgress?.();
   await prisma.submission.deleteMany({
     where: {
       assessmentId,
@@ -151,6 +152,7 @@ export async function computeEvaluation(
   assessmentId: number,
   candidateName: string,
   candidateUserId?: number,
+  sessionId?: number,
 ) {
   const assessment = await prisma.assessment.findUnique({
     where: { id: assessmentId },
@@ -169,8 +171,10 @@ export async function computeEvaluation(
 
   const session = await prisma.assessmentSession.findFirst({
     where: {
+      invalidatedAt: null,
       assessmentId,
       candidateName,
+      ...(sessionId ? { id: sessionId } : {}),
       ...(candidateUserId ? { candidateUserId } : {}),
     },
     orderBy: { startedAt: 'desc' },
@@ -186,6 +190,7 @@ export async function computeEvaluation(
 
   const submissions = await prisma.submission.findMany({
     where: {
+      OR: [{ sessionId: null }, { session: { invalidatedAt: null } }],
       assessmentId,
       candidateName,
       ...(session?.candidateUserId ? { sessionId: session.id } : {}),

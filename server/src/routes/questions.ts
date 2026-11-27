@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseTestCaseText } from '../services/questions/test-case-import';
 import {
   questionTypes,
   validateQuestionSettings,
@@ -63,6 +64,17 @@ const questionInput = z.object({
     )
     .max(100)
     .optional(),
+});
+
+router.post('/testcases/parse', adminOnly, (req, res) => {
+  try {
+    const { text } = z.object({ text: z.string().max(256000) }).parse(req.body);
+    res.json({ testCases: parseTestCaseText(text) });
+  } catch (error) {
+    res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'Invalid test-case file' });
+  }
 });
 
 // GET /api/questions — List questions. Optional filters: ?search=&difficulty=&tag=
@@ -136,27 +148,29 @@ router.post('/', adminOnly, async (req: Request, res: Response) => {
         difficulty: difficulty || 'medium',
         questionType: questionType || 'coding',
         settings: validateQuestionSettings(questionType || 'coding', req.body.settings),
-        tags: JSON.stringify(tags || []),
-        timeLimit: timeLimit || 2,
-        memoryLimit: memoryLimit || 256000,
-        starterCodes: starterCodes
-          ? {
-              create: starterCodes.map((sc: any) => ({
-                languageId: sc.languageId,
-                languageName: sc.languageName,
-                code: sc.code,
-              })),
-            }
-          : undefined,
-        testCases: testCases
-          ? {
-              create: testCases.map((tc: any) => ({
-                input: tc.input,
-                expectedOutput: tc.expectedOutput,
-                isSample: tc.isSample || false,
-              })),
-            }
-          : undefined,
+        tags: JSON.stringify(questionType === 'mcq' ? [] : tags || []),
+        timeLimit: questionType === 'mcq' ? 2 : timeLimit || 2,
+        memoryLimit: questionType === 'mcq' ? 256000 : memoryLimit || 256000,
+        starterCodes:
+          questionType !== 'mcq' && starterCodes
+            ? {
+                create: starterCodes.map((sc: any) => ({
+                  languageId: sc.languageId,
+                  languageName: sc.languageName,
+                  code: sc.code,
+                })),
+              }
+            : undefined,
+        testCases:
+          questionType !== 'mcq' && testCases
+            ? {
+                create: testCases.map((tc: any) => ({
+                  input: tc.input,
+                  expectedOutput: tc.expectedOutput,
+                  isSample: tc.isSample || false,
+                })),
+              }
+            : undefined,
       },
       include: {
         starterCodes: true,
@@ -197,6 +211,15 @@ router.put('/:id', adminOnly, async (req: Request, res: Response) => {
         tags: tags ? JSON.stringify(tags) : undefined,
         timeLimit,
         memoryLimit,
+        ...((questionType || existing.questionType) === 'mcq'
+          ? {
+              tags: '[]',
+              timeLimit: 2,
+              memoryLimit: 256000,
+              starterCodes: { deleteMany: {} },
+              testCases: { deleteMany: {} },
+            }
+          : {}),
       },
       include: {
         starterCodes: true,
@@ -232,16 +255,27 @@ router.delete('/:id', adminOnly, async (req: Request, res: Response) => {
 router.post('/:id/testcases', adminOnly, async (req: Request, res: Response) => {
   try {
     const questionId = parseInt(req.params.id);
-    const { testCases } = req.body; // Array of { input, expectedOutput, isSample }
+    const question = await prisma.question.findUniqueOrThrow({ where: { id: questionId } });
+    if (question.questionType === 'mcq')
+      return res.status(400).json({ error: 'MCQ questions do not use test cases' });
+    const { testCases } = questionInput.pick({ testCases: true }).parse(req.body);
 
     if (Array.isArray(testCases)) {
-      const created = await prisma.testCase.createMany({
-        data: testCases.map((tc: any) => ({
-          questionId,
-          input: tc.input,
-          expectedOutput: tc.expectedOutput,
-          isSample: tc.isSample || false,
-        })),
+      if (!testCases.length) return res.status(400).json({ error: 'Add at least one test case' });
+      const created = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM "Question" WHERE id = ${questionId} FOR UPDATE`;
+        const fresh = await tx.question.findUniqueOrThrow({ where: { id: questionId } });
+        if (fresh.questionType === 'mcq') throw new Error('MCQ questions do not use test cases');
+        if ((await tx.testCase.count({ where: { questionId } })) + testCases.length > 100)
+          throw new Error('A question can contain up to 100 test cases.');
+        return tx.testCase.createMany({
+          data: testCases.map((tc: any) => ({
+            questionId,
+            input: tc.input,
+            expectedOutput: tc.expectedOutput,
+            isSample: tc.isSample || false,
+          })),
+        });
       });
       return res.status(201).json({ count: created.count });
     }
@@ -258,7 +292,9 @@ router.post('/:id/testcases', adminOnly, async (req: Request, res: Response) => 
     res.status(201).json(tc);
   } catch (error) {
     console.error('Error adding test cases:', error);
-    res.status(500).json({ error: 'Failed to add test cases' });
+    res
+      .status(400)
+      .json({ error: error instanceof Error ? error.message : 'Failed to add test cases' });
   }
 });
 
@@ -299,6 +335,9 @@ router.delete('/testcases/:tcId', adminOnly, async (req: Request, res: Response)
 router.post('/:id/starter-code', adminOnly, async (req: Request, res: Response) => {
   try {
     const questionId = parseInt(req.params.id);
+    const question = await prisma.question.findUniqueOrThrow({ where: { id: questionId } });
+    if (question.questionType === 'mcq')
+      return res.status(400).json({ error: 'MCQ questions do not use starter code' });
     const { languageId, languageName, code } = req.body;
 
     const starterCode = await prisma.starterCode.upsert({

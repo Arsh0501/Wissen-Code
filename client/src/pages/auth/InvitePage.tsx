@@ -17,7 +17,7 @@ import {
   Link2Off,
 } from 'lucide-react';
 
-// Public landing page for a shared test link: shows the test and asks only for name + email
+// New invitees create credentials; signed-in candidates reuse their existing session.
 export default function InvitePage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
@@ -26,6 +26,8 @@ export default function InvitePage() {
   const [loadError, setLoadError] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [hasAccount, setHasAccount] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -45,11 +47,22 @@ export default function InvitePage() {
   async function handleJoin(e: FormEvent) {
     e.preventDefault();
     setError('');
+    if (!user && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
     setHasAccount(false);
     setJoining(true);
     try {
-      const res = await joinInvite(token, { name, email });
-      signInWithToken(res.user, res.token);
+      const res = await joinInvite(token, { name, email, ...(!user ? { password } : {}) });
+      signInWithToken(
+        res.user,
+        res.token,
+        res.refreshToken ??
+          (user?.id === res.user.id
+            ? (localStorage.getItem('wissen-refresh-token') ?? undefined)
+            : undefined),
+      );
       navigate(`/exam/${res.assessmentId}`, { replace: true });
     } catch (err: any) {
       setHasAccount(err?.response?.data?.code === 'HAS_ACCOUNT');
@@ -137,8 +150,7 @@ export default function InvitePage() {
                 {user && (
                   <p className="text-xs text-surface-500 rounded-lg bg-surface-950 ring-1 ring-surface-800 px-3 py-2">
                     You&apos;re currently signed in as{' '}
-                    <b className="text-surface-300">{user.name}</b>. Continuing will switch to the
-                    details below.
+                    <b className="text-surface-300">{user.name}</b>.
                   </p>
                 )}
                 <div>
@@ -147,6 +159,7 @@ export default function InvitePage() {
                   </label>
                   <input
                     id="inv-name"
+                    readOnly={!!user}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="input"
@@ -163,6 +176,7 @@ export default function InvitePage() {
                   </label>
                   <input
                     id="inv-email"
+                    readOnly={!!user}
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -172,11 +186,54 @@ export default function InvitePage() {
                     maxLength={200}
                   />
                   <p className="text-xs text-surface-500 mt-1">
-                    Use your invited email. Returning to this assessment requires its existing
-                    browser session.
+                    Use your invited email. Already have credentials? Sign in to continue.
                   </p>
                 </div>
-
+                {!user && (
+                  <div className="rounded-xl border border-surface-700 p-4 space-y-4">
+                    <h2 className="text-sm font-semibold text-surface-100">Create your login</h2>
+                    <label className="label block" htmlFor="inv-password">
+                      Password
+                      <input
+                        id="inv-password"
+                        type="password"
+                        className="input mt-2"
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                        maxLength={72}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </label>
+                    <label className="label block" htmlFor="inv-confirm-password">
+                      Confirm password
+                      <input
+                        id="inv-confirm-password"
+                        type="password"
+                        className="input mt-2"
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                        maxLength={72}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                      />
+                    </label>
+                    <p className="text-xs text-surface-500">
+                      Use 8–72 characters. Keep this password to sign in again.
+                    </p>
+                    <button
+                      type="button"
+                      className="text-sm font-semibold text-primary-600 hover:underline"
+                      onClick={() =>
+                        navigate(`/login?next=${encodeURIComponent(`/invite/${token}`)}`)
+                      }
+                    >
+                      Already have an account? Sign in
+                    </button>
+                  </div>
+                )}
                 {error && (
                   <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-700">
                     {error}

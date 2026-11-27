@@ -71,6 +71,7 @@ router.get('/status/:assessmentId', async (req: Request, res: Response) => {
 
     const session = await prisma.assessmentSession.findFirst({
       where: {
+        invalidatedAt: null,
         assessmentId,
         candidateName,
         ...(req.user?.role === 'candidate' ? { candidateUserId: req.user.id } : {}),
@@ -115,6 +116,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
+    if (session.invalidatedAt)
+      return res.status(409).json({ error: 'This attempt was reset by an administrator' });
     if (
       req.user!.role !== 'admin' &&
       (session.candidateUserId
@@ -145,6 +148,7 @@ async function getWritableSession(req: Request, res: Response) {
       assessmentId: true,
       candidateName: true,
       candidateUserId: true,
+      invalidatedAt: true,
       durationMinutes: true,
       startedAt: true,
       finishedAt: true,
@@ -168,6 +172,10 @@ async function getWritableSession(req: Request, res: Response) {
   }
   if (!(await canAccessAssessment(req, session.assessmentId))) {
     res.status(403).json({ error: 'Assessment access denied' });
+    return null;
+  }
+  if (session.invalidatedAt) {
+    res.status(409).json({ error: 'This attempt was reset by an administrator' });
     return null;
   }
   if (session.finishedAt) {
@@ -242,13 +250,8 @@ router.put('/:id/answer', async (req: Request, res: Response) => {
     await checkDraft(session, req.body);
     const draft = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "AssessmentSession" WHERE id = ${session.id} FOR UPDATE`;
-      if (
-        (
-          await tx.assessmentSession.findUniqueOrThrow({
-            where: { id: session.id },
-          })
-        ).finishedAt
-      )
+      const current = await tx.assessmentSession.findUniqueOrThrow({ where: { id: session.id } });
+      if (current.finishedAt || current.invalidatedAt)
         throw new WorkflowError('Session already submitted', 409);
       return tx.draftAnswer.upsert({
         where: { sessionId_questionId: { sessionId: session.id, questionId } },
@@ -281,13 +284,8 @@ router.post('/:id/save-all-drafts', async (req: Request, res: Response) => {
     for (const draft of drafts) await checkDraft(session, draft);
     await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "AssessmentSession" WHERE id = ${session.id} FOR UPDATE`;
-      if (
-        (
-          await tx.assessmentSession.findUniqueOrThrow({
-            where: { id: session.id },
-          })
-        ).finishedAt
-      )
+      const current = await tx.assessmentSession.findUniqueOrThrow({ where: { id: session.id } });
+      if (current.finishedAt || current.invalidatedAt)
         throw new WorkflowError('Session already submitted', 409);
       for (const d of drafts)
         await tx.draftAnswer.upsert({
@@ -341,7 +339,7 @@ router.post('/:id/tab-switch', async (req: Request, res: Response) => {
     if (count >= MAX_TAB_SWITCHES) {
       if (asynchronousGrading()) {
         await prisma.assessmentSession.updateMany({
-          where: { id: session.id, finishedAt: null },
+          where: { id: session.id, finishedAt: null, invalidatedAt: null },
           data: { finishedAt: new Date() },
         });
         await enqueueGrading(session.id);
@@ -399,11 +397,13 @@ export async function finalizeSession(sessionId: number): Promise<FinalizeResult
   const existing = await prisma.assessmentSession.findUnique({
     where: { id: sessionId },
   });
+  if (existing?.invalidatedAt) return { status: 'already-finished' };
   if (!existing) return { status: 'not-found' };
   if (existing.gradingStatus === 'completed') return { status: 'already-finished' };
   const claimed = await prisma.assessmentSession.updateMany({
     where: {
       id: sessionId,
+      invalidatedAt: null,
       OR: [
         { gradingStatus: { in: ['pending', 'failed'] } },
         {
@@ -425,6 +425,7 @@ export async function finalizeSession(sessionId: number): Promise<FinalizeResult
       include: { drafts: true },
     });
     if (!session) return { status: 'not-found' };
+    if (session.invalidatedAt) return { status: 'already-finished' };
 
     // Grade each draft answer against ALL test cases (sample + hidden)
     for (const draft of session.drafts) {
@@ -434,10 +435,11 @@ export async function finalizeSession(sessionId: number): Promise<FinalizeResult
         draft,
         session.id,
         async () => {
-          await prisma.assessmentSession.updateMany({
-            where: { id: session.id, gradingStatus: 'grading' },
+          const heartbeat = await prisma.assessmentSession.updateMany({
+            where: { id: session.id, gradingStatus: 'grading', invalidatedAt: null },
             data: { gradingStartedAt: new Date() },
           });
+          if (!heartbeat.count) throw new WorkflowError('Attempt was invalidated', 409);
         },
       );
     }
@@ -446,11 +448,13 @@ export async function finalizeSession(sessionId: number): Promise<FinalizeResult
       session.assessmentId,
       session.candidateName,
       session.candidateUserId ?? undefined,
+      session.id,
     );
-    await prisma.assessmentSession.update({
-      where: { id: sessionId },
+    const completed = await prisma.assessmentSession.updateMany({
+      where: { id: sessionId, invalidatedAt: null },
       data: { gradingStatus: 'completed' },
     });
+    if (!completed.count) return { status: 'already-finished' };
     void queueWebhook('assessment.completed', session.id).catch((error) =>
       console.error('Webhook enqueue failed:', error.message),
     );
@@ -466,8 +470,10 @@ export async function finalizeSession(sessionId: number): Promise<FinalizeResult
       },
     };
   } catch (error) {
-    await prisma.assessmentSession.update({
-      where: { id: sessionId },
+    if ((await prisma.assessmentSession.findUnique({ where: { id: sessionId } }))?.invalidatedAt)
+      return { status: 'already-finished' };
+    await prisma.assessmentSession.updateMany({
+      where: { id: sessionId, invalidatedAt: null },
       data: { gradingStatus: 'failed' },
     });
     throw error;
@@ -481,6 +487,11 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
       where: { id: Number(req.params.id) },
     });
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.invalidatedAt)
+      return res.status(409).json({
+        error:
+          'This attempt was reset by an administrator. Return to the assessment to start again.',
+      });
     if (
       session.candidateUserId
         ? session.candidateUserId !== req.user!.id
@@ -496,7 +507,7 @@ router.post('/:id/submit', async (req: Request, res: Response) => {
           message: 'Session already graded',
         });
       await prisma.assessmentSession.updateMany({
-        where: { id: session.id, finishedAt: null },
+        where: { id: session.id, finishedAt: null, invalidatedAt: null },
         data: { finishedAt: new Date() },
       });
       await enqueueGrading(session.id);

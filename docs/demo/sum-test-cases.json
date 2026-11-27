@@ -1,0 +1,27 @@
+[
+  {
+    "input": "2 3",
+    "expectedOutput": "5",
+    "isSample": true
+  },
+  {
+    "input": "-4 9",
+    "expectedOutput": "5",
+    "isSample": true
+  },
+  {
+    "input": "0 0",
+    "expectedOutput": "0",
+    "isSample": false
+  },
+  {
+    "input": "-7 -8",
+    "expectedOutput": "-15",
+    "isSample": false
+  },
+  {
+    "input": "1000000 -1000000",
+    "expectedOutput": "0",
+    "isSample": false
+  }
+]

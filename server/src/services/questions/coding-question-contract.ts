@@ -1,77 +1,7 @@
 import { z } from 'zod';
 import type { executeCode } from '../execution/judge0';
-import { generatedQuestionSchema, questionContentSchema } from './workflow-schemas';
+import { questionContentSchema } from './workflow-schemas';
 import { diagnoseQuestionExecution, QuestionExecution } from './question-validation-feedback';
-
-export const CORE_LOGIC_INSTRUCTIONS = `For every coding question, return starterContractVersion: 2, inputFormat, outputFormat, constraints, and functionSignature (the exact Python def line, including its colon). The candidate must implement ONLY the core algorithm inside that function. For Python and every requested language, starter code must be a complete runnable program: a named core function containing a TODO placeholder, all input parsing, a call to the core function, and exact output formatting. Do not leave input/output handling as a TODO and do not include the algorithm or reference solution in starter code. Keep all driver code outside the core function. Explain function parameters and return value, input format, output format, constraints, and sample input/output in the statement. Every sample and hidden test must use the documented format. The Python reference solution must be a full runnable program with the same function signature and driver. Use the same core function name in every language. Inside its body, surround the editable implementation with full-line BEGIN CORE LOGIC and END CORE LOGIC comments (# for Python, // for JavaScript, Java and C++), with a TODO and a type-correct placeholder return between them. Put the BEGIN marker immediately after the function declaration. No TODO or unfinished placeholder is allowed outside that region. All input parsing and output formatting must be fully implemented in the driver outside the core function, including arrays, matrices, booleans and empty values. Java must use public class Main with a main method; C++ must have main; JavaScript must run in Node.js. The Python reference solution must define the exact same core function with a self-contained implementation (no custom helpers outside that function), and contain the imports needed by that implementation. Include those imports in the starter too. Do not use input(), print(), stdin, stdout or their equivalents inside the editable core. For debugging questions, put the intended bug inside the core function and mark its repair with TODO; keep the driver correct.`;
-
-export function prepareGeneratedQuestion(
-  raw: unknown,
-  requestedLanguages: { id: number; name: string }[] = [{ id: 71, name: 'Python' }],
-) {
-  const question = generatedQuestionSchema.parse(raw);
-  const requestedIds = new Set([...requestedLanguages.map((language) => language.id), 71]);
-  const starters = question.starterCodes.filter(
-    (starter) => starter.languageId !== 71 && requestedIds.has(starter.languageId),
-  );
-  if (new Set(starters.map((starter) => starter.languageId)).size !== starters.length)
-    throw new Error('Provide exactly one starter per requested language.');
-  starters.push({ languageId: 71, languageName: 'Python', code: question.starterCodePython });
-  for (const language of requestedLanguages) {
-    const starter = starters.find((item) => item.languageId === language.id);
-    if (!starter?.code.trim() || !/\bTODO\b/.test(starter.code))
-      throw new Error(
-        `Generated ${language.name} starter must contain a core-logic TODO and a complete input/output driver. Retry generation.`,
-      );
-    const drivers: Record<number, [RegExp, RegExp]> = {
-      63: [/readFileSync|readline/, /console\.log|stdout/],
-      62: [/System\.in/, /System\.out/],
-      54: [/\bcin\b|getline|scanf/, /\bcout\b|printf/],
-    };
-    const driver = drivers[language.id];
-    if (driver && !driver.every((pattern) => pattern.test(starter.code)))
-      throw new Error(
-        `Generated ${language.name} starter is missing its input/output driver. Retry generation.`,
-      );
-  }
-  const languages = [
-    ...new Map(
-      [...requestedLanguages, { id: 71, name: 'Python' }].map((language) => [
-        language.id,
-        language,
-      ]),
-    ).values(),
-  ];
-  for (const language of languages) {
-    const starter = starters.find((item) => item.languageId === language.id)!;
-    validateCoreLogicStarter(starter.code, language.id, question.functionSignature);
-  }
-  buildPythonStarterVerification(
-    question.starterCodePython,
-    question.expectedSolutionPython,
-    question.functionSignature,
-  );
-  if (
-    !question.testCases.some((test) => test.isSample) ||
-    !question.testCases.some((test) => !test.isSample)
-  )
-    throw new Error('Generated questions need sample and hidden tests. Retry generation.');
-  let statement = question.statement;
-  const sections = [
-    [
-      'Function contract',
-      `Implement \`${question.functionSignature}\`. Only implement the function body between BEGIN CORE LOGIC and END CORE LOGIC. Parameters are already parsed; return the result. The supplied driver reads input, calls your function, and formats output. Do not add input/output code to the function.`,
-    ],
-    ['Input format', question.inputFormat],
-    ['Output format', question.outputFormat],
-    ['Constraints', question.constraints],
-  ];
-  for (const [title, body] of sections) {
-    if (!new RegExp(`^#{1,6}\\s+${title}\\b`, 'im').test(statement))
-      statement += `\n\n## ${title}\n${body}`;
-  }
-  return { ...question, starterContractVersion: 2 as const, statement, starterCodes: starters };
-}
 
 function coreRegion(code: string) {
   const starts = [...code.matchAll(/^([ \t]*)(?:#|\/\/) BEGIN CORE LOGIC[ \t]*\r?$/gm)];

@@ -111,8 +111,8 @@ export default function ShareLinksModal({
 
         <div className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
           <p className="text-sm text-surface-400">
-            Anyone with a link can take this test. They enter their name and email and start
-            straight away. No account or password needed.
+            New candidates create a password when joining. Returning candidates sign in with their
+            existing credentials.
           </p>
 
           {assessment.status !== 'published' && (

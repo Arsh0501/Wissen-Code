@@ -1,3 +1,4 @@
+import { codingWizardContentSchema } from './coding-wizard-schemas';
 import { z } from 'zod';
 export const questionContentSchema = z.object({
   title: z.string().min(3).max(200),
@@ -17,6 +18,8 @@ export const questionContentSchema = z.object({
         input: z.string(),
         expectedOutput: z.string(),
         isSample: z.boolean(),
+        isEdgeCase: z.boolean().optional(),
+        description: z.string().max(500).optional(),
       }),
     )
     .min(2)
@@ -33,14 +36,6 @@ export const questionContentSchema = z.object({
     .default([]),
   expectedSolutionPython: z.string().min(1),
   solutionExplanation: z.string().max(20000).default(''),
-});
-export const generatedQuestionSchema = questionContentSchema.extend({
-  starterContractVersion: z.literal(2),
-  inputFormat: z.string().trim().min(1).max(5000),
-  outputFormat: z.string().trim().min(1).max(5000),
-  functionSignature: z.string().trim().min(1).max(1000),
-  constraints: z.string().trim().min(1).max(5000),
-  starterCodePython: z.string().min(1),
 });
 export const mcqContentSchema = questionContentSchema
   .pick({
@@ -76,13 +71,17 @@ export const mcqContentSchema = questionContentSchema
         message: 'Exactly one correct option must reference an existing option.',
       });
   });
-export const draftContentSchema = z.union([questionContentSchema, mcqContentSchema]);
+export const draftContentSchema = z.union([
+  codingWizardContentSchema,
+  questionContentSchema,
+  mcqContentSchema,
+]);
 export const generationSchema = z.object({
   experienceLevel: z.string().trim().max(500).optional(),
   topic: z.string().trim().min(2).max(500).optional(),
   topics: z.array(z.string().trim().min(1).max(100)).min(1).max(20).optional(),
   difficulty: z.enum(['easy', 'medium', 'hard']),
-  questionType: z.enum(['coding', 'debugging', 'mcq']),
+  questionType: z.literal('mcq'),
   count: z.number().int().min(1).max(10),
   requiredSkills: z.array(z.string().trim().min(1)).max(20).default([]),
   starterLanguages: z

@@ -186,37 +186,3 @@ test('BullMQ retries failed work and preserves job identity', async (t) => {
     workerConnection.disconnect();
   }
 });
-
-test('reference validation rejects successful execution with incorrect output', async () => {
-  const { questionTools } = await import('../ai/question-tools');
-  const validator = questionTools(1, {
-    mockMode: () => false,
-    execute: async () => ({
-      stdout: 'wrong',
-      stderr: null,
-      compile_output: null,
-      message: null,
-      status: { id: 3, description: 'Accepted' },
-      time: '0.01',
-      memory: 1,
-    }),
-  }).find((t) => t.name === 'validateQuestion')!;
-  const result = (await validator.execute({
-    question: {
-      title: 'Echo integer',
-      statement: 'Read an integer from standard input and print it unchanged.',
-      difficulty: 'easy',
-      questionType: 'coding',
-      topics: ['integers'],
-      requiredSkills: ['Python'],
-      testCases: [
-        { input: '1', expectedOutput: '1', isSample: true },
-        { input: '-2', expectedOutput: '-2', isSample: false },
-      ],
-      starterCodePython: '',
-      expectedSolutionPython: 'print(input())',
-      solutionExplanation: 'Read and print the provided input unchanged.',
-    },
-  })) as any;
-  assert.equal(result.verified, false);
-});

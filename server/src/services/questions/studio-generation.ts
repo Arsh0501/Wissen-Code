@@ -2,17 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import prisma from '../../database/prisma';
 import { structuredAI, WorkflowError } from '../ai/structured-ai';
-import {
-  generationSchema,
-  generatedQuestionSchema,
-  mcqContentSchema,
-  draftContentSchema,
-} from './workflow-schemas';
-import { CORE_LOGIC_INSTRUCTIONS, prepareGeneratedQuestion } from './coding-question-contract';
-import {
-  CODING_STARTER_LAYOUT_INSTRUCTIONS,
-  normalizeGeneratedCodingStarters,
-} from './normalize-coding-starters';
+import { generationSchema, mcqContentSchema, draftContentSchema } from './workflow-schemas';
+
 import { isGeneratedSchemaError, generationErrorHint } from '../../ai/generation-errors';
 
 export function canonicalJSON(value: unknown): string {
@@ -93,14 +84,7 @@ export async function generateStudioDrafts(raw: unknown, authorId: number, ai = 
       ...bank.map((question) => question.title),
       ...(await savedDrafts()).map((draft) => (draft.content as any).title),
     ];
-    const languages = input.starterLanguages?.length
-      ? input.starterLanguages
-      : [{ id: 71, name: 'Python' }];
-    const schema = z.object({
-      questions: z
-        .array(input.questionType === 'mcq' ? mcqContentSchema : generatedQuestionSchema)
-        .length(1),
-    });
+    const schema = z.object({ questions: z.array(mcqContentSchema).length(1) });
     for (let index = savedIds.length; index < input.count; index++) {
       let prepared: z.infer<typeof draftContentSchema> | undefined;
       const assignedTopic = topics[index % topics.length];
@@ -111,25 +95,16 @@ export async function generateStudioDrafts(raw: unknown, authorId: number, ai = 
             await ai(
               'generated_questions',
               schema,
-              `Generate exactly one original, unambiguous question matching the requested type and difficulty. Do not generate answer explanations for any question type; set solutionExplanation to an empty string. Avoid these existing titles: ${previousTitles.slice(-15).join(', ')}. ${input.questionType === 'mcq' ? 'Generate a single-choice MCQ with 2 to 6 plausible distinct options, exactly one correctOptionId without an answer explanation. Do not generate code or test cases.' : 'Include sample and hidden edge cases, exact stdin/stdout specifications, a correct Python reference solution without a prose answer explanation. Provide starterCodes for all requested languages:'} ${input.questionType === 'mcq' ? '' : languages.map((language) => `${language.name} (${language.id})`).join(', ')}. ${input.questionType === 'mcq' ? '' : CORE_LOGIC_INSTRUCTIONS}${input.questionType === 'coding' ? ` ${CODING_STARTER_LAYOUT_INSTRUCTIONS}` : ''}${previousFailure ? ` The previous attempt was rejected: ${previousFailure}. Correct that issue in this attempt.` : ''}`,
+              `Generate exactly one original single-choice MCQ matching the topic and difficulty, with 2 to 6 distinct plausible options and exactly one correctOptionId. Do not generate code, test cases, solution explanations or algorithms. Set solutionExplanation to an empty string. Avoid these titles: ${previousTitles.slice(-15).join(', ')}. ${previousFailure ? `Correct the previous response: ${previousFailure}` : ''}`,
               {
                 ...input,
                 topic: assignedTopic,
                 topics: [assignedTopic],
                 count: 1,
-                requestedLanguages: input.questionType === 'mcq' ? [] : languages,
               },
             ),
           );
-          prepared =
-            input.questionType === 'mcq'
-              ? mcqContentSchema.parse(response.questions[0])
-              : prepareGeneratedQuestion(
-                  input.questionType === 'coding'
-                    ? normalizeGeneratedCodingStarters(response.questions[0])
-                    : response.questions[0],
-                  languages,
-                );
+          prepared = mcqContentSchema.parse(response.questions[0]);
           prepared.solutionExplanation = '';
           prepared.topics = [assignedTopic];
           if (
@@ -172,7 +147,11 @@ export async function generateStudioDrafts(raw: unknown, authorId: number, ai = 
               where: { id: progress.draftIds[index] },
             });
           const created = await tx.aIQuestionDraft.create({
-            data: { authorId, content: prepared! },
+            data: {
+              authorId,
+              content: prepared!,
+              requiresReferenceReview: false,
+            },
           });
           await tx.aIJob.update({
             where: { id: requestId },

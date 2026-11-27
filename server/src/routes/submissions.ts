@@ -29,6 +29,7 @@ router.get('/:assessmentId/:candidateName', async (req: Request, res: Response) 
 
     const session = await prisma.assessmentSession.findFirst({
       where: {
+        invalidatedAt: null,
         assessmentId,
         candidateName,
         ...(req.user?.role === 'candidate' ? { candidateUserId: req.user.id } : {}),

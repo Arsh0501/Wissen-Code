@@ -33,7 +33,7 @@ export async function runAgent<T extends z.ZodType>(
   const messages: OpenAI.Responses.ResponseInputItem[] = [
     { role: 'user', content: JSON.stringify(input) },
   ];
-  const generatingQuestions = name === 'generated_questions';
+  const generatingQuestions = name === 'generated_questions' || name.startsWith('coding_wizard_');
   let outputBudget = generatingQuestions
     ? questionOutputBudget(input)
     : config.provider === 'groq'

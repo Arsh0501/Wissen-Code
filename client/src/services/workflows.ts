@@ -6,6 +6,8 @@ export interface StarterCodeItem {
 }
 
 export interface QuestionContent {
+  wizardVersion?: 1;
+  referenceSolution?: { languageId: number; code: string } | null;
   title: string;
   statement: string;
   inputFormat?: string;
@@ -17,7 +19,13 @@ export interface QuestionContent {
   questionType: 'coding' | 'debugging';
   topics: string[];
   requiredSkills: string[];
-  testCases: { input: string; expectedOutput: string; isSample: boolean }[];
+  testCases: {
+    input: string;
+    expectedOutput: string;
+    isSample: boolean;
+    isEdgeCase?: boolean;
+    description?: string;
+  }[];
   starterCodePython: string;
   starterCodes?: StarterCodeItem[];
   expectedSolutionPython: string;
@@ -35,6 +43,17 @@ export interface MCQContent {
   solutionExplanation: string;
 }
 export interface QuestionDraft {
+  requiresReferenceReview?: boolean;
+  referenceVerified?: boolean;
+  referenceVerification?: {
+    revision: number;
+    verifiedAt: string;
+    verifiedBy: number;
+    sourceNote: string;
+    trustedTestsPassed: number;
+    calculatedTests: number;
+    executions?: QuestionExecution[];
+  } | null;
   id: number;
   content: QuestionContent | MCQContent;
   revision: number;
